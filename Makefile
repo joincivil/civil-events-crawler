@@ -58,6 +58,8 @@ lint: ## Runs linting
 		--enable=varcheck \
 		--enable=structcheck \
 		--enable=unconvert \
+		--skip=generated \
+		--skip=go\
 		./...
 
 .PHONY: generate-contracts

@@ -1,5 +1,5 @@
 // Package model contains the general data models for the Civil crawler.
-package model
+package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 // CivilEvent represents a single Civil smart contract event log item.
 // Represents any event type from the sol/abi generated code and creates
