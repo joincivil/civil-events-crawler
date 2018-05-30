@@ -2,205 +2,141 @@
 package model_test
 
 import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/tcr"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"math/big"
+	"reflect"
 	"testing"
-	"time"
 )
 
-var testPayloadMap = &map[string]*model.CivilEventPayloadValue{
-	"intfield":         &model.CivilEventPayloadValue{Value: 125},
-	"intfieldempty":    &model.CivilEventPayloadValue{Value: 0},
-	"stringfield":      &model.CivilEventPayloadValue{Value: "this is a str"},
-	"stringfieldempty": &model.CivilEventPayloadValue{Value: ""},
-	"floatfield":       &model.CivilEventPayloadValue{Value: float64(5.4)},
-	"floatfieldempty":  &model.CivilEventPayloadValue{Value: float64(0.0)},
-	"boolfieldfalse":   &model.CivilEventPayloadValue{Value: false},
-	"boolfieldtrue":    &model.CivilEventPayloadValue{Value: true},
-}
-
-func stringInSlice(slice []string, str string) bool {
-	for _, b := range slice {
-		if b == str {
-			return true
-		}
+var (
+	testAddress = "0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d"
+	testEvent   = &tcr.CivilTCRContractApplication{
+		ListingAddress: common.HexToAddress(testAddress),
+		Deposit:        big.NewInt(1000),
+		AppEndDate:     big.NewInt(1653860896),
+		Data:           "DATA",
+		Applicant:      common.HexToAddress(testAddress),
+		Raw: types.Log{
+			Address:     common.HexToAddress(testAddress),
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8888888,
+		},
 	}
-	return false
-}
+)
 
 func setupCivilEvent() *model.CivilEvent {
-	now := time.Now()
-	tsfloat := float64(now.UnixNano()) / float64(1000*1000*1000)
-	ts := int(tsfloat)
-
-	event := &model.CivilEvent{}
-	event.EventType = "SomeCivilEvent"
-	event.Timestamp = ts
-
-	payload := &model.CivilEventPayload{}
-	payload.PayloadMap = testPayloadMap
-	event.Payload = payload
+	event := model.NewCivilEvent("_Application", testEvent)
 	return event
 }
 
 func TestCivilEventSetup(t *testing.T) {
 	event := setupCivilEvent()
 	if event == nil {
-		t.Error("Civil event was not initialized correctly")
+		t.Errorf("Civil event was not initialized correctly")
+	}
+	if event.EventType != "_Application" {
+		t.Errorf("EventType was not init correctly: %v", event.EventType)
+	}
+	if event.Timestamp <= 0 {
+		t.Errorf("Timestamp was not init correctly: %v", event.Timestamp)
+	}
+	if event.Payload == nil {
+		t.Errorf("Payload was not init correctly: %v", event.Payload)
 	}
 }
 
-func TestCivilEventPayloadKeys(t *testing.T) {
+func TestCivilEventPayload(t *testing.T) {
 	event := setupCivilEvent()
-	keys := event.Payload.Keys()
-	if keys == nil {
-		t.Error("Keys results is empty")
-	}
-	if len(keys) != len(*testPayloadMap) {
-		t.Error("Keys results is correct length")
-	}
-	for k, _ := range *testPayloadMap {
-		if !stringInSlice(keys, k) {
-			t.Errorf("%v not found in list of keys", k)
-		}
+
+	datafields := event.Payload.Keys()
+	if len(datafields) != 6 {
+		t.Errorf("Payload does not have all the fields: %v", datafields)
 	}
 }
 
 func TestCivilEventPayloadValues(t *testing.T) {
 	event := setupCivilEvent()
-	values := event.Payload.Values()
-	if values == nil {
-		t.Error("Values results is empty")
-	}
-	if len(values) != len(*testPayloadMap) {
-		t.Error("Values results is correct length")
-	}
-	for _, v := range values {
-		hasEqual := false
-		for _, val := range *testPayloadMap {
-			if v.Value == val.Value {
-				hasEqual = true
-				break
-			}
-		}
-		if !hasEqual {
-			t.Errorf("%v is not found in list of values", v.Value)
-		}
-	}
-}
 
-func TestCivilEventPayloadValueFunc(t *testing.T) {
-	event := setupCivilEvent()
-	for k, v := range *testPayloadMap {
-		value, exists := event.Payload.Value(k)
-		if !exists || value.Value != v.Value {
-			t.Errorf("%v, %v is not correct", k, v)
-		}
-	}
-	value, exists := event.Payload.Value("randomkeynotinmap")
-	if exists {
-		t.Error("Check for nonexistent key should return false for exists")
-	}
-	if value != nil {
-		t.Error("Value should be nil for nonexistent key")
-	}
-}
-
-func TestCivilEventPayloadValueBool(t *testing.T) {
-	event := setupCivilEvent()
-	val, exists := event.Payload.Value("boolfieldtrue")
-	if !exists {
-		t.Error("Bool value does not exist, should exist")
-	}
-	boolval, ok := val.ToBool()
-	if !ok {
-		t.Error("Bool type assertion did not work, should have worked")
-	}
-	if !boolval {
-		t.Error("Bool value should be true, not false")
-	}
-	intval, ok := val.ToInt()
+	_, ok := event.Payload.Value("NonexistentKey")
 	if ok {
-		t.Error("Int type assertion should not have not worked for bool value")
+		t.Errorf("Non-existent key should not return value")
 	}
-	if intval != 0 {
-		t.Error("Int value should be 0 since value is bool")
-	}
-}
 
-func TestCivilEventPayloadValueInt(t *testing.T) {
-	event := setupCivilEvent()
-	intFieldName := "intfield"
-	fieldVal := (*testPayloadMap)[intFieldName]
-	correctVal := fieldVal.Value.(int)
-
-	val, exists := event.Payload.Value(intFieldName)
-	if !exists {
-		t.Error("Int value does not exist, should exist")
-	}
-	intval, ok := val.ToInt()
+	value, ok := event.Payload.Value("ListingAddress")
 	if !ok {
-		t.Error("Int type assertion did not work, should have worked")
+		t.Errorf("ListingAddress not found")
 	}
-	if intval != correctVal {
-		t.Error("Int values does not match test data")
-	}
-	boolval, ok := val.ToBool()
-	if ok {
-		t.Error("Bool type assertion should not have not worked for int value")
-	}
-	if boolval {
-		t.Error("Bool value should be false since value is int ")
-	}
-}
-
-func TestCivilEventPayloadValueFloat64(t *testing.T) {
-	event := setupCivilEvent()
-	floatFieldName := "floatfield"
-	fieldVal := (*testPayloadMap)[floatFieldName]
-	correctVal := fieldVal.Value.(float64)
-
-	val, exists := event.Payload.Value(floatFieldName)
-	if !exists {
-		t.Error("Float value does not exist, should exist")
-	}
-	floatval, ok := val.ToFloat64()
+	val := value.Val()
+	_, ok = val.(common.Address)
 	if !ok {
-		t.Error("Float type assertion did not work, should have worked")
+		t.Errorf("ListingAddress Val() call should have accepted type assert")
 	}
-	if floatval != correctVal {
-		t.Error("Float value does not match test data")
-	}
-	intval, ok := val.ToInt()
-	if ok {
-		t.Error("Int type assertion should not have not worked for float value")
-	}
-	if intval != 0 {
-		t.Error("Int value should be 0 since value is float")
-	}
-}
 
-func TestCivilEventPayloadValueString(t *testing.T) {
-	event := setupCivilEvent()
-	stringFieldName := "stringfield"
-	fieldVal := (*testPayloadMap)[stringFieldName]
-	correctVal := fieldVal.Value.(string)
-
-	val, exists := event.Payload.Value(stringFieldName)
-	if !exists {
-		t.Error("String value does not exist, should exist")
-	}
-	strval, ok := val.ToString()
+	address, ok := value.Address()
 	if !ok {
-		t.Error("String type assertion did not work, should have worked")
+		t.Errorf("ListingAddress cannot be the type common.Address")
 	}
-	if strval != correctVal {
-		t.Error("String values does not match test data")
+	testAddress := common.HexToAddress(testAddress)
+	if address.Hex() != testAddress.Hex() {
+		t.Errorf("ListingAddress not == original: %v", address.Hex())
 	}
-	intval, ok := val.ToInt()
+	if value.Kind() != reflect.Array {
+		t.Errorf("ListingAddress not an array kind: %v", value.Kind())
+	}
+	_, ok = value.BigInt()
 	if ok {
-		t.Error("Int type assertion should not have not worked for string value")
+		t.Errorf("ListingAddress should fail on type assert to big.Int")
 	}
-	if intval != 0 {
-		t.Error("Int value should be 0 since value is string")
+	_, ok = value.Int64()
+	if ok {
+		t.Errorf("ListingAddress should fail on type assert to int64")
+	}
+
+	value, ok = event.Payload.Value("Deposit")
+	if !ok {
+		t.Errorf("Deposit not found")
+	}
+	depositInt, ok := value.BigInt()
+	if !ok {
+		t.Errorf("Deposit cannot be the type big.Int")
+	}
+	if depositInt.Int64() != big.NewInt(1000).Int64() {
+		t.Errorf("Deposit not == original: %v", depositInt.Int64())
+	}
+	depositInt64, ok := value.Int64()
+	if !ok {
+		t.Errorf("Deposit cannot be the type int64")
+	}
+	if depositInt64 != int64(1000) {
+		t.Errorf("Deposit not == original: %v", depositInt64)
+	}
+	if value.Kind() != reflect.Ptr {
+		t.Errorf("Deposit not an ptr kind: %v", value.Kind())
+	}
+
+	value, ok = event.Payload.Value("Data")
+	if !ok {
+		t.Errorf("Data not found")
+	}
+
+	dataStr, ok := value.String()
+	if !ok {
+		t.Errorf("Data cannot be the type string")
+	}
+	if dataStr != "DATA" {
+		t.Errorf("Data not == original: %v", dataStr)
+	}
+
+	value, ok = event.Payload.Value("Raw")
+	if !ok {
+		t.Errorf("Raw not found")
+	}
+	_, ok = value.Log()
+	if !ok {
+		t.Errorf("Raw log cannot be the type types.Log")
 	}
 }
