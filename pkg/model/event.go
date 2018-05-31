@@ -1,12 +1,32 @@
 // Package model contains the general data models for the Civil crawler.
 package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
+import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/fatih/structs"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
+	"math/big"
+	"reflect"
+)
+
+// NewCivilEvent is a convenience function to create a new CivilEvent
+func NewCivilEvent(eventType string, eventData interface{}) *CivilEvent {
+	event := &CivilEvent{}
+	event.EventType = eventType
+	event.Timestamp = utils.CurrentEpochSecsInInt()
+	event.Payload = &CivilEventPayload{
+		data: structs.New(eventData),
+	}
+	return event
+}
+
 // CivilEvent represents a single Civil smart contract event log item.
 // Represents any event type from the sol/abi generated code and creates
-// a single type to handle.
+// a single type to handle in the listener/retriever.
 type CivilEvent struct {
 
-	// EventType is the type of event. i.e. challenges, appeals, etc
+	// EventType is the type of event. i.e. _Challenge, _Appeal, _Application.
 	EventType string
 
 	// Timestamp is the time this event was created.
@@ -16,67 +36,82 @@ type CivilEvent struct {
 	Payload *CivilEventPayload
 }
 
-// CivilEventPayload represents the payload of the event.  This is derived
-// from the data in the generated event type from the sol/abi code.
+// CivilEventPayload represents the data from a Civil contract event
 type CivilEventPayload struct {
 
-	// PayloadMap stores the field to CivilPayloadValues
-	PayloadMap *map[string]*CivilEventPayloadValue
+	// data is a Struct from the structs package. Just makes it easier
+	// to handle access for any kind of event struct.
+	data *structs.Struct
 }
 
-// Keys returns all the field/key names in the payload
+// Keys retrieves all the available key names in the event payload
 func (p *CivilEventPayload) Keys() []string {
-	keys := make([]string, len(*p.PayloadMap))
-	index := 0
-	for k := range *p.PayloadMap {
-		keys[index] = k
-		index++
+	keyFields := p.data.Fields()
+	keys := make([]string, len(keyFields))
+	for ind, field := range keyFields {
+		keys[ind] = field.Name()
 	}
 	return keys
 }
 
-// Values returns all the values in the payload
-func (p *CivilEventPayload) Values() []*CivilEventPayloadValue {
-	values := make([]*CivilEventPayloadValue, len(*p.PayloadMap))
-	index := 0
-	for _, v := range *p.PayloadMap {
-		values[index] = v
-		index++
+// Value returns the CivilEventPayloadValue of the given key
+func (p *CivilEventPayload) Value(key string) (*CivilEventPayloadValue, bool) {
+	field, ok := p.data.FieldOk(key)
+	if !ok {
+		return nil, ok
 	}
-	return values
+	return &CivilEventPayloadValue{value: field}, ok
 }
 
-// Value returns the value of the key.
-func (p *CivilEventPayload) Value(key string) (val *CivilEventPayloadValue, exists bool) {
-	val, exists = (*p.PayloadMap)[key]
-	return val, exists
-}
-
-// CivilEventPayloadValue represents a value for a payload key.
+// CivilEventPayloadValue represents a single value for a key in the payload
 type CivilEventPayloadValue struct {
-	Value interface{}
+	value *structs.Field
 }
 
-// ToBool attempts to return the value as a bool
-func (v *CivilEventPayloadValue) ToBool() (val bool, ok bool) {
-	val, ok = v.Value.(bool)
+// Kind returns the value's basic type as described with reflect.Kind
+func (v *CivilEventPayloadValue) Kind() reflect.Kind {
+	return v.value.Kind()
+}
+
+// Val returns the value as an unknown type interface{}
+func (v *CivilEventPayloadValue) Val() interface{} {
+	return v.value.Value()
+}
+
+// String returns the value as a string
+// Returns bool as false if unable to assert value as type string
+func (v *CivilEventPayloadValue) String() (string, bool) {
+	val, ok := v.value.Value().(string)
 	return val, ok
 }
 
-// ToInt attempts to return the value as an int
-func (v *CivilEventPayloadValue) ToInt() (val int, ok bool) {
-	val, ok = v.Value.(int)
+// Int64 returns the value as a int64.
+// Returns bool as false if unable to assert value as type int64
+func (v *CivilEventPayloadValue) Int64() (int64, bool) {
+	val, ok := v.BigInt()
+	if !ok {
+		return 0, ok
+	}
+	return val.Int64(), ok
+}
+
+// BigInt returns the value as a big.Int
+// Returns bool as false if unable to assert value as type big.Int
+func (v *CivilEventPayloadValue) BigInt() (*big.Int, bool) {
+	val, ok := v.value.Value().(*big.Int)
 	return val, ok
 }
 
-// ToFloat64 attempts to return the value as an float64
-func (v *CivilEventPayloadValue) ToFloat64() (val float64, ok bool) {
-	val, ok = v.Value.(float64)
-	return val, ok
+// Address returns the value as common.Address
+// Returns bool as false if unable to assert value as type common.Address
+func (v *CivilEventPayloadValue) Address() (*common.Address, bool) {
+	val, ok := v.value.Value().(common.Address)
+	return &val, ok
 }
 
-// ToString attempts to return the value as an string
-func (v *CivilEventPayloadValue) ToString() (val string, ok bool) {
-	val, ok = v.Value.(string)
-	return val, ok
+// Log returns the value as types.Log
+// Returns bool as false if unable to assert value as type types.Log
+func (v *CivilEventPayloadValue) Log() (*types.Log, bool) {
+	val, ok := v.value.Value().(types.Log)
+	return &val, ok
 }

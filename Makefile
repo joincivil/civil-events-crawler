@@ -59,7 +59,9 @@ lint: ## Runs linting
 		--enable=structcheck \
 		--enable=unconvert \
 		--skip=generated \
-		--skip=go\
+		--skip=go \
+		--deadline=3m \
+		--concurrency=2 \
 		./...
 
 .PHONY: generate-contracts
