@@ -17,11 +17,11 @@ func RetrieveApplication(opts *bind.FilterOpts, civilTCR *tcr.CivilTCRContract, 
 		log.Errorf("Error getting event _Application: %v", err)
 		return err
 	}
-	nextApplication := true
+	nextApplication := itr.Next()
 	for nextApplication {
-		nextApplication = itr.Next()
 		civilEvent := model.NewCivilEvent("_Application", itr.Event)
 		*pastEvents = append(*pastEvents, *civilEvent)
+		nextApplication = itr.Next()
 	}
 	return nil
 }
@@ -33,11 +33,12 @@ func RetrieveApplicationRemoved(opts *bind.FilterOpts, civilTCR *tcr.CivilTCRCon
 		log.Errorf("Error getting event _ApplicationRemoved: %v", err)
 		return err
 	}
-	nextApplication := true
+
+	nextApplication := itr.Next()
 	for nextApplication {
-		nextApplication = itr.Next()
 		civilEvent := model.NewCivilEvent("_ApplicationRemoved", itr.Event)
 		*pastEvents = append(*pastEvents, *civilEvent)
+		nextApplication = itr.Next()
 	}
 	return nil
 }
@@ -49,11 +50,11 @@ func RetrieveApplicationWhitelisted(opts *bind.FilterOpts, civilTCR *tcr.CivilTC
 		log.Errorf("Error getting event _ApplicationWhitelisted: %v", err)
 		return err
 	}
-	nextApplication := true
+	nextApplication := itr.Next()
 	for nextApplication {
-		nextApplication = itr.Next()
 		civilEvent := model.NewCivilEvent("_ApplicationWhitelisted", itr.Event)
 		*pastEvents = append(*pastEvents, *civilEvent)
+		nextApplication = itr.Next()
 	}
 	return nil
 }
@@ -65,11 +66,11 @@ func RetrieveChallenge(opts *bind.FilterOpts, civilTCR *tcr.CivilTCRContract, pa
 		log.Errorf("Error getting event _Challenge: %v", err)
 		return err
 	}
-	nextApplication := true
+	nextApplication := itr.Next()
 	for nextApplication {
-		nextApplication = itr.Next()
 		civilEvent := model.NewCivilEvent("_Challenge", itr.Event)
 		*pastEvents = append(*pastEvents, *civilEvent)
+		nextApplication = itr.Next()
 	}
 	return nil
 }
