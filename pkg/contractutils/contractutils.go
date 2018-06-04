@@ -51,11 +51,18 @@ func SetupRinkebyClient() (*ethclient.Client, error) {
 }
 
 // SetupSimulatedClient returns an an instance of the simulated backend.
-func SetupSimulatedClient() (*backends.SimulatedBackend, *bind.TransactOpts) {
+func SetupSimulatedClient(gasLimit bool) (*backends.SimulatedBackend, *bind.TransactOpts) {
 	key, _ := crypto.GenerateKey()
 	auth := bind.NewKeyedTransactor(key)
 	genAlloc := make(core.GenesisAlloc)
 	genAlloc[auth.From] = core.GenesisAccount{Balance: big.NewInt(9223372036854775807)}
+
+	if gasLimit {
+		gasLimit := uint64(8000000)
+		sim := newSimulatedBackendWithGasLimit(genAlloc, gasLimit)
+		return sim, auth
+	}
+
 	sim := backends.NewSimulatedBackend(genAlloc)
 	return sim, auth
 }
@@ -81,7 +88,7 @@ type AllTestContracts struct {
 // SetupAllTestContracts returns a struct with all the test contracts deployed to the
 // simulated backend.
 func SetupAllTestContracts() (*AllTestContracts, error) {
-	client, auth := SetupSimulatedClient()
+	client, auth := SetupSimulatedClient(true)
 	tokenAddr, eip20, err := setupTestEIP20Contract(client, auth)
 	if err != nil {
 		log.Fatalf("Unable to deploy a test token: %v", err)
