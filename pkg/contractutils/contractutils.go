@@ -15,12 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/joincivil/civil-events-crawler/pkg/generated/eip20"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/government"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/newsroom"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/parameterizer"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/plcr"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/tcr"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 )
 
 const (
@@ -70,17 +65,17 @@ func SetupSimulatedClient() (*backends.SimulatedBackend, *bind.TransactOpts) {
 // AllTestContracts contains the values returned from SetupAllTestContracts
 type AllTestContracts struct {
 	TokenAddr        common.Address
-	TokenContract    *eip20.EIP20Contract
+	TokenContract    *contract.EIP20Contract
 	PlcrAddr         common.Address
-	PlcrContract     *plcr.PLCRVotingContract
+	PlcrContract     *contract.PLCRVotingContract
 	ParamAddr        common.Address
-	ParamContract    *parameterizer.ParameterizerContract
+	ParamContract    *contract.ParameterizerContract
 	GovtAddr         common.Address
-	GovtContract     *government.GovernmentContract
+	GovtContract     *contract.GovernmentContract
 	CivilTcrAddr     common.Address
-	CivilTcrContract *tcr.CivilTCRContract
+	CivilTcrContract *contract.CivilTCRContract
 	NewsroomAddr     common.Address
-	NewsroomContract *newsroom.NewsroomContract
+	NewsroomContract *contract.NewsroomContract
 	Client           *backends.SimulatedBackend
 	Auth             *bind.TransactOpts
 }
@@ -194,8 +189,8 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 
 // setupTestNewsroomContract deploys a test newsroom contract to the given ContractBackend.
 func setupTestNewsroomContract(client bind.ContractBackend, auth *bind.TransactOpts) (common.Address,
-	*newsroom.NewsroomContract, error) {
-	address, _, contract, err := newsroom.DeployNewsroomContract(
+	*contract.NewsroomContract, error) {
+	address, _, contract, err := contract.DeployNewsroomContract(
 		auth,
 		client,
 		"Your Newsroom Here",
@@ -210,8 +205,8 @@ func setupTestNewsroomContract(client bind.ContractBackend, auth *bind.TransactO
 
 // setupTestEIP20Contract deploys a test token contract to the given ContractBackend.
 func setupTestEIP20Contract(client bind.ContractBackend, auth *bind.TransactOpts) (common.Address,
-	*eip20.EIP20Contract, error) {
-	address, _, contract, err := eip20.DeployEIP20Contract(
+	*contract.EIP20Contract, error) {
+	address, _, contract, err := contract.DeployEIP20Contract(
 		auth,
 		client,
 		big.NewInt(9223372036854775807),
@@ -227,8 +222,8 @@ func setupTestEIP20Contract(client bind.ContractBackend, auth *bind.TransactOpts
 
 // setupTestPLCRVotingContract deploys a test PLCR voting contract to the given ContractBackend.
 func setupTestPLCRVotingContract(client bind.ContractBackend, auth *bind.TransactOpts,
-	tokenAddr common.Address) (common.Address, *plcr.PLCRVotingContract, error) {
-	address, _, contract, err := plcr.DeployPLCRVotingContract(
+	tokenAddr common.Address) (common.Address, *contract.PLCRVotingContract, error) {
+	address, _, contract, err := contract.DeployPLCRVotingContract(
 		auth,
 		client,
 		tokenAddr,
@@ -242,7 +237,7 @@ func setupTestPLCRVotingContract(client bind.ContractBackend, auth *bind.Transac
 
 // setupTestParameterizerContract deploys a test parameterizer voting contract to the given ContractBackend.
 func setupTestParameterizerContract(client bind.ContractBackend, auth *bind.TransactOpts,
-	tokenAddr common.Address, plcrAddr common.Address) (common.Address, *parameterizer.ParameterizerContract, error) {
+	tokenAddr common.Address, plcrAddr common.Address) (common.Address, *contract.ParameterizerContract, error) {
 	params := [16]*big.Int{
 		big.NewInt(minDeposit),
 		big.NewInt(pMinDeposit),
@@ -261,7 +256,7 @@ func setupTestParameterizerContract(client bind.ContractBackend, auth *bind.Tran
 		big.NewInt(appealChallengeCommitStageLength),
 		big.NewInt(appealChallengeRevealStageLength),
 	}
-	address, _, contract, err := parameterizer.DeployParameterizerContract(
+	address, _, contract, err := contract.DeployParameterizerContract(
 		auth,
 		client,
 		tokenAddr,
@@ -277,7 +272,7 @@ func setupTestParameterizerContract(client bind.ContractBackend, auth *bind.Tran
 // setupTestGovernmentContract deploys a test government contract to the given ContractBackend.
 func setupTestGovernmentContract(client bind.ContractBackend, auth *bind.TransactOpts,
 	appellateAddr common.Address, governmentControllerAddr common.Address) (common.Address,
-	*government.GovernmentContract, error) {
+	*contract.GovernmentContract, error) {
 
 	hash := sha3.NewKeccak256()
 	var buf []byte
@@ -287,7 +282,7 @@ func setupTestGovernmentContract(client bind.ContractBackend, auth *bind.Transac
 	buf = hash.Sum(buf)
 	copy(fixedBuf[:], buf)
 
-	address, _, contract, err := government.DeployGovernmentContract(
+	address, _, contract, err := contract.DeployGovernmentContract(
 		auth,
 		client,
 		appellateAddr,
@@ -308,8 +303,8 @@ func setupTestGovernmentContract(client bind.ContractBackend, auth *bind.Transac
 // setupTestCivilTCRContract deploys a test Civil TCR contract to the given ContractBackend.
 func setupTestCivilTCRContract(client bind.ContractBackend, auth *bind.TransactOpts,
 	tokenAddr common.Address, plcrAddr common.Address, paramAddr common.Address,
-	govtAddr common.Address) (common.Address, *tcr.CivilTCRContract, error) {
-	address, _, contract, err := tcr.DeployCivilTCRContract(
+	govtAddr common.Address) (common.Address, *contract.CivilTCRContract, error) {
+	address, _, contract, err := contract.DeployCivilTCRContract(
 		auth,
 		client,
 		tokenAddr,

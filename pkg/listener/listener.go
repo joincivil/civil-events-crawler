@@ -2,20 +2,24 @@
 // streams a list of future events.
 package listener // import "github.com/joincivil/civil-events-crawler/pkg/listener"
 
+//go:generate sh -c "mkdir -p ../generated/watcher"
+//go:generate sh -c "go run ../../cmd/watchergen/main.go civiltcr watcher > ../generated/watcher/civiltcr.go"
+//go:generate sh -c "go run ../../cmd/watchergen/main.go newsroom watcher > ../generated/watcher/newsroom.go"
+
 import (
 	"errors"
-	"fmt"
+
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/event"
-	log "github.com/golang/glog"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/tcr"
+
+	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
 // NewCivilEventListener creates a new CivilEventListener given the address
 // of the contract to listen to.
-func NewCivilEventListener(client *ethclient.Client, contractAddress string) *CivilEventListener {
+func NewCivilEventListener(client bind.ContractBackend, contractAddress string) *CivilEventListener {
 	address := common.HexToAddress(contractAddress)
 	listener := &CivilEventListener{
 		Client:             client,
@@ -29,8 +33,8 @@ func NewCivilEventListener(client *ethclient.Client, contractAddress string) *Ci
 // CivilEventListener handles the listener stream for Civil-specific events
 type CivilEventListener struct {
 
-	// Client is the ethereum client from go-ethereum
-	Client *ethclient.Client
+	// Client is a ethereum backend from go-ethereum
+	Client bind.ContractBackend
 
 	// ContractAddress is the Address type for the contract to watch
 	ContractAddress common.Address
@@ -41,20 +45,33 @@ type CivilEventListener struct {
 	// EventRecvChan is the channel to send and receive CivilEvents
 	EventRecvChan chan model.CivilEvent
 
-	watcherSubs []*event.Subscription
+	watcherSubs []event.Subscription
 }
 
 // Start starts up the event listener
 func (l *CivilEventListener) Start() error {
-	civilTCR, err := tcr.NewCivilTCRContract(l.ContractAddress, l.Client)
+	// StartCivilTCRContractWatchers is generated
+	subs, err := watcher.StartCivilTCRContractWatchers(
+		l.Client,
+		l.ContractAddress,
+		l.EventRecvChan,
+	)
 	if err != nil {
-		log.Errorf("Error initializing TCR: %v", err)
 		return err
 	}
-	subs, err := l.startWatchers(civilTCR)
+	l.watcherSubs = subs
+
+	// StartNewsroomContractWathers is generated
+	subs, err = watcher.StartNewsroomContractWatchers(
+		l.Client,
+		l.ContractAddress,
+		l.EventRecvChan,
+	)
 	if err != nil {
 		return err
 	}
+	l.watcherSubs = append(l.watcherSubs, subs...)
+
 	if len(subs) <= 0 {
 		return errors.New("No watchers have been started")
 	}
@@ -65,30 +82,8 @@ func (l *CivilEventListener) Start() error {
 // Stop shuts down the event listener and performs clean up
 func (l *CivilEventListener) Stop() error {
 	for _, sub := range l.watcherSubs {
-		(*sub).Unsubscribe()
+		sub.Unsubscribe()
 	}
+	l.watcherSubs = nil
 	return nil
-}
-
-func (l *CivilEventListener) startWatchers(civilTCR *tcr.CivilTCRContract) ([]*event.Subscription, error) {
-	subs := []*event.Subscription{}
-	sub, err := startWatchApplication(l.EventRecvChan, civilTCR)
-	if err != nil {
-		return nil, fmt.Errorf("Error starting _Application watch: %v", err)
-	}
-	subs = append(subs, &sub)
-
-	sub, err = startWatchApplicationRemoved(l.EventRecvChan, civilTCR)
-	if err != nil {
-		return nil, fmt.Errorf("Error starting _ApplicationRemoved watch: %v", err)
-	}
-	subs = append(subs, &sub)
-
-	sub, err = startWatchApplicationWhitelisted(l.EventRecvChan, civilTCR)
-	if err != nil {
-		return nil, fmt.Errorf("Error starting _ApplicationWhitelisted watch: %v", err)
-	}
-	subs = append(subs, &sub)
-
-	return subs, nil
 }
