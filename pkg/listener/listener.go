@@ -2,10 +2,6 @@
 // streams a list of future events.
 package listener // import "github.com/joincivil/civil-events-crawler/pkg/listener"
 
-//go:generate sh -c "mkdir -p ../generated/watcher"
-//go:generate sh -c "go run ../../cmd/watchergen/main.go civiltcr watcher > ../generated/watcher/civiltcr.go"
-//go:generate sh -c "go run ../../cmd/watchergen/main.go newsroom watcher > ../generated/watcher/newsroom.go"
-
 import (
 	"errors"
 

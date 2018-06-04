@@ -63,7 +63,7 @@ This is run along with the `make lint`, `make build`, `make test` commands below
 There is a number of `Watch*` methods for each Civil Solidity contract wrapper that allow us to listen and stream contract events.  The wrappers around these `Watch*` methods are generated using the `cmd/watchgen` command with `go generate`.  These will be placed into the `pkg/listener` directory.
 
 ```
-make generate
+make generate-watchers
 ```
 This is run along with the `make lint`, `make build`, `make test` commands below.
 

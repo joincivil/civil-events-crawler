@@ -1,5 +1,6 @@
 GOCMD=vgo
 GOGEN=$(GOCMD) generate
+GORUN=$(GOCMD) run
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
@@ -14,6 +15,9 @@ ABI_DIR=abi
 ## List of expected dirs for generated code
 GENERATED_DIR=pkg/generated
 GENERATED_CONTRACT_DIR=pkg/generated/contract
+GENERATED_WATCHER_DIR=pkg/generated/watcher
+
+WATCHER_GEN_MAIN=cmd/watchergen/main.go
 
 ## Reliant on go and $GOPATH being set.
 check-env:
@@ -50,8 +54,13 @@ lint: generate-contracts generate ## Runs linting.
 	gometalinter ./...
 
 .PHONY: generate
-generate: ## Runs 'go generate' to produce any code that needs generation.
-	$(GOGEN) ./...
+generate: generate-contracts generate-watchers ## Runs all the code generation
+
+.PHONY: generate-watchers
+generate-watchers: ## Runs watchergen to generate contract Watch* wrapper code.
+	mkdir -p $(GENERATED_WATCHER_DIR)
+	$(GORUN) $(WATCHER_GEN_MAIN) civiltcr watcher > ./$(GENERATED_WATCHER_DIR)/civiltcr.go
+	$(GORUN) $(WATCHER_GEN_MAIN) newsroom watcher > ./$(GENERATED_WATCHER_DIR)/newsroom.go
 
 .PHONY: generate-contracts
 generate-contracts: ## Builds the contract wrapper code from the ABIs in /abi.
@@ -68,21 +77,22 @@ else
 endif
 
 .PHONY: build
-build: generate-contracts generate ## Builds the code.
+build: generate ## Builds the code.
 	$(GOBUILD) ./...
 
 .PHONY: test
-test: generate-contracts generate ## Runs unit tests and tests code coverage.
+test: generate ## Runs unit tests and tests code coverage.
 	echo 'mode: atomic' > coverage.txt && $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=30s ./...
 
 .PHONY: cover
-cover: generate-contracts generate test ## Runs unit tests, code coverage, and runs HTML coverage tool.
+cover: generate test ## Runs unit tests, code coverage, and runs HTML coverage tool.
 	$(GOCOVER) -html=coverage.txt
 
 .PHONY: clean
 clean: ## go clean and clean up of artifacts.
 	rm coverage.txt > /dev/null 2>&1
 	$(GOCLEAN) ./...
+	rm -rf pkg/generated > /dev/null 2>&1
 
 ## Some magic from http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 .PHONY: help
