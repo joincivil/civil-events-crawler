@@ -46,22 +46,8 @@ setup: check-env install-vgo install-linter install-cover install-abigen ## Sets
 
 .PHONY: lint
 lint: generate-contracts generate ## Runs linting.
-	gometalinter \
-		--disable-all \
-		--enable=golint \
-		--enable=gofmt \
-		--enable=gotype \
-		--enable=vet \
-		--enable=deadcode \
-		--enable=megacheck \
-		--enable=varcheck \
-		--enable=structcheck \
-		--enable=unconvert \
-		--skip=generated \
-		--skip=go \
-		--deadline=3m
-		--concurrency=2 \
-		./...
+	# gometalinter config in .gometalinter.json
+	gometalinter ./...
 
 .PHONY: generate
 generate: ## Runs 'go generate' to produce any code that needs generation.

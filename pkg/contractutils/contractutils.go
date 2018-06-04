@@ -277,8 +277,14 @@ func setupTestGovernmentContract(client bind.ContractBackend, auth *bind.Transac
 	hash := sha3.NewKeccak256()
 	var buf []byte
 	var fixedBuf [32]byte
-	decoded, _ := hex.DecodeString("Constitution: Be Bad.")
-	hash.Write(decoded)
+	decoded, err := hex.DecodeString("Constitution: Be Bad.")
+	if err != nil {
+		return common.Address{}, nil, err
+	}
+	_, err = hash.Write(decoded)
+	if err != nil {
+		return common.Address{}, nil, err
+	}
 	buf = hash.Sum(buf)
 	copy(fixedBuf[:], buf)
 
