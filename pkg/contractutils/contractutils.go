@@ -3,7 +3,6 @@
 package contractutils
 
 import (
-	"encoding/hex"
 	log "github.com/golang/glog"
 	"math/big"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
@@ -273,21 +271,6 @@ func setupTestParameterizerContract(client bind.ContractBackend, auth *bind.Tran
 func setupTestGovernmentContract(client bind.ContractBackend, auth *bind.TransactOpts,
 	appellateAddr common.Address, governmentControllerAddr common.Address) (common.Address,
 	*contract.GovernmentContract, error) {
-
-	hash := sha3.NewKeccak256()
-	var buf []byte
-	var fixedBuf [32]byte
-	decoded, err := hex.DecodeString("Constitution: Be Bad.")
-	if err != nil {
-		return common.Address{}, nil, err
-	}
-	_, err = hash.Write(decoded)
-	if err != nil {
-		return common.Address{}, nil, err
-	}
-	buf = hash.Sum(buf)
-	copy(fixedBuf[:], buf)
-
 	address, _, contract, err := contract.DeployGovernmentContract(
 		auth,
 		client,
@@ -297,7 +280,7 @@ func setupTestGovernmentContract(client bind.ContractBackend, auth *bind.Transac
 		big.NewInt(requestAppealPhaseLength),
 		big.NewInt(judgeAppealPhaseLength),
 		big.NewInt(appealSupermajorityPercentage),
-		fixedBuf,
+		[32]byte{},
 		"http://madeupURL.com",
 	)
 	if err != nil {
