@@ -6,9 +6,12 @@ pids
 *.seed
 *.pid.lock
 
-*.abi
-
+# Generated code naming
+*watchers.go
 generated/
+*.abi
+*.bin
+
 build/
 
 *.DS_STORE
@@ -22,3 +25,4 @@ coverage.txt
 *.prof
 *.swp
 *.swo
+
