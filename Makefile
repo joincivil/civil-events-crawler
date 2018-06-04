@@ -42,10 +42,10 @@ install-abigen: check-env ## Installs the Ethereum abigen tool
 	go get -u github.com/ethereum/go-ethereum/cmd/abigen
 
 .PHONY: setup
-setup: check-env install-vgo install-linter install-cover install-abigen ## Sets up the golang environment
+setup: check-env install-vgo install-linter install-cover install-abigen ## Sets up the tooling.
 
 .PHONY: lint
-lint: generate-contracts generate ## Runs linting
+lint: generate-contracts generate ## Runs linting.
 	gometalinter \
 		--disable-all \
 		--enable=golint \
@@ -59,16 +59,16 @@ lint: generate-contracts generate ## Runs linting
 		--enable=unconvert \
 		--skip=generated \
 		--skip=go \
-		--deadline=3m \
+		--deadline=3m
 		--concurrency=2 \
 		./...
 
 .PHONY: generate
-generate: ## Runs 'go generate' to produce any code that needs generation
+generate: ## Runs 'go generate' to produce any code that needs generation.
 	$(GOGEN) ./...
 
 .PHONY: generate-contracts
-generate-contracts: ## Builds the contract wrapper code from the ABIs in /abi
+generate-contracts: ## Builds the contract wrapper code from the ABIs in /abi.
 ifneq ("$(wildcard $(ABI_DIR)/*.abi)", "")
 	mkdir -p $(GENERATED_CONTRACT_DIR)
 	abigen -abi ./$(ABI_DIR)/CivilTCR.abi -bin ./$(ABI_DIR)/CivilTCR.bin -type CivilTCRContract -out ./$(GENERATED_CONTRACT_DIR)/CivilTCRContract.go -pkg contract
@@ -82,19 +82,19 @@ else
 endif
 
 .PHONY: build
-build: generate-contracts generate ## Builds the code
+build: generate-contracts generate ## Builds the code.
 	$(GOBUILD) ./...
 
 .PHONY: test
-test: generate-contracts generate ## Runs unit tests
+test: generate-contracts generate ## Runs unit tests and tests code coverage.
 	echo 'mode: atomic' > coverage.txt && $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=30s ./...
 
 .PHONY: cover
-cover: generate-contracts generate test ## Runs unit tests and checks code coverage
+cover: generate-contracts generate test ## Runs unit tests, code coverage, and runs HTML coverage tool.
 	$(GOCOVER) -html=coverage.txt
 
 .PHONY: clean
-clean: ## go clean and clean up of artifacts
+clean: ## go clean and clean up of artifacts.
 	rm coverage.txt > /dev/null 2>&1
 	$(GOCLEAN) ./...
 

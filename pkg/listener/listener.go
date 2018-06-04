@@ -61,7 +61,7 @@ func (l *CivilEventListener) Start() error {
 	}
 	l.watcherSubs = subs
 
-	// StartNewsroomContractWathers is generated
+	// StartNewsroomContractWatchers is generated
 	subs, err = watcher.StartNewsroomContractWatchers(
 		l.Client,
 		l.ContractAddress,
