@@ -6,6 +6,7 @@ GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOCOVER=$(GOCMD) tool cover
+ABIGEN=abigen
 
 ## Check to see if `go` is installed
 GO := $(shell command -v go 2> /dev/null)
@@ -34,16 +35,16 @@ install-vgo: check-env ## Installs vgo
 
 .PHONY: install-linter
 install-linter: check-env ## Installs linter
-	go get -u github.com/alecthomas/gometalinter
+	$(GOGET) -u github.com/alecthomas/gometalinter
 	gometalinter --install
 
 .PHONY: install-cover
 install-cover: check-env ## Installs code coverage tool
-	go get -u golang.org/x/tools/cmd/cover
+	$(GOGET) -u golang.org/x/tools/cmd/cover
 
 .PHONY: install-abigen
 install-abigen: check-env ## Installs the Ethereum abigen tool
-	go get -u github.com/ethereum/go-ethereum/cmd/abigen
+	$(GOGET) -u github.com/ethereum/go-ethereum/cmd/abigen
 
 .PHONY: setup
 setup: check-env install-vgo install-linter install-cover install-abigen ## Sets up the tooling.
@@ -66,12 +67,12 @@ generate-watchers: ## Runs watchergen to generate contract Watch* wrapper code.
 generate-contracts: ## Builds the contract wrapper code from the ABIs in /abi.
 ifneq ("$(wildcard $(ABI_DIR)/*.abi)", "")
 	mkdir -p $(GENERATED_CONTRACT_DIR)
-	abigen -abi ./$(ABI_DIR)/CivilTCR.abi -bin ./$(ABI_DIR)/CivilTCR.bin -type CivilTCRContract -out ./$(GENERATED_CONTRACT_DIR)/CivilTCRContract.go -pkg contract
-	abigen -abi ./$(ABI_DIR)/Newsroom.abi -bin ./$(ABI_DIR)/Newsroom.bin -type NewsroomContract -out ./$(GENERATED_CONTRACT_DIR)/NewsroomContract.go -pkg contract
-	abigen -abi ./$(ABI_DIR)/PLCRVoting.abi -bin ./$(ABI_DIR)/PLCRVoting.bin -type PLCRVotingContract -out ./$(GENERATED_CONTRACT_DIR)/PLCRVotingContract.go -pkg contract
-	abigen -abi ./$(ABI_DIR)/Parameterizer.abi -bin ./$(ABI_DIR)/Parameterizer.bin -type ParameterizerContract -out ./$(GENERATED_CONTRACT_DIR)/ParameterizerContract.go -pkg contract
-	abigen -abi ./$(ABI_DIR)/Government.abi -bin ./$(ABI_DIR)/Government.bin -type GovernmentContract -out ./$(GENERATED_CONTRACT_DIR)/GovernmentContract.go -pkg contract
-	abigen -abi ./$(ABI_DIR)/EIP20.abi -bin ./$(ABI_DIR)/EIP20.bin -type EIP20Contract -out ./$(GENERATED_CONTRACT_DIR)/EIP20.go -pkg contract
+	$(ABIGEN) -abi ./$(ABI_DIR)/CivilTCR.abi -bin ./$(ABI_DIR)/CivilTCR.bin -type CivilTCRContract -out ./$(GENERATED_CONTRACT_DIR)/CivilTCRContract.go -pkg contract
+	$(ABIGEN) -abi ./$(ABI_DIR)/Newsroom.abi -bin ./$(ABI_DIR)/Newsroom.bin -type NewsroomContract -out ./$(GENERATED_CONTRACT_DIR)/NewsroomContract.go -pkg contract
+	$(ABIGEN) -abi ./$(ABI_DIR)/PLCRVoting.abi -bin ./$(ABI_DIR)/PLCRVoting.bin -type PLCRVotingContract -out ./$(GENERATED_CONTRACT_DIR)/PLCRVotingContract.go -pkg contract
+	$(ABIGEN) -abi ./$(ABI_DIR)/Parameterizer.abi -bin ./$(ABI_DIR)/Parameterizer.bin -type ParameterizerContract -out ./$(GENERATED_CONTRACT_DIR)/ParameterizerContract.go -pkg contract
+	$(ABIGEN) -abi ./$(ABI_DIR)/Government.abi -bin ./$(ABI_DIR)/Government.bin -type GovernmentContract -out ./$(GENERATED_CONTRACT_DIR)/GovernmentContract.go -pkg contract
+	$(ABIGEN) -abi ./$(ABI_DIR)/EIP20.abi -bin ./$(ABI_DIR)/EIP20.bin -type EIP20Contract -out ./$(GENERATED_CONTRACT_DIR)/EIP20.go -pkg contract
 else
 	$(error No abi files found; copy them to /abi after generation)
 endif
