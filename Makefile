@@ -35,16 +35,16 @@ install-vgo: check-env ## Installs vgo
 
 .PHONY: install-linter
 install-linter: check-env ## Installs linter
-	$(GOGET) -u github.com/alecthomas/gometalinter
+	go get -u github.com/alecthomas/gometalinter
 	gometalinter --install
 
 .PHONY: install-cover
 install-cover: check-env ## Installs code coverage tool
-	$(GOGET) -u golang.org/x/tools/cmd/cover
+	go get -u golang.org/x/tools/cmd/cover
 
 .PHONY: install-abigen
 install-abigen: check-env ## Installs the Ethereum abigen tool
-	$(GOGET) -u github.com/ethereum/go-ethereum/cmd/abigen
+	go get -u github.com/ethereum/go-ethereum/cmd/abigen
 
 .PHONY: setup
 setup: check-env install-vgo install-linter install-cover install-abigen ## Sets up the tooling.
@@ -91,9 +91,9 @@ cover: generate test ## Runs unit tests, code coverage, and runs HTML coverage t
 
 .PHONY: clean
 clean: ## go clean and clean up of artifacts.
-	rm coverage.txt > /dev/null 2>&1
-	$(GOCLEAN) ./...
-	rm -rf pkg/generated > /dev/null 2>&1
+	$(GOCLEAN) ./... || true
+	rm coverage.txt || true
+	rm -rf pkg/generated || true
 
 ## Some magic from http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 .PHONY: help
