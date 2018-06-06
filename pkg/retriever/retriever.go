@@ -3,11 +3,9 @@
 package retriever // import "github.com/joincivil/civil-events-crawler/pkg/retriever"
 
 import (
-	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	log "github.com/golang/glog"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/tcr"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/retrieve"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
@@ -47,35 +45,32 @@ type CivilEventRetriever struct {
 
 // Retrieve gets all events from StartBlock until now
 func (r *CivilEventRetriever) Retrieve() error {
-	civilTCR, err := tcr.NewCivilTCRContract(r.ContractAddress, r.Client)
+
+	// RetrieveCivilTCRContractEvents is generated
+	err := retrieve.RetrieveCivilTCRContractEvents(
+		r.Client,
+		r.ContractAddress,
+		&r.PastEvents,
+		r.StartBlock,
+	)
 	if err != nil {
-		log.Errorf("Error initializing TCR: %v", err)
 		return err
 	}
 
-	var opts = &bind.FilterOpts{
-		Start: r.StartBlock,
-	}
-
-	err = RetrieveApplication(opts, civilTCR, &r.PastEvents)
+	err = retrieve.RetrieveNewsroomContractEvents(
+		r.Client,
+		r.ContractAddress,
+		&r.PastEvents,
+		r.StartBlock,
+	)
 	if err != nil {
-		return fmt.Errorf("Error getting past _Application events: %v", err)
+		return err
 	}
 
-	err = RetrieveApplicationRemoved(opts, civilTCR, &r.PastEvents)
-	if err != nil {
-		return fmt.Errorf("Error getting past _ApplicationRemoved events: %v", err)
-	}
+	return nil
+}
 
-	err = RetrieveApplicationWhitelisted(opts, civilTCR, &r.PastEvents)
-	if err != nil {
-		return fmt.Errorf("Error getting past _ApplicationWhitelisted events: %v", err)
-	}
-
-	err = RetrieveChallenge(opts, civilTCR, &r.PastEvents)
-	if err != nil {
-		return fmt.Errorf("Error getting past _Challenge events: %v", err)
-	}
-
+// SortEvents sorts events in PastEvents by block number
+func (r *CivilEventRetriever) SortEvents() error {
 	return nil
 }

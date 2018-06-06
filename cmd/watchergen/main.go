@@ -21,8 +21,9 @@ func main() {
 	kingpin.Parse()
 
 	contractType := gen.NameToContractTypes[*contractTypeName]
-	err := gen.GenerateCivilWatchers(os.Stdout, contractType, *packageName)
+	err := gen.GenerateCivilCrawlers(os.Stdout, contractType, *packageName)
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
 	}
+
 }

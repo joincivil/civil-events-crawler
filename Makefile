@@ -16,6 +16,7 @@ ABI_DIR=abi
 GENERATED_DIR=pkg/generated
 GENERATED_CONTRACT_DIR=pkg/generated/contract
 GENERATED_WATCHER_DIR=pkg/generated/watcher
+GENERATED_RETRIEVE_DIR=pkg/generated/retrieve
 
 WATCHER_GEN_MAIN=cmd/watchergen/main.go
 
@@ -61,6 +62,12 @@ generate-watchers: ## Runs watchergen to generate contract Watch* wrapper code.
 	mkdir -p $(GENERATED_WATCHER_DIR)
 	$(GORUN) $(WATCHER_GEN_MAIN) civiltcr watcher > ./$(GENERATED_WATCHER_DIR)/civiltcr.go
 	$(GORUN) $(WATCHER_GEN_MAIN) newsroom watcher > ./$(GENERATED_WATCHER_DIR)/newsroom.go
+
+.PHONY: generate-retrievers
+generate-retrievers: ## Runs watchergen to generate contract Watch* wrapper code.
+	mkdir -p $(GENERATED_RETRIEVE_DIR)
+	$(GORUN) $(WATCHER_GEN_MAIN) civiltcr retrieve > ./$(GENERATED_RETRIEVE_DIR)/civiltcr.go
+	$(GORUN) $(WATCHER_GEN_MAIN) newsroom retrieve > ./$(GENERATED_RETRIEVE_DIR)/newsroom.go
 
 .PHONY: generate-contracts
 generate-contracts: ## Builds the contract wrapper code from the ABIs in /abi.
