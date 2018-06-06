@@ -42,7 +42,7 @@ func Start{{.ContractTypeName}}Watchers(client bind.ContractBackend, contractAdd
 
     sub, err = startWatch{{.CrawlerMethod}}(eventRecvChan, contract)
 	if err != nil {
-        return nil, fmt.Errorf("Error starting start{{.WatchMethod}}: err: %v", err)
+        return nil, fmt.Errorf("Error starting start{{.CrawlerMethod}}: err: %v", err)
 	}
 	subs = append(subs, sub)
 
