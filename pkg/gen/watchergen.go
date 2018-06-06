@@ -9,6 +9,7 @@ import (
 	"go/format"
 	"io"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -142,13 +143,15 @@ func generateNewsroomWatchers(writer io.Writer, packageName string) error {
 		contractTypePackage, contractTypeName)
 }
 
-func generateWatchers(writer io.Writer, abi abi.ABI, packageName string,
+func generateWatchers(writer io.Writer, _abi abi.ABI, packageName string,
 	contractImportPath string, contractTypePackage string, contractTypeName string) error {
 	eventsIndex := 0
-	watchEvents := make([]*WatchEvent, len(abi.Events))
+	watchEvents := make([]*WatchEvent, len(_abi.Events))
 	additionalImports := []string{}
 
-	for _, event := range abi.Events {
+	// Keep the event methods sorted by name
+	sortedEvents := eventsToSortedEventsSlice(_abi.Events)
+	for _, event := range sortedEvents {
 		params := []*WatchEventMethodParam{}
 		for _, input := range event.Inputs {
 			if input.Indexed {
@@ -221,6 +224,31 @@ func translateType(stringKind string) (string, string) {
 	default:
 		return "", stringKind
 	}
+}
+
+func eventsToSortedEventsSlice(eventsMap map[string]abi.Event) []abi.Event {
+	sortedEvents := make([]abi.Event, len(eventsMap))
+	ind := 0
+	for _, val := range eventsMap {
+		sortedEvents[ind] = val
+		ind++
+	}
+	sort.Sort(abiEventNameSort(sortedEvents))
+	return sortedEvents
+}
+
+type abiEventNameSort []abi.Event
+
+func (e abiEventNameSort) Len() int {
+	return len(e)
+}
+
+func (e abiEventNameSort) Less(i, j int) bool {
+	return e[i].Name < e[j].Name
+}
+
+func (e abiEventNameSort) Swap(i, j int) {
+	e[i], e[j] = e[j], e[i]
 }
 
 const watcherTmpl = `
