@@ -1,4 +1,4 @@
-GOCMD=vgo
+GOCMD=go
 GOGEN=$(GOCMD) generate
 GORUN=$(GOCMD) run
 GOBUILD=$(GOCMD) build
@@ -9,7 +9,7 @@ GOCOVER=$(GOCMD) tool cover
 ABIGEN=abigen
 
 ## Check to see if `go` is installed
-GO := $(shell command -v go 2> /dev/null)
+GO=$(shell command -v go 2> /dev/null)
 
 ABI_DIR=abi
 
@@ -29,9 +29,10 @@ ifndef GOPATH
 	$(error GOPATH is not set)
 endif
 
-.PHONY: install-vgo
-install-vgo: check-env ## Installs vgo
-	go get -u golang.org/x/vgo
+.PHONY: install-dep
+install-dep: check-env ## Installs dep
+	mkdir -p $(GOPATH)/bin
+	curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
 .PHONY: install-linter
 install-linter: check-env ## Installs linter
@@ -47,7 +48,7 @@ install-abigen: check-env ## Installs the Ethereum abigen tool
 	go get -u github.com/ethereum/go-ethereum/cmd/abigen
 
 .PHONY: setup
-setup: check-env install-vgo install-linter install-cover install-abigen ## Sets up the tooling.
+setup: check-env install-dep install-linter install-cover install-abigen ## Sets up the tooling.
 
 .PHONY: lint
 lint: generate-contracts generate ## Runs linting.
