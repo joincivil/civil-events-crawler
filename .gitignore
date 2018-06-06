@@ -6,9 +6,7 @@ pids
 *.seed
 *.pid.lock
 
-# Generated code naming
-*watchers.go
-generated/
+# generated/
 *.abi
 *.bin
 
