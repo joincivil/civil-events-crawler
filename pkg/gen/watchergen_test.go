@@ -67,7 +67,7 @@ func TestGenerateWatchersForCivilTcr(t *testing.T) {
 
 	// TODO(PN): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
-	if !strings.Contains(code, "func StartCivilTCRContractWatchers") {
+	if !strings.Contains(code, "func (w *CivilTCRContractWatchers) StartCivilTCRContractWatchers(") {
 		t.Error("Did not see expected StartCivilTCRContractWatchers in the generated code")
 	}
 	if !strings.Contains(code, "func startWatchApplication") {
@@ -90,7 +90,7 @@ func TestGenerateWatchersForNewsroom(t *testing.T) {
 
 	// TODO(PN): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
-	if !strings.Contains(code, "func StartNewsroomContractWatchers") {
+	if !strings.Contains(code, "func (w *NewsroomContractWatchers) StartNewsroomContractWatchers(") {
 		t.Error("Did not see expected StartNewsroomContractWatchers in the generated code")
 	}
 	if !strings.Contains(code, "func startWatchRevisionUpdated") {

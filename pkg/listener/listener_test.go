@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
@@ -152,7 +153,11 @@ Loop:
 }
 
 func setupListener(t *testing.T, client bind.ContractBackend, address string) *listener.CivilEventListener {
-	listener := listener.NewCivilEventListener(client, address)
+	watchers := []model.ContractWatchers{
+		&watcher.CivilTCRContractWatchers{},
+		&watcher.NewsroomContractWatchers{},
+	}
+	listener := listener.NewCivilEventListener(client, address, watchers)
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}
