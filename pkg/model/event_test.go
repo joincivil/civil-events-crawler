@@ -4,7 +4,7 @@ package model_test
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/tcr"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"math/big"
 	"reflect"
@@ -13,7 +13,7 @@ import (
 
 var (
 	testAddress = "0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d"
-	testEvent   = &tcr.CivilTCRContractApplication{
+	testEvent   = &contract.CivilTCRContractApplication{
 		ListingAddress: common.HexToAddress(testAddress),
 		Deposit:        big.NewInt(1000),
 		AppEndDate:     big.NewInt(1653860896),
