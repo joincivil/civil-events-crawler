@@ -79,22 +79,21 @@ else
 endif
 
 .PHONY: build
-build: generate ## Builds the code.
+build: ## Builds the code.
 	$(GOBUILD) ./...
 
 .PHONY: test
-test: generate ## Runs unit tests and tests code coverage.
+test: ## Runs unit tests and tests code coverage.
 	echo 'mode: atomic' > coverage.txt && $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=30s ./...
 
 .PHONY: cover
-cover: generate test ## Runs unit tests, code coverage, and runs HTML coverage tool.
+cover: test ## Runs unit tests, code coverage, and runs HTML coverage tool.
 	$(GOCOVER) -html=coverage.txt
 
 .PHONY: clean
 clean: ## go clean and clean up of artifacts.
 	$(GOCLEAN) ./... || true
 	rm coverage.txt || true
-	rm -rf pkg/generated || true
 
 ## Some magic from http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 .PHONY: help
