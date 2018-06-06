@@ -38,12 +38,12 @@ func Retrieve{{.ContractTypeName}}Events(client bind.ContractBackend, contractAd
         Start: startBlock,
     }
 
-{{if .CrawlerEvents -}}
-{{- range .CrawlerEvents}}
+{{if .EventHandlers -}}
+{{- range .EventHandlers}}
 
-    err = Retrieve{{.CrawlerMethod}}(opts, contract, pastEvents)
+    err = Retrieve{{.EventHandlerMethod}}(opts, contract, pastEvents)
     if err != nil {
-        return fmt.Errorf("Error retrieving {{.CrawlerMethod}}: err: %v", err)
+        return fmt.Errorf("Error retrieving {{.EventHandlerMethod}}: err: %v", err)
     }
 
 {{- end}}
@@ -52,11 +52,11 @@ func Retrieve{{.ContractTypeName}}Events(client bind.ContractBackend, contractAd
     return nil
 }
 
-{{if .CrawlerEvents -}}
-{{- range .CrawlerEvents}}
+{{if .EventHandlers -}}
+{{- range .EventHandlers}}
 
-func Retrieve{{.CrawlerMethod}}(opts *bind.FilterOpts, _contract *{{$.ContractTypePackage}}.{{$.ContractTypeName}}, pastEvents *[]model.CivilEvent) error {
-    itr, err := _contract.Filter{{.CrawlerMethod}}(
+func Retrieve{{.EventHandlerMethod}}(opts *bind.FilterOpts, _contract *{{$.ContractTypePackage}}.{{$.ContractTypeName}}, pastEvents *[]model.CivilEvent) error {
+    itr, err := _contract.Filter{{.EventHandlerMethod}}(
         opts,
     {{- if .ParamValues -}}
     {{range .ParamValues}}
@@ -65,12 +65,12 @@ func Retrieve{{.CrawlerMethod}}(opts *bind.FilterOpts, _contract *{{$.ContractTy
     {{end}}
     )
     if err != nil {
-        log.Errorf("Error getting event {{.CrawlerMethod}}: %v", err)
+        log.Errorf("Error getting event {{.EventHandlerMethod}}: %v", err)
         return err
     }
     nextEvent := itr.Next()
     for nextEvent {
-        civilEvent := model.NewCivilEvent("{{.CrawlerMethod}}", itr.Event)
+        civilEvent := model.NewCivilEvent("{{.EventHandlerMethod}}", itr.Event)
         *pastEvents = append(*pastEvents, *civilEvent)
         nextEvent = itr.Next()
     }

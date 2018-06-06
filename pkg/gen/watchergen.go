@@ -37,12 +37,12 @@ func Start{{.ContractTypeName}}Watchers(client bind.ContractBackend, contractAdd
 
     var sub event.Subscription
 	subs := []event.Subscription{}
-{{if .CrawlerEvents -}}
-{{- range .CrawlerEvents}}
+{{if .EventHandlers -}}
+{{- range .EventHandlers}}
 
-    sub, err = startWatch{{.CrawlerMethod}}(eventRecvChan, contract)
+    sub, err = startWatch{{.EventHandlerMethod}}(eventRecvChan, contract)
 	if err != nil {
-        return nil, fmt.Errorf("Error starting start{{.CrawlerMethod}}: err: %v", err)
+        return nil, fmt.Errorf("Error starting start{{.EventHandlerMethod}}: err: %v", err)
 	}
 	subs = append(subs, sub)
 
@@ -52,13 +52,13 @@ func Start{{.ContractTypeName}}Watchers(client bind.ContractBackend, contractAdd
     return subs, nil
 }
 
-{{if .CrawlerEvents -}}
-{{- range .CrawlerEvents}}
+{{if .EventHandlers -}}
+{{- range .EventHandlers}}
 
-func startWatch{{.CrawlerMethod}}(eventRecvChan chan model.CivilEvent, _contract *{{$.ContractTypePackage}}.{{$.ContractTypeName}}) (event.Subscription, error) {
+func startWatch{{.EventHandlerMethod}}(eventRecvChan chan model.CivilEvent, _contract *{{$.ContractTypePackage}}.{{$.ContractTypeName}}) (event.Subscription, error) {
 	opts := &bind.WatchOpts{}
     recvChan := make(chan *{{$.ContractTypePackage}}.{{.EventType}})
-	sub, err := _contract.Watch{{.CrawlerMethod}}(
+	sub, err := _contract.Watch{{.EventHandlerMethod}}(
 		opts,
 		recvChan,
 	{{- if .ParamValues -}}
@@ -68,7 +68,7 @@ func startWatch{{.CrawlerMethod}}(eventRecvChan chan model.CivilEvent, _contract
 	{{end}}
 	)
 	if err != nil {
-		log.Errorf("Error starting Watch{{.CrawlerMethod}}: %v", err)
+		log.Errorf("Error starting Watch{{.EventHandlerMethod}}: %v", err)
 		return nil, err
 	}
 	return event.NewSubscription(func(quit <-chan struct{}) error {
@@ -76,7 +76,7 @@ func startWatch{{.CrawlerMethod}}(eventRecvChan chan model.CivilEvent, _contract
 		for {
 			select {
 			case event := <-recvChan:
-				civilEvent := model.NewCivilEvent("{{.CrawlerEventName}}", event)
+				civilEvent := model.NewCivilEvent("{{.EventHandlerName}}", event)
 				select {
 				case eventRecvChan <- *civilEvent:
 				case err := <-sub.Err():

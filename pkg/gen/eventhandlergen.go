@@ -33,6 +33,7 @@ var (
 		"newsroom": NewsroomContractType,
 	}
 
+	// PackageToTemplateNames maps package name to template
 	PackageToTemplateNames = PackageToTemplateName{
 		"watcher":  watcherTmpl,
 		"retrieve": retrieverTmpl,
@@ -58,16 +59,16 @@ func (n NameToContractType) Names() []string {
 	return keys
 }
 
-// GenerateCivilCrawlers will code gen the contract event watchers/listeners for a given
+// GenerateCivilEventHandlers will code gen the contract event watchers/listeners for a given
 // ContractType. It will output the generated code to the given io.Writer.
 // Currently supports only the CivilTCR and Newsroom ContractTypes.
-func GenerateCivilCrawlers(writer io.Writer, contractType ContractType, packageName string) error {
+func GenerateCivilEventHandlers(writer io.Writer, contractType ContractType, packageName string) error {
 	var err error
 	switch contractType {
 	case CivilTcrContractType:
-		err = generateCivilTCRCrawlers(writer, packageName)
+		err = generateCivilTCREventHandlers(writer, packageName)
 	case NewsroomContractType:
-		err = generateNewsroomCrawlers(writer, packageName)
+		err = generateNewsroomEventHandlers(writer, packageName)
 	default:
 		return errors.New("Invalid ContractType")
 	}
@@ -77,7 +78,7 @@ func GenerateCivilCrawlers(writer io.Writer, contractType ContractType, packageN
 // GenerateWatchersFromTemplate will code gen the contract event watchers for the
 // given Watchers data.  It will output the generated code to the given io.Writer.
 // If gofmt is true, will run go formatting on the code before output.
-func GenerateCrawlersFromTemplate(writer io.Writer, contractData *ContractData, gofmt bool, packageName string) error {
+func GenerateEventHandlersFromTemplate(writer io.Writer, contractData *ContractData, gofmt bool, packageName string) error {
 	var t *template.Template
 	switch packageName {
 	case "watcher":
@@ -107,18 +108,18 @@ func GenerateCrawlersFromTemplate(writer io.Writer, contractData *ContractData, 
 // WatchEventMethodParam represents a value to be passed into the
 // method for starting up watchers in a Civil smart contract.
 // Maps to actions in the watchers.tmpl template.
-type CrawlerEventMethodParam struct {
+type EventHandlerMethodParam struct {
 	Type string
 }
 
 // WatchEvent represents data for an individual contract Watch* event method in a
 // Civil smart contract.
 // Maps to actions in the watchers.tmpl template.
-type CrawlerEvent struct {
-	CrawlerMethod    string
-	EventType        string
-	ParamValues      []*CrawlerEventMethodParam
-	CrawlerEventName string
+type EventHandler struct {
+	EventHandlerMethod    string
+	EventType        	  string
+	ParamValues      	  []*EventHandlerMethodParam
+	EventHandlerName 	  string
 }
 
 // ContractWatchers represents data for a category of contract Watch* event methods.
@@ -130,10 +131,10 @@ type ContractData struct {
 	ContractTypePackage string
 	ContractTypeName    string
 	GenTime             time.Time
-	CrawlerEvents       []*CrawlerEvent
+	EventHandlers       []*EventHandler
 }
 
-func generateCivilTCRCrawlers(writer io.Writer, packageName string) error {
+func generateCivilTCREventHandlers(writer io.Writer, packageName string) error {
 	contractTypePackage := "contract"
 	contractImportPath := "github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	contractTypeName := "CivilTCRContract"
@@ -141,11 +142,11 @@ func generateCivilTCRCrawlers(writer io.Writer, packageName string) error {
 	if err != nil {
 		return err
 	}
-	return generateCrawlers(writer, abi, packageName, contractImportPath,
+	return generateEventHandlers(writer, abi, packageName, contractImportPath,
 		contractTypePackage, contractTypeName)
 }
 
-func generateNewsroomCrawlers(writer io.Writer, packageName string) error {
+func generateNewsroomEventHandlers(writer io.Writer, packageName string) error {
 	contractTypePackage := "contract"
 	contractImportPath := "github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	contractTypeName := "NewsroomContract"
@@ -153,36 +154,36 @@ func generateNewsroomCrawlers(writer io.Writer, packageName string) error {
 	if err != nil {
 		return err
 	}
-	return generateCrawlers(writer, abi, packageName, contractImportPath,
+	return generateEventHandlers(writer, abi, packageName, contractImportPath,
 		contractTypePackage, contractTypeName)
 }
 
-func generateCrawlers(writer io.Writer, abi abi.ABI, packageName string,
+func generateEventHandlers(writer io.Writer, abi abi.ABI, packageName string,
 	contractImportPath string, contractTypePackage string, contractTypeName string) error {
 	eventsIndex := 0
-	crawlerEvents := make([]*CrawlerEvent, len(abi.Events))
+	EventHandlers := make([]*EventHandler, len(abi.Events))
 	additionalImports := []string{}
 
 	for _, event := range abi.Events {
-		params := []*CrawlerEventMethodParam{}
+		params := []*EventHandlerMethodParam{}
 		for _, input := range event.Inputs {
 			if input.Indexed {
 				importName, paramType := translateType(input.Type.String())
-				val := &CrawlerEventMethodParam{Type: paramType}
+				val := &EventHandlerMethodParam{Type: paramType}
 				if importName != "" {
 					additionalImports = append(additionalImports, importName)
 				}
 				params = append(params, val)
 			}
 		}
-		crawlerEvent := &CrawlerEvent{
-			CrawlerEventName: event.Name,
-			CrawlerMethod:    cleanEventName(event.Name),
-			EventType:        EventType(contractTypeName, event.Name),
-			ParamValues:      params,
+		EventHandler := &EventHandler{
+			EventHandlerName: 	   event.Name,
+			EventHandlerMethod:    cleanEventName(event.Name),
+			EventType:        	   EventType(contractTypeName, event.Name),
+			ParamValues:      	   params,
 		}
 
-		crawlerEvents[eventsIndex] = crawlerEvent
+		EventHandlers[eventsIndex] = EventHandler
 		eventsIndex++
 	}
 	contractData := &ContractData{
@@ -192,9 +193,9 @@ func generateCrawlers(writer io.Writer, abi abi.ABI, packageName string,
 		ContractTypePackage: contractTypePackage,
 		ContractTypeName:    contractTypeName,
 		GenTime:             time.Now().UTC(),
-		CrawlerEvents:       crawlerEvents,
+		EventHandlers:       eventHandlers,
 	}
-	return GenerateCrawlersFromTemplate(writer, contractData, true, packageName)
+	return GenerateEventHandlersFromTemplate(writer, contractData, true, packageName)
 }
 
 func EventType(contractTypeName string, eventName string) string {
