@@ -18,6 +18,7 @@ import (
 
 const (
 	rinkebyAddress = "wss://rinkeby.infura.io/ws"
+	gasLimit       = uint64(8000000)
 
 	minDeposit                       = 10
 	pMinDeposit                      = 100
@@ -51,14 +52,13 @@ func SetupRinkebyClient() (*ethclient.Client, error) {
 }
 
 // SetupSimulatedClient returns an an instance of the simulated backend.
-func SetupSimulatedClient(gasLimit bool) (*backends.SimulatedBackend, *bind.TransactOpts) {
+func SetupSimulatedClient(gasLimit uint64) (*backends.SimulatedBackend, *bind.TransactOpts) {
 	key, _ := crypto.GenerateKey()
 	auth := bind.NewKeyedTransactor(key)
 	genAlloc := make(core.GenesisAlloc)
 	genAlloc[auth.From] = core.GenesisAccount{Balance: big.NewInt(9223372036854775807)}
 
-	if gasLimit {
-		gasLimit := uint64(8000000)
+	if gasLimit > 0 {
 		sim := newSimulatedBackendWithGasLimit(genAlloc, gasLimit)
 		return sim, auth
 	}
@@ -88,7 +88,7 @@ type AllTestContracts struct {
 // SetupAllTestContracts returns a struct with all the test contracts deployed to the
 // simulated backend.
 func SetupAllTestContracts() (*AllTestContracts, error) {
-	client, auth := SetupSimulatedClient(true)
+	client, auth := SetupSimulatedClient(gasLimit)
 	tokenAddr, eip20, err := setupTestEIP20Contract(client, auth)
 	if err != nil {
 		log.Fatalf("Unable to deploy a test token: %v", err)

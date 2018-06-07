@@ -14,6 +14,7 @@
         "errcheck",
         "staticcheck"
     ],
+    "Vendor": true,
     "Concurrency": 2,
     "Skip": [
         "go",

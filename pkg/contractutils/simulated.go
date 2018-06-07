@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// newAlteredSimulatedBackend adjusts the underlying unexported fields of simulated.Backend in go-ethereum
+// newSimulatedBackendWithGasLimit adjusts the underlying unexported fields of simulated.Backend in go-ethereum
 // to allow updates to the gasLimit for the Genesis block.  This will allow us increase the block gas limit
 // to test the events and the contracts.
 // NOTE(PN): FOR TESTING EVENTS ONLY!  Will break on updates to the go-ethereum repo.
@@ -99,7 +99,7 @@ func (fb *filterBackend) HeaderByNumber(ctx context.Context, block rpc.BlockNumb
 	return fb.bc.GetHeaderByNumber(uint64(block.Int64())), nil
 }
 
-func (fb *filterBackend) SubscribeTxPreEvent(ch chan<- core.TxPreEvent) event.Subscription {
+func (fb *filterBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
 		<-quit
 		return nil

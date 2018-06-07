@@ -27,8 +27,20 @@ import (
 {{- end}}
 )
 
+type {{.ContractTypeName}}Watchers struct {}
+
+func (w *{{.ContractTypeName}}Watchers) ContractName() string {
+	return "{{.ContractTypeName}}"
+}
+
+func (w *{{.ContractTypeName}}Watchers) StartWatchers(client bind.ContractBackend, contractAddress common.Address,
+	eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
+	return w.Start{{.ContractTypeName}}Watchers(client, contractAddress, eventRecvChan)
+}
+
 // Start{{.ContractTypeName}}Watchers starts up the event watchers for {{.ContractTypeName}}
-func Start{{.ContractTypeName}}Watchers(client bind.ContractBackend, contractAddress common.Address, eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
+func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(client bind.ContractBackend,
+	contractAddress common.Address, eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
     contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(contractAddress, client)
 	if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)

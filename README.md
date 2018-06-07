@@ -28,9 +28,9 @@ make setup
 
 ### Dependencies
 
-Uses `vgo` for dependency management, although we may keep a `/vendor/` and use `go get` for backwards compatibility with `go` and some tooling may still rely on `$GOPATH`.  
+Relies on `dep`[https://golang.github.io/dep/](https://golang.github.io/dep/) for dependency management, updating the `/vendor/` directory in the project.  
 
-**NOTE: Some decisions and detail needed here**
+When adding and removing imports, make sure to run `dep ensure`.  Any adding or removing will require committing the updates on `Gopkg.lock` and `/vendor/` to the repository.
 
 ## Code Generation
 
