@@ -9,6 +9,7 @@ import (
 	"go/format"
 	"io"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -161,10 +162,10 @@ func generateNewsroomEventHandlers(writer io.Writer, packageName string) error {
 		contractTypePackage, contractTypeName)
 }
 
-func generateEventHandlers(writer io.Writer, abi abi.ABI, packageName string,
+func generateEventHandlers(writer io.Writer, _abi abi.ABI, packageName string,
 	contractImportPath string, contractTypePackage string, contractTypeName string) error {
 	eventsIndex := 0
-	eventHandlers := make([]*EventHandler, len(abi.Events))
+	eventHandlers := make([]*EventHandler, len(_abi.Events))
 	additionalImports := []string{}
 
 	// Keep the event methods sorted by name
