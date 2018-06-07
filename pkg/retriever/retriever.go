@@ -3,10 +3,12 @@
 package retriever // import "github.com/joincivil/civil-events-crawler/pkg/retriever"
 
 import (
+	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/retrieve"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"sort"
 )
 
 // NewCivilEventRetriever creates a CivilEventRetriever given a contract address
@@ -72,5 +74,20 @@ func (r *CivilEventRetriever) Retrieve() error {
 
 // SortEvents sorts events in PastEvents by block number
 func (r *CivilEventRetriever) SortEvents() error {
+	pastEvents := r.PastEvents
+	sort.Slice(pastEvents, func(i, j int) bool {
+		rawPayload1, ok := pastEvents[i].Payload.Value("Raw")
+		rawPayload2, ok := pastEvents[j].Payload.Value("Raw")
+		if !ok {
+			fmt.Println("Can't get raw value from event")
+		}
+		rawPayloadLog1, ok := rawPayload1.Log()
+		rawPayloadLog2, ok := rawPayload2.Log()
+		if !ok {
+			fmt.Println("Can't get raw value from event")
+		}
+		return rawPayloadLog1.BlockNumber < rawPayloadLog2.BlockNumber
+	})
+	r.PastEvents = pastEvents
 	return nil
 }
