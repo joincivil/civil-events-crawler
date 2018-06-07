@@ -169,7 +169,7 @@ func generateEventHandlers(writer io.Writer, abi abi.ABI, packageName string,
 
 	// Keep the event methods sorted by name
 	sortedEvents := eventsToSortedEventsSlice(_abi.Events)
-	for _, event := range abi.Events {
+	for _, event := range sortedEvents {
 		params := []*EventHandlerMethodParam{}
 		for _, input := range event.Inputs {
 			if input.Indexed {
