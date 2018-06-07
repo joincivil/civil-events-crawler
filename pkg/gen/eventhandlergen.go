@@ -46,6 +46,8 @@ type PackageType string
 
 // NameToContractType is a map type of readable name to a ContractType enum value
 type NameToContractType map[string]ContractType
+
+// PackageToTemplateName is a map of package name to template variable
 type PackageToTemplateName map[string]PackageType
 
 // Names returns a list of the names in NameToContractType
@@ -59,7 +61,7 @@ func (n NameToContractType) Names() []string {
 	return keys
 }
 
-// GenerateCivilEventHandlers will code gen the contract event watchers/listeners for a given
+// GenerateCivilEventHandlers will code gen the contract event handlers for a given
 // ContractType. It will output the generated code to the given io.Writer.
 // Currently supports only the CivilTCR and Newsroom ContractTypes.
 func GenerateCivilEventHandlers(writer io.Writer, contractType ContractType, packageName string) error {
@@ -75,12 +77,13 @@ func GenerateCivilEventHandlers(writer io.Writer, contractType ContractType, pac
 	return err
 }
 
-// GenerateWatchersFromTemplate will code gen the contract event watchers for the
-// given Watchers data.  It will output the generated code to the given io.Writer.
+// GenerateEventHandlersFromTemplate will code gen the contract event handlers for the
+// given contract data.  It will output the generated code to the given io.Writer.
 // If gofmt is true, will run go formatting on the code before output.
-func GenerateEventHandlersFromTemplate(writer io.Writer, contractData *ContractData, gofmt bool, packageName string) error {
+// packageName specifies for listener or retriever code
+func GenerateEventHandlersFromTemplate(writer io.Writer, contractData *ContractData, gofmt bool) error {
 	var t *template.Template
-	switch packageName {
+	switch contractData.PackageName {
 	case "watcher":
 		t = template.Must(template.New("watcher.tmpl").Parse(watcherTmpl))
 	case "retrieve":
@@ -105,25 +108,25 @@ func GenerateEventHandlersFromTemplate(writer io.Writer, contractData *ContractD
 	return err
 }
 
-// WatchEventMethodParam represents a value to be passed into the
-// method for starting up watchers in a Civil smart contract.
-// Maps to actions in the watchers.tmpl template.
+// EventHandlerMethodParam represents a value to be passed into the
+// method for starting up event handlers in a Civil smart contract.
+// Maps to actions in the event handler templates.
 type EventHandlerMethodParam struct {
 	Type string
 }
 
-// WatchEvent represents data for an individual contract Watch* event method in a
+// EventHandler represents data for an individual contract event method in a
 // Civil smart contract.
-// Maps to actions in the watchers.tmpl template.
+// Maps to actions in the event handler templates.
 type EventHandler struct {
-	EventHandlerMethod    string
-	EventType        	  string
-	ParamValues      	  []*EventHandlerMethodParam
-	EventHandlerName 	  string
+	EventMethod string
+	EventType   string
+	ParamValues []*EventHandlerMethodParam
+	EventName   string
 }
 
-// ContractWatchers represents data for a category of contract Watch* event methods.
-// Maps to actions in the watchers.tmpl template.
+// ContractData represents data for a category of contract event methods.
+// Maps to actions in the event handler templates.
 type ContractData struct {
 	PackageName         string
 	AdditionalImports   []string
@@ -161,7 +164,7 @@ func generateNewsroomEventHandlers(writer io.Writer, packageName string) error {
 func generateEventHandlers(writer io.Writer, abi abi.ABI, packageName string,
 	contractImportPath string, contractTypePackage string, contractTypeName string) error {
 	eventsIndex := 0
-	EventHandlers := make([]*EventHandler, len(abi.Events))
+	eventHandlers := make([]*EventHandler, len(abi.Events))
 	additionalImports := []string{}
 
 	for _, event := range abi.Events {
@@ -176,14 +179,14 @@ func generateEventHandlers(writer io.Writer, abi abi.ABI, packageName string,
 				params = append(params, val)
 			}
 		}
-		EventHandler := &EventHandler{
-			EventHandlerName: 	   event.Name,
-			EventHandlerMethod:    cleanEventName(event.Name),
-			EventType:        	   EventType(contractTypeName, event.Name),
-			ParamValues:      	   params,
+		eventHandler := &EventHandler{
+			EventName:   event.Name,
+			EventMethod: cleanEventName(event.Name),
+			EventType:   EventType(contractTypeName, event.Name),
+			ParamValues: params,
 		}
 
-		EventHandlers[eventsIndex] = EventHandler
+		eventHandlers[eventsIndex] = eventHandler
 		eventsIndex++
 	}
 	contractData := &ContractData{
@@ -195,7 +198,7 @@ func generateEventHandlers(writer io.Writer, abi abi.ABI, packageName string,
 		GenTime:             time.Now().UTC(),
 		EventHandlers:       eventHandlers,
 	}
-	return GenerateEventHandlersFromTemplate(writer, contractData, true, packageName)
+	return GenerateEventHandlersFromTemplate(writer, contractData, true)
 }
 
 func EventType(contractTypeName string, eventName string) string {

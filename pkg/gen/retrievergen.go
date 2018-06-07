@@ -41,9 +41,9 @@ func Retrieve{{.ContractTypeName}}Events(client bind.ContractBackend, contractAd
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-    err = Retrieve{{.EventHandlerMethod}}(opts, contract, pastEvents)
+    err = Retrieve{{.EventMethod}}(opts, contract, pastEvents)
     if err != nil {
-        return fmt.Errorf("Error retrieving {{.EventHandlerMethod}}: err: %v", err)
+        return fmt.Errorf("Error retrieving {{.EventMethod}}: err: %v", err)
     }
 
 {{- end}}
@@ -55,8 +55,8 @@ func Retrieve{{.ContractTypeName}}Events(client bind.ContractBackend, contractAd
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-func Retrieve{{.EventHandlerMethod}}(opts *bind.FilterOpts, _contract *{{$.ContractTypePackage}}.{{$.ContractTypeName}}, pastEvents *[]model.CivilEvent) error {
-    itr, err := _contract.Filter{{.EventHandlerMethod}}(
+func Retrieve{{.EventMethod}}(opts *bind.FilterOpts, _contract *{{$.ContractTypePackage}}.{{$.ContractTypeName}}, pastEvents *[]model.CivilEvent) error {
+    itr, err := _contract.Filter{{.EventMethod}}(
         opts,
     {{- if .ParamValues -}}
     {{range .ParamValues}}
@@ -65,12 +65,12 @@ func Retrieve{{.EventHandlerMethod}}(opts *bind.FilterOpts, _contract *{{$.Contr
     {{end}}
     )
     if err != nil {
-        log.Errorf("Error getting event {{.EventHandlerMethod}}: %v", err)
+        log.Errorf("Error getting event {{.EventMethod}}: %v", err)
         return err
     }
     nextEvent := itr.Next()
     for nextEvent {
-        civilEvent := model.NewCivilEvent("{{.EventHandlerMethod}}", itr.Event)
+        civilEvent := model.NewCivilEvent("{{.EventMethod}}", itr.Event)
         *pastEvents = append(*pastEvents, *civilEvent)
         nextEvent = itr.Next()
     }

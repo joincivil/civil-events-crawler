@@ -18,7 +18,7 @@ GENERATED_CONTRACT_DIR=pkg/generated/contract
 GENERATED_WATCHER_DIR=pkg/generated/watcher
 GENERATED_RETRIEVE_DIR=pkg/generated/retrieve
 
-WATCHER_GEN_MAIN=cmd/watchergen/main.go
+WATCHER_GEN_MAIN=cmd/eventhandlergen/main.go
 
 ## Reliant on go and $GOPATH being set.
 check-env:
