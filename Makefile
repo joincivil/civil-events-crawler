@@ -17,8 +17,9 @@ ABI_DIR=abi
 GENERATED_DIR=pkg/generated
 GENERATED_CONTRACT_DIR=pkg/generated/contract
 GENERATED_WATCHER_DIR=pkg/generated/watcher
+GENERATED_FILTERER_DIR=pkg/generated/filterer
 
-WATCHER_GEN_MAIN=cmd/watchergen/main.go
+EVENTHANDLER_GEN_MAIN=cmd/eventhandlergen/main.go
 
 ## Reliant on go and $GOPATH being set.
 check-env:
@@ -56,13 +57,19 @@ lint: generate-contracts generate ## Runs linting.
 	gometalinter ./...
 
 .PHONY: generate
-generate: generate-contracts generate-watchers ## Runs all the code generation
+generate: generate-contracts generate-watchers generate-filterers ## Runs all the code generation
 
 .PHONY: generate-watchers
 generate-watchers: ## Runs watchergen to generate contract Watch* wrapper code.
 	mkdir -p $(GENERATED_WATCHER_DIR)
-	$(GORUN) $(WATCHER_GEN_MAIN) civiltcr watcher > ./$(GENERATED_WATCHER_DIR)/civiltcr.go
-	$(GORUN) $(WATCHER_GEN_MAIN) newsroom watcher > ./$(GENERATED_WATCHER_DIR)/newsroom.go
+	$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr watcher watcher > ./$(GENERATED_WATCHER_DIR)/civiltcr.go
+	$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom watcher watcher > ./$(GENERATED_WATCHER_DIR)/newsroom.go
+
+.PHONY: generate-filterers
+generate-filterers: ## Runs filterergen to generate contract Filter* wrapper code.
+	mkdir -p $(GENERATED_FILTERER_DIR)
+	$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr filterer filterer > ./$(GENERATED_FILTERER_DIR)/civiltcr.go
+	$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroom.go
 
 .PHONY: generate-contracts
 generate-contracts: ## Builds the contract wrapper code from the ABIs in /abi.
