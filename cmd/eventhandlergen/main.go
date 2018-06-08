@@ -14,6 +14,8 @@ var (
 				Required().HintAction(gen.NameToContractTypes.Names).Enum(gen.NameToContractTypes.Names()...)
 	packageName = kingpin.Arg("package-name", "Package name for the generated files.").
 			Required().String()
+	handlerName = kingpin.Arg("handler-name", "Handler name retriever, or listener.").
+			Required().String()
 )
 
 func main() {
@@ -21,7 +23,7 @@ func main() {
 	kingpin.Parse()
 
 	contractType := gen.NameToContractTypes[*contractTypeName]
-	err := gen.GenerateCivilEventHandlers(os.Stdout, contractType, *packageName)
+	err := gen.GenerateCivilEventHandlers(os.Stdout, contractType, *packageName, *handlerName)
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
 	}

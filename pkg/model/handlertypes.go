@@ -13,9 +13,8 @@ type ContractWatchers interface {
 	StartWatchers(client bind.ContractBackend, contractAddress common.Address, eventRecvChan chan CivilEvent) ([]event.Subscription, error)
 }
 
-// ContractRetrievers defines an interface for event retrievers.
-type ContractRetrievers interface {
+// ContractFilterers defines an interface for event retrievers.
+type ContractFilterers interface {
 	ContractName() string
-	RetrieveEvents(client bind.ContractBackend, contractAddress common.Address, pastEvents *[]CivilEvent,
-		startBlock uint64) error
+	StartFilterers(client bind.ContractBackend, contractAddress common.Address, pastEvents *[]CivilEvent, startBlock uint64) error
 }

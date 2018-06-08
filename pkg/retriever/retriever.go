@@ -15,7 +15,7 @@ import (
 // connection to client and startBlock. Logic should go in main script to
 // check startblock of last event?
 func NewCivilEventRetriever(client bind.ContractBackend, contractAddress string,
-	startBlock int, retrievers []model.ContractRetrievers) *CivilEventRetriever {
+	startBlock int, filterers []model.ContractFilterers) *CivilEventRetriever {
 	address := common.HexToAddress(contractAddress)
 	retriever := &CivilEventRetriever{
 		Client:             client,
@@ -23,7 +23,7 @@ func NewCivilEventRetriever(client bind.ContractBackend, contractAddress string,
 		ContractAddressStr: contractAddress,
 		PastEvents:         make([]model.CivilEvent, 0),
 		StartBlock:         uint64(startBlock),
-		retrievers:         retrievers,
+		filterers:          filterers,
 	}
 	return retriever
 }
@@ -47,15 +47,15 @@ type CivilEventRetriever struct {
 	// StartBlock is the block number from where PastEvents were scraped from
 	StartBlock uint64
 
-	retrievers []model.ContractRetrievers
+	filterers []model.ContractFilterers
 }
 
 // Retrieve gets all events from StartBlock until now
 func (r *CivilEventRetriever) Retrieve() error {
 	var err error
 
-	for _, retriever := range r.retrievers {
-		err = retriever.RetrieveEvents(
+	for _, filterer := range r.filterers {
+		err = filterer.StartFilterers(
 			r.Client,
 			r.ContractAddress,
 			&r.PastEvents,
@@ -69,7 +69,7 @@ func (r *CivilEventRetriever) Retrieve() error {
 	return nil
 }
 
-// SortEvents sorts events in PastEvents by block number
+// SortEventsByBlock sorts events in PastEvents by block number
 // TODO (IS): Maybe we should have a hash for each event so we can reference
 // the event that gave us an error.
 func (r *CivilEventRetriever) SortEventsByBlock() bool {
