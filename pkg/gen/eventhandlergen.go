@@ -210,7 +210,7 @@ func generateEventHandlers(writer io.Writer, _abi abi.ABI, packageName string,
 	return GenerateEventHandlersFromTemplate(writer, contractData, true, handlerName)
 }
 
-func EventType(contractTypeName string, eventName string) string {
+func eventType(contractTypeName string, eventName string) string {
 	return fmt.Sprintf(
 		"%v%v",
 		contractTypeName,
