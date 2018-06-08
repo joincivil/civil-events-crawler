@@ -51,11 +51,11 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 	}
 	bufWatcher := &bytes.Buffer{}
 	bufRetriever := &bytes.Buffer{}
-	err := gen.GenerateEventHandlersFromTemplate(bufWatcher, testWatchers, true)
+	err := gen.GenerateEventHandlersFromTemplate(bufWatcher, testWatchers, true, "watcher")
 	if err != nil {
 		t.Errorf("Error generating watchers: err: %v", err)
 	}
-	err = gen.GenerateEventHandlersFromTemplate(bufRetriever, testRetrievers, true)
+	err = gen.GenerateEventHandlersFromTemplate(bufRetriever, testRetrievers, true, "retrieve")
 	if err != nil {
 		t.Errorf("Error generating retrievers: err: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 	if !strings.Contains(watcherCode, "_contract *contract.CivilTCRContract") {
 		t.Error("Did not see expected contract.CivilTCRContract in the generated watcher code")
 	}
-	if !strings.Contains(retrieverCode, "func RetrieveCivilTCRContractEvents") {
+	if !strings.Contains(retrieverCode, "func (r *CivilTCRContractRetrievers) RetrieveCivilTCRContractEvents") {
 		t.Error("Did not see expected RetrieveCivilTCRContractEvents in the generated retriever code")
 	}
 	if !strings.Contains(retrieverCode, "func RetrieveApplication") {
@@ -136,7 +136,7 @@ func TestGenerateRetrieversForCivilTcr(t *testing.T) {
 
 	// TODO(IS): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
-	if !strings.Contains(code, "func RetrieveCivilTCRContractEvents") {
+	if !strings.Contains(code, "func (r *CivilTCRContractRetrievers) RetrieveCivilTCRContractEvents") {
 		t.Error("Did not see expected RetrieveCivilTCRContractEvents in the generated code")
 	}
 	if !strings.Contains(code, "func RetrieveApplication") {
@@ -159,7 +159,7 @@ func TestGenerateRetrieversForNewsroom(t *testing.T) {
 
 	// TODO(IS): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
-	if !strings.Contains(code, "func RetrieveNewsroomContractEvents") {
+	if !strings.Contains(code, "func (r *NewsroomContractRetrievers) RetrieveNewsroomContractEvents") {
 		t.Error("Did not see expected RetrieveNewsroomContractEvents in the generated code")
 	}
 	if !strings.Contains(code, "func RetrieveRevisionUpdated") {

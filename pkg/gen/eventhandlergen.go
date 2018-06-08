@@ -33,23 +33,13 @@ var (
 		"civiltcr": CivilTcrContractType,
 		"newsroom": NewsroomContractType,
 	}
-
-	// PackageToTemplateNames maps package name to template
-	PackageToTemplateNames = PackageToTemplateName{
-		"watcher":  watcherTmpl,
-		"retrieve": retrieverTmpl,
-	}
 )
 
 // ContractType is an enum for the Civil contract type
 type ContractType int
-type PackageType string
 
 // NameToContractType is a map type of readable name to a ContractType enum value
 type NameToContractType map[string]ContractType
-
-// PackageToTemplateName is a map of package name to template variable
-type PackageToTemplateName map[string]PackageType
 
 // Names returns a list of the names in NameToContractType
 func (n NameToContractType) Names() []string {
@@ -82,15 +72,15 @@ func GenerateCivilEventHandlers(writer io.Writer, contractType ContractType, pac
 // given contract data.  It will output the generated code to the given io.Writer.
 // If gofmt is true, will run go formatting on the code before output.
 // packageName specifies for listener or retriever code
-func GenerateEventHandlersFromTemplate(writer io.Writer, contractData *ContractData, gofmt bool) error {
+func GenerateEventHandlersFromTemplate(writer io.Writer, contractData *ContractData, gofmt bool, handlerName string) error {
 	var t *template.Template
-	switch contractData.PackageName {
+	switch handlerName {
 	case "watcher":
 		t = template.Must(template.New("watcher.tmpl").Parse(watcherTmpl))
 	case "retrieve":
 		t = template.Must(template.New("retrieve.tmpl").Parse(retrieverTmpl))
 	default:
-		return errors.New("Invalid packageName")
+		return errors.New("Invalid handlerName")
 	}
 	buf := &bytes.Buffer{}
 	err := t.Execute(buf, contractData)
@@ -167,7 +157,7 @@ func generateEventHandlers(writer io.Writer, _abi abi.ABI, packageName string,
 	eventsIndex := 0
 	eventHandlers := make([]*EventHandler, len(_abi.Events))
 	additionalImports := []string{}
-
+	handlerName := packageName
 	// Keep the event methods sorted by name
 	sortedEvents := eventsToSortedEventsSlice(_abi.Events)
 	for _, event := range sortedEvents {
@@ -201,7 +191,7 @@ func generateEventHandlers(writer io.Writer, _abi abi.ABI, packageName string,
 		GenTime:             time.Now().UTC(),
 		EventHandlers:       eventHandlers,
 	}
-	return GenerateEventHandlersFromTemplate(writer, contractData, true)
+	return GenerateEventHandlersFromTemplate(writer, contractData, true, handlerName)
 }
 
 func EventType(contractTypeName string, eventName string) string {
