@@ -26,8 +26,20 @@ import (
 {{- end}}
 )
 
+type {{.ContractTypeName}}Retrievers struct {}
+
+func (r *{{.ContractTypeName}}Retrievers) ContractName() string {
+    return "{{.ContractTypeName}}"
+}
+
+func (r *{{.ContractTypeName}}Retrievers) RetrieveEvents(client bind.ContractBackend, contractAddress common.Address,
+    pastEvents *[]model.CivilEvent, startBlock uint64) error {
+    return r.Retrieve{{.ContractTypeName}}Events(client, contractAddress, pastEvents, startBlock)
+}
+
 // Retrieve{{.ContractTypeName}}Events retrieves events for {{.ContractTypeName}}
-func Retrieve{{.ContractTypeName}}Events(client bind.ContractBackend, contractAddress common.Address, pastEvents *[]model.CivilEvent, startBlock uint64) error {
+func (r *{{.ContractTypeName}}Retrievers) Retrieve{{.ContractTypeName}}Events(client bind.ContractBackend, 
+    contractAddress common.Address, pastEvents *[]model.CivilEvent, startBlock uint64) error {
     contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(contractAddress, client)
     if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
