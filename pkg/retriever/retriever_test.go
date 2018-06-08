@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	log "github.com/golang/glog"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/retrieve"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
 	"math/big"
@@ -36,7 +37,11 @@ func TestEventCollection(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, testTCRAddress, startBlock)
+	retrievers := []model.ContractRetrievers{
+		&retrieve.CivilTCRContractRetrievers{},
+		&retrieve.NewsroomContractRetrievers{},
+	}
+	retrieve := retriever.NewCivilEventRetriever(client, testTCRAddress, startBlock, retrievers)
 	err = retrieve.Retrieve()
 	if err != nil {
 		t.Errorf("Error retrieving events: %v", err)
@@ -75,13 +80,58 @@ func TestSorting(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, testTCRAddress, startBlock)
+	retrievers := []model.ContractRetrievers{
+		&retrieve.CivilTCRContractRetrievers{},
+		&retrieve.NewsroomContractRetrievers{},
+	}
+	retrieve := retriever.NewCivilEventRetriever(client, testTCRAddress, startBlock, retrievers)
 	model1 := model.NewCivilEvent("ApplicationWhitelisted", testEvent1)
 	model2 := model.NewCivilEvent("Application", testEvent2)
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
-	retrieve.SortEvents()
-	if retrieve.PastEvents[0].EventType != "Application" {
+	ok := retrieve.SortEventsByBlock()
+	if ok == false {
 		t.Error("Sorting didn't happen")
+	}
+
+}
+
+func TestSortingFail(t *testing.T) {
+	testEvent1 := &contract.CivilTCRContractApplicationWhitelisted{
+		ListingAddress: common.HexToAddress(testTCRAddress),
+		Raw: types.Log{
+			Address: common.HexToAddress(testTCRAddress),
+			Topics:  []common.Hash{},
+			Data:    []byte{},
+		},
+	}
+	testEvent2 := &contract.CivilTCRContractApplication{
+		ListingAddress: common.HexToAddress(testTCRAddress),
+		Deposit:        big.NewInt(1000),
+		AppEndDate:     big.NewInt(1653860896),
+		Data:           "DATA",
+		Applicant:      common.HexToAddress(testTCRAddress),
+		Raw: types.Log{
+			Address:     common.HexToAddress(testTCRAddress),
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8888886,
+		},
+	}
+	client, err := setupRinkebyClient()
+	if err != nil {
+		t.Errorf("Error connecting to rinkeby: %v", err)
+	}
+	retrievers := []model.ContractRetrievers{
+		&retrieve.CivilTCRContractRetrievers{},
+		&retrieve.NewsroomContractRetrievers{},
+	}
+	retrieve := retriever.NewCivilEventRetriever(client, testTCRAddress, startBlock, retrievers)
+	model1 := model.NewCivilEvent("ApplicationWhitelisted", testEvent1)
+	model2 := model.NewCivilEvent("Application", testEvent2)
+	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
+	ok := retrieve.SortEventsByBlock()
+	if ok == true {
+		t.Error("Sorting happened when it shouldn't have")
 	}
 
 }
