@@ -191,7 +191,7 @@ func generateEventHandlers(writer io.Writer, _abi abi.ABI, packageName string,
 		eventHandler := &EventHandler{
 			EventName:   event.Name,
 			EventMethod: cleanEventName(event.Name),
-			EventType:   EventType(contractTypeName, event.Name),
+			EventType:   eventType(contractTypeName, event.Name),
 			ParamValues: params,
 		}
 
