@@ -52,7 +52,7 @@ install-abigen: check-env ## Installs the Ethereum abigen tool
 setup: check-env install-dep install-linter install-cover install-abigen ## Sets up the tooling.
 
 .PHONY: lint
-lint: generate-contracts generate ## Runs linting.
+lint: ## Runs linting.
 	# gometalinter config in .gometalinter.json
 	gometalinter ./...
 
