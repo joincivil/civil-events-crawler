@@ -35,23 +35,23 @@ func newSimulatedBackendWithGasLimit(alloc core.GenesisAlloc, gasLimit uint64) *
 	genesis.MustCommit(database)
 
 	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vm.Config{})
-	events := filters.NewEventSystem(new(event.TypeMux), &filterBackend{database, blockchain}, false)
+	events := filters.NewEventSystem(new(event.TypeMux), &filterBackend{database, blockchain}, false) //nolint: megacheck, staticcheck
 
 	be := reflect.ValueOf(backend)
 	field := be.Elem().FieldByName("database")
-	newVal := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+	newVal := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gas
 	newVal.Set(reflect.ValueOf(database))
 
 	field = be.Elem().FieldByName("blockchain")
-	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gas
 	newVal.Set(reflect.ValueOf(blockchain))
 
 	field = be.Elem().FieldByName("config")
-	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gas
 	newVal.Set(reflect.ValueOf(genesis.Config))
 
 	field = be.Elem().FieldByName("events")
-	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gas
 	newVal.Set(reflect.ValueOf(events))
 
 	return backend
@@ -65,7 +65,7 @@ type filterBackend struct {
 }
 
 func (fb *filterBackend) ChainDb() ethdb.Database       { return fb.db }
-func (fb *filterBackend) EventMux() *event.TypeMux      { panic("not supported") }
+func (fb *filterBackend) EventMux() *event.TypeMux      { panic("not supported") } //nolint: megacheck, staticcheck
 func (fb *filterBackend) BloomStatus() (uint64, uint64) { return 4096, 0 }
 
 func (fb *filterBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {

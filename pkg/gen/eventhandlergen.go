@@ -36,11 +36,11 @@ var (
 )
 
 var handlerToTemplate = map[string]TemplateData{
-	"watcher": TemplateData{
+	"watcher": {
 		tmplName: "watcher.tmpl",
 		tmplVar:  watcherTmpl,
 	},
-	"filterer": TemplateData{
+	"filterer": {
 		tmplName: "filterer.tmpl",
 		tmplVar:  filtererTmpl,
 	},

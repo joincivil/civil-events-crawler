@@ -104,8 +104,5 @@ func (r *CivilEventRetriever) SortEventsByBlock() bool {
 		}
 		return rawPayloadLog1.BlockNumber < rawPayloadLog2.BlockNumber
 	})
-	if errVar != "" {
-		return false
-	}
-	return true
+	return errVar == ""
 }

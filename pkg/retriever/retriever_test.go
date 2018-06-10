@@ -87,7 +87,7 @@ func TestSorting(t *testing.T) {
 	model2 := model.NewCivilEvent("Application", testEvent2)
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
 	ok := retrieve.SortEventsByBlock()
-	if ok == false {
+	if !ok {
 		t.Error("Sorting didn't happen")
 	}
 
@@ -128,7 +128,7 @@ func TestSortingFail(t *testing.T) {
 	model2 := model.NewCivilEvent("Application", testEvent2)
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
 	ok := retrieve.SortEventsByBlock()
-	if ok == true {
+	if ok {
 		t.Error("Sorting happened when it shouldn't have")
 	}
 
