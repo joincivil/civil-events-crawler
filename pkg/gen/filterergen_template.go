@@ -26,7 +26,15 @@ import (
 {{- end}}
 )
 
-type {{.ContractTypeName}}Filterers struct {}
+func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.ContractTypeName}}Filterers {
+	return &{{.ContractTypeName}}Filterers{
+		contractAddress: contractAddress,
+	}
+}
+
+type {{.ContractTypeName}}Filterers struct {
+	contractAddress common.Address
+}
 
 func (r *{{.ContractTypeName}}Filterers) ContractName() string {
     return "{{.ContractTypeName}}"
@@ -34,13 +42,13 @@ func (r *{{.ContractTypeName}}Filterers) ContractName() string {
 
 func (r *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend, contractAddress common.Address,
     pastEvents *[]model.CivilEvent, startBlock uint64) error {
-    return r.Start{{.ContractTypeName}}Filterers(client, contractAddress, pastEvents, startBlock)
+    return r.Start{{.ContractTypeName}}Filterers(client, pastEvents, startBlock)
 }
 
 // Start{{.ContractTypeName}}Filterers retrieves events for {{.ContractTypeName}}
 func (r *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(client bind.ContractBackend, 
-    contractAddress common.Address, pastEvents *[]model.CivilEvent, startBlock uint64) error {
-    contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(contractAddress, client)
+    pastEvents *[]model.CivilEvent, startBlock uint64) error {
+    contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(r.contractAddress, client)
     if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
         return err

@@ -5,7 +5,6 @@ package retriever // import "github.com/joincivil/civil-events-crawler/pkg/retri
 import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
 	log "github.com/golang/glog"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"sort"
@@ -14,16 +13,13 @@ import (
 // NewCivilEventRetriever creates a CivilEventRetriever given a contract address
 // connection to client and startBlock. Logic should go in main script to
 // check startblock of last event?
-func NewCivilEventRetriever(client bind.ContractBackend, contractAddress string,
-	startBlock int, filterers []model.ContractFilterers) *CivilEventRetriever {
-	address := common.HexToAddress(contractAddress)
+func NewCivilEventRetriever(client bind.ContractBackend, startBlock int,
+	filterers []model.ContractFilterers) *CivilEventRetriever {
 	retriever := &CivilEventRetriever{
-		Client:             client,
-		ContractAddress:    address,
-		ContractAddressStr: contractAddress,
-		PastEvents:         make([]model.CivilEvent, 0),
-		StartBlock:         uint64(startBlock),
-		filterers:          filterers,
+		client:     client,
+		PastEvents: make([]model.CivilEvent, 0),
+		StartBlock: uint64(startBlock),
+		filterers:  filterers,
 	}
 	return retriever
 }
@@ -33,13 +29,7 @@ func NewCivilEventRetriever(client bind.ContractBackend, contractAddress string,
 type CivilEventRetriever struct {
 
 	// Client is the ethereum client from go-ethereum
-	Client bind.ContractBackend
-
-	// ContractAddress is the Address type for the contract to watch
-	ContractAddress common.Address
-
-	// ContractAddressStr is the string repr for the address of the contract
-	ContractAddressStr string
+	client bind.ContractBackend
 
 	// PastEvents is a slice that holds all past CivilEvents requested
 	PastEvents []model.CivilEvent
@@ -56,8 +46,7 @@ func (r *CivilEventRetriever) Retrieve() error {
 
 	for _, filterer := range r.filterers {
 		err = filterer.StartFilterers(
-			r.Client,
-			r.ContractAddress,
+			r.client,
 			&r.PastEvents,
 			r.StartBlock,
 		)
