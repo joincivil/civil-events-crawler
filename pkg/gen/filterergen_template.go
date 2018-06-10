@@ -40,7 +40,7 @@ func (r *{{.ContractTypeName}}Filterers) ContractName() string {
     return "{{.ContractTypeName}}"
 }
 
-func (r *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend, contractAddress common.Address,
+func (r *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend, 
     pastEvents *[]model.CivilEvent, startBlock uint64) error {
     return r.Start{{.ContractTypeName}}Filterers(client, pastEvents, startBlock)
 }
