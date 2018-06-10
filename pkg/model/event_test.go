@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	testAddress = "0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d"
-	testEvent   = &contract.CivilTCRContractApplication{
+	contractAddress = "0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d"
+	testAddress     = "0xdfe273082089bb7f70ee36eebcde64832fe97e55"
+	testEvent       = &contract.CivilTCRContractApplication{
 		ListingAddress: common.HexToAddress(testAddress),
 		Deposit:        big.NewInt(1000),
 		AppEndDate:     big.NewInt(1653860896),
@@ -29,7 +30,8 @@ var (
 )
 
 func setupCivilEvent() *model.CivilEvent {
-	event := model.NewCivilEvent("_Application", testEvent)
+	event := model.NewCivilEvent("_Application", common.HexToAddress(contractAddress),
+		testEvent)
 	return event
 }
 

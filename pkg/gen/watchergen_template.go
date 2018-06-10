@@ -35,6 +35,7 @@ func New{{.ContractTypeName}}Watchers(contractAddress common.Address) *{{.Contra
 
 type {{.ContractTypeName}}Watchers struct {
 	contractAddress common.Address
+	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
 }
 
 func (w *{{.ContractTypeName}}Watchers) ContractName() string {
@@ -54,13 +55,14 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
 		return nil, err
 	}
+	w.contract = contract
 
     var sub event.Subscription
 	subs := []event.Subscription{}
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-    sub, err = startWatch{{.EventMethod}}(eventRecvChan, contract)
+    sub, err = w.startWatch{{.EventMethod}}(eventRecvChan)
 	if err != nil {
         return nil, fmt.Errorf("Error starting start{{.EventMethod}}: err: %v", err)
 	}
@@ -75,10 +77,10 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-func startWatch{{.EventMethod}}(eventRecvChan chan model.CivilEvent, _contract *{{$.ContractTypePackage}}.{{$.ContractTypeName}}) (event.Subscription, error) {
+func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan model.CivilEvent) (event.Subscription, error) {
 	opts := &bind.WatchOpts{}
     recvChan := make(chan *{{$.ContractTypePackage}}.{{.EventType}})
-	sub, err := _contract.Watch{{.EventMethod}}(
+	sub, err := w.contract.Watch{{.EventMethod}}(
 		opts,
 		recvChan,
 	{{- if .ParamValues -}}
@@ -96,7 +98,7 @@ func startWatch{{.EventMethod}}(eventRecvChan chan model.CivilEvent, _contract *
 		for {
 			select {
 			case event := <-recvChan:
-				civilEvent := model.NewCivilEvent("{{.EventName}}", event)
+				civilEvent := model.NewCivilEvent("{{.EventName}}", w.contractAddress, event)
 				select {
 				case eventRecvChan <- *civilEvent:
 				case err := <-sub.Err():

@@ -79,9 +79,10 @@ func TestCivilListenerEventChan(t *testing.T) {
 	}(quitChan, eventRecv)
 
 	newEvent := &model.CivilEvent{
-		EventType: "_Application",
-		Timestamp: utils.CurrentEpochSecsInInt(),
-		Payload:   &model.CivilEventPayload{},
+		EventType:       "_Application",
+		ContractAddress: contracts.CivilTcrAddr,
+		Timestamp:       utils.CurrentEpochSecsInInt(),
+		Payload:         &model.CivilEventPayload{},
 	}
 	listener.EventRecvChan <- *newEvent
 

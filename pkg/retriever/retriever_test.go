@@ -83,8 +83,8 @@ func TestSorting(t *testing.T) {
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
 	retrieve := retriever.NewCivilEventRetriever(client, startBlock, filterers)
-	model1 := model.NewCivilEvent("ApplicationWhitelisted", testEvent1)
-	model2 := model.NewCivilEvent("Application", testEvent2)
+	model1 := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(testTCRAddress), testEvent1)
+	model2 := model.NewCivilEvent("Application", common.HexToAddress(testTCRAddress), testEvent2)
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
 	ok := retrieve.SortEventsByBlock()
 	if !ok {
@@ -124,8 +124,8 @@ func TestSortingFail(t *testing.T) {
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
 	retrieve := retriever.NewCivilEventRetriever(client, startBlock, filterers)
-	model1 := model.NewCivilEvent("ApplicationWhitelisted", testEvent1)
-	model2 := model.NewCivilEvent("Application", testEvent2)
+	model1 := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(testTCRAddress), testEvent1)
+	model2 := model.NewCivilEvent("Application", common.HexToAddress(testTCRAddress), testEvent2)
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
 	ok := retrieve.SortEventsByBlock()
 	if ok {

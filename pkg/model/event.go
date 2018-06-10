@@ -11,9 +11,11 @@ import (
 )
 
 // NewCivilEvent is a convenience function to create a new CivilEvent
-func NewCivilEvent(eventType string, eventData interface{}) *CivilEvent {
+func NewCivilEvent(eventType string, contractAddress common.Address,
+	eventData interface{}) *CivilEvent {
 	event := &CivilEvent{}
 	event.EventType = eventType
+	event.ContractAddress = contractAddress
 	event.Timestamp = utils.CurrentEpochSecsInInt()
 	event.Payload = &CivilEventPayload{
 		data: structs.New(eventData),
@@ -28,6 +30,9 @@ type CivilEvent struct {
 
 	// EventType is the type of event. i.e. _Challenge, _Appeal, _Application.
 	EventType string
+
+	// Address of the contract emitting the event
+	ContractAddress common.Address
 
 	// Timestamp is the time this event was created.
 	Timestamp int
