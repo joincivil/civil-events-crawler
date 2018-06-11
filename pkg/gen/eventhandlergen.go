@@ -36,11 +36,11 @@ var (
 )
 
 var handlerToTemplate = map[string]TemplateData{
-	"watcher": TemplateData{
+	"watcher": {
 		tmplName: "watcher.tmpl",
 		tmplVar:  watcherTmpl,
 	},
-	"filterer": TemplateData{
+	"filterer": {
 		tmplName: "filterer.tmpl",
 		tmplVar:  filtererTmpl,
 	},
@@ -107,7 +107,7 @@ func GenerateEventHandlersFromTemplate(writer io.Writer, contractData *ContractD
 	if gofmt {
 		output, err = format.Source(buf.Bytes())
 		if err != nil {
-			log.Errorf("ERROR: template generated code:\n%v", buf.String())
+			log.Errorf("ERROR Gofmt: template generated code:\n%v", buf.String())
 			return err
 		}
 	}

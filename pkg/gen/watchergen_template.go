@@ -27,32 +27,42 @@ import (
 {{- end}}
 )
 
-type {{.ContractTypeName}}Watchers struct {}
+func New{{.ContractTypeName}}Watchers(contractAddress common.Address) *{{.ContractTypeName}}Watchers {
+	return &{{.ContractTypeName}}Watchers{
+		contractAddress: contractAddress,
+	}
+}
+
+type {{.ContractTypeName}}Watchers struct {
+	contractAddress common.Address
+	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
+}
 
 func (w *{{.ContractTypeName}}Watchers) ContractName() string {
 	return "{{.ContractTypeName}}"
 }
 
-func (w *{{.ContractTypeName}}Watchers) StartWatchers(client bind.ContractBackend, contractAddress common.Address,
+func (w *{{.ContractTypeName}}Watchers) StartWatchers(client bind.ContractBackend,
 	eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
-	return w.Start{{.ContractTypeName}}Watchers(client, contractAddress, eventRecvChan)
+	return w.Start{{.ContractTypeName}}Watchers(client, eventRecvChan)
 }
 
 // Start{{.ContractTypeName}}Watchers starts up the event watchers for {{.ContractTypeName}}
 func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(client bind.ContractBackend,
-	contractAddress common.Address, eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
-    contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(contractAddress, client)
+	eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
+    contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(w.contractAddress, client)
 	if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
 		return nil, err
 	}
+	w.contract = contract
 
     var sub event.Subscription
 	subs := []event.Subscription{}
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-    sub, err = startWatch{{.EventMethod}}(eventRecvChan, contract)
+    sub, err = w.startWatch{{.EventMethod}}(eventRecvChan)
 	if err != nil {
         return nil, fmt.Errorf("Error starting start{{.EventMethod}}: err: %v", err)
 	}
@@ -67,37 +77,66 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-func startWatch{{.EventMethod}}(eventRecvChan chan model.CivilEvent, _contract *{{$.ContractTypePackage}}.{{$.ContractTypeName}}) (event.Subscription, error) {
-	opts := &bind.WatchOpts{}
-    recvChan := make(chan *{{$.ContractTypePackage}}.{{.EventType}})
-	sub, err := _contract.Watch{{.EventMethod}}(
-		opts,
-		recvChan,
-	{{- if .ParamValues -}}
-	{{range .ParamValues}}
-        []{{.Type}}{},
-	{{- end}}
-	{{end}}
-	)
-	if err != nil {
-		log.Errorf("Error starting Watch{{.EventMethod}}: %v", err)
-		return nil, err
-	}
+func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan model.CivilEvent) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
+		maxRetries := 5
+		startupFn := func() (event.Subscription, chan *{{$.ContractTypePackage}}.{{.EventType}}, error) {
+			retry := 0
+			for {
+				opts := &bind.WatchOpts{}
+				recvChan := make(chan *{{$.ContractTypePackage}}.{{.EventType}})
+				sub, err := w.contract.Watch{{.EventMethod}}(
+					opts,
+					recvChan,
+					{{- if .ParamValues -}}
+					{{range .ParamValues}}
+						[]{{.Type}}{},
+					{{- end}}
+					{{end}}
+				)
+				if err != nil {
+					if sub != nil {
+						sub.Unsubscribe()
+					}
+					if retry >= maxRetries {
+						return nil, nil, err
+					}
+					retry++
+					log.Warningf("Retrying start Watch{{.EventMethod}}: %v", err)
+					continue
+				}
+				return sub, recvChan, nil
+			}
+		}
+		sub, recvChan, err := startupFn()
+		if err != nil {
+			log.Errorf("Error starting Watch{{.EventMethod}}: %v", err)
+			return err
+		}
 		defer sub.Unsubscribe()
 		for {
 			select {
 			case event := <-recvChan:
-				civilEvent := model.NewCivilEvent("{{.EventName}}", event)
+				civilEvent := model.NewCivilEvent("{{.EventName}}", w.contractAddress, event)
 				select {
 				case eventRecvChan <- *civilEvent:
 				case err := <-sub.Err():
-					return err
+					sub.Unsubscribe()
+					sub, recvChan, err = startupFn()
+					if err != nil {
+						log.Errorf("Error restarting Watch{{.EventMethod}}, fatal (a): %v", err)
+						return err
+					}
 				case <-quit:
 					return nil
 				}
 			case err := <-sub.Err():
-				return err
+				sub.Unsubscribe()
+				sub, recvChan, err = startupFn()
+				if err != nil {
+					log.Errorf("Error restarting Watch{{.EventMethod}}, fatal (b): %v", err)
+					return err
+				}
 			case <-quit:
 				return nil
 			}

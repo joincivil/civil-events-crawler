@@ -21,7 +21,11 @@ func TestCivilListener(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
 	}
-	listener := setupListener(t, contracts.Client, contracts.CivilTcrAddr.Hex())
+	watchers := []model.ContractWatchers{
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
+	}
+	listener := setupListener(t, contracts.Client, watchers)
 	defer listener.Stop()
 }
 
@@ -30,7 +34,11 @@ func TestCivilListenerStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
 	}
-	listener := setupListener(t, contracts.Client, contracts.CivilTcrAddr.Hex())
+	watchers := []model.ContractWatchers{
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
+	}
+	listener := setupListener(t, contracts.Client, watchers)
 
 	// Simple test is if each watcher loop goroutine is shut down by Stop()
 	initialNumRoutines := runtime.NumGoroutine()
@@ -47,7 +55,11 @@ func TestCivilListenerEventChan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: err: %v", err)
 	}
-	listener := setupListener(t, contracts.Client, contracts.CivilTcrAddr.Hex())
+	watchers := []model.ContractWatchers{
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
+	}
+	listener := setupListener(t, contracts.Client, watchers)
 	defer listener.Stop()
 	quitChan := make(chan interface{})
 	eventRecv := make(chan bool)
@@ -67,9 +79,10 @@ func TestCivilListenerEventChan(t *testing.T) {
 	}(quitChan, eventRecv)
 
 	newEvent := &model.CivilEvent{
-		EventType: "_Application",
-		Timestamp: utils.CurrentEpochSecsInInt(),
-		Payload:   &model.CivilEventPayload{},
+		EventType:       "_Application",
+		ContractAddress: contracts.CivilTcrAddr,
+		Timestamp:       utils.CurrentEpochSecsInInt(),
+		Payload:         &model.CivilEventPayload{},
 	}
 	listener.EventRecvChan <- *newEvent
 
@@ -90,7 +103,11 @@ func TestCivilListenerContractEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: err: %v", err)
 	}
-	listener := setupListener(t, contracts.Client, contracts.CivilTcrAddr.Hex())
+	watchers := []model.ContractWatchers{
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
+	}
+	listener := setupListener(t, contracts.Client, watchers)
 	defer listener.Stop()
 
 	quitChan := make(chan interface{})
@@ -152,12 +169,8 @@ Loop:
 	}
 }
 
-func setupListener(t *testing.T, client bind.ContractBackend, address string) *listener.CivilEventListener {
-	watchers := []model.ContractWatchers{
-		&watcher.CivilTCRContractWatchers{},
-		&watcher.NewsroomContractWatchers{},
-	}
-	listener := listener.NewCivilEventListener(client, address, watchers)
+func setupListener(t *testing.T, client bind.ContractBackend, watchers []model.ContractWatchers) *listener.CivilEventListener {
+	listener := listener.NewCivilEventListener(client, watchers)
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}

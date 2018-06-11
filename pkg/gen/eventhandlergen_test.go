@@ -64,24 +64,22 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 	watcherCode := bufWatcher.String()
 	filtererCode := bufFilterer.String()
 
-	if !strings.Contains(watcherCode, "func startWatchApplication") {
+	if !strings.Contains(watcherCode, "func (w *CivilTCRContractWatchers) StartWatchers") {
+		t.Error("Did not see expected Startwatchers in the generated watcher code")
+	}
+	if !strings.Contains(watcherCode, "func (w *CivilTCRContractWatchers) startWatchApplication") {
 		t.Error("Did not see expected startWatchApplication in the generated watcher code")
 	}
-	if !strings.Contains(watcherCode, "func startWatchApplicationRemoved") {
+	if !strings.Contains(watcherCode, "func (w *CivilTCRContractWatchers) startWatchApplicationRemoved") {
 		t.Error("Did not see expected startWatchApplicationRemoved in the generated watcher code")
-	}
-	if !strings.Contains(watcherCode, "_contract *contract.CivilTCRContract") {
-		t.Error("Did not see expected contract.CivilTCRContract in the generated watcher code")
 	}
 	if !strings.Contains(filtererCode, "func (r *CivilTCRContractFilterers) StartFilterers") {
 		t.Error("Did not see expected StartFilterers in the generated Filterer code")
 	}
-	if !strings.Contains(filtererCode, "func startFilterApplication") {
+	if !strings.Contains(filtererCode, "func (r *CivilTCRContractFilterers) startFilterApplication") {
 		t.Error("Did not see expected startFilterApplication in the generated filterer code")
 	}
-	if !strings.Contains(filtererCode, "_contract *contract.CivilTCRContract") {
-		t.Error("Did not see expected contract.CivilTCRContract in the generated filterer code")
-	}
+
 }
 
 func TestGenerateWatchersForCivilTcr(t *testing.T) {
@@ -93,17 +91,17 @@ func TestGenerateWatchersForCivilTcr(t *testing.T) {
 
 	// TODO(PN): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
+	if !strings.Contains(code, "func (w *CivilTCRContractWatchers) StartWatchers") {
+		t.Error("Did not see expected StartWatchers in the generated watcher code")
+	}
 	if !strings.Contains(code, "func (w *CivilTCRContractWatchers) StartCivilTCRContractWatchers") {
 		t.Error("Did not see expected StartCivilTCRContractWatchers in the generated code")
 	}
-	if !strings.Contains(code, "func startWatchApplication") {
+	if !strings.Contains(code, "func (w *CivilTCRContractWatchers) startWatchApplication") {
 		t.Error("Did not see expected startWatchApplication in the generated code")
 	}
-	if !strings.Contains(code, "func startWatchApplicationRemoved") {
+	if !strings.Contains(code, "func (w *CivilTCRContractWatchers) startWatchApplicationRemoved") {
 		t.Error("Did not see expected startWatchApplicationRemoved in the generated code")
-	}
-	if !strings.Contains(code, "_contract *contract.CivilTCRContract") {
-		t.Error("Did not see expected tcr.CivilTCRContract in the generated code")
 	}
 }
 
@@ -116,14 +114,14 @@ func TestGenerateWatchersForNewsroom(t *testing.T) {
 
 	// TODO(PN): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
+	if !strings.Contains(code, "func (w *NewsroomContractWatchers) StartWatchers") {
+		t.Error("Did not see expected StartWatchers in the generated watcher code")
+	}
 	if !strings.Contains(code, "func (w *NewsroomContractWatchers) StartNewsroomContractWatchers") {
 		t.Error("Did not see expected StartNewsroomContractWatchers in the generated code")
 	}
-	if !strings.Contains(code, "func startWatchRevisionUpdated") {
+	if !strings.Contains(code, "func (w *NewsroomContractWatchers) startWatchRevisionUpdated") {
 		t.Error("Did not see expected startWatchRevisionUpdated in the generated code")
-	}
-	if !strings.Contains(code, "_contract *contract.NewsroomContract") {
-		t.Error("Did not see expected newsroom.NewsroomContract in the generated code")
 	}
 }
 
@@ -139,14 +137,11 @@ func TestGenerateRetrieversForCivilTcr(t *testing.T) {
 	if !strings.Contains(code, "func (r *CivilTCRContractFilterers) StartFilterers") {
 		t.Error("Did not see expected StartFilterers in the generated code")
 	}
-	if !strings.Contains(code, "func startFilterApplication") {
+	if !strings.Contains(code, "func (r *CivilTCRContractFilterers) startFilterApplication") {
 		t.Error("Did not see expected startFilterApplication in the generated code")
 	}
-	if !strings.Contains(code, "func startFilterApplicationRemoved") {
+	if !strings.Contains(code, "func (r *CivilTCRContractFilterers) startFilterApplicationRemoved") {
 		t.Error("Did not see expected startFilterApplicationRemoved in the generated code")
-	}
-	if !strings.Contains(code, "_contract *contract.CivilTCRContract") {
-		t.Error("Did not see expected tcr.CivilTCRContract in the generated code")
 	}
 }
 
@@ -162,10 +157,7 @@ func TestGenerateRetrieversForNewsroom(t *testing.T) {
 	if !strings.Contains(code, "func (r *NewsroomContractFilterers) StartFilterers") {
 		t.Error("Did not see expected StartFilterers in the generated code")
 	}
-	if !strings.Contains(code, "func startFilterRevisionUpdated") {
+	if !strings.Contains(code, "func (r *NewsroomContractFilterers) startFilterRevisionUpdated") {
 		t.Error("Did not see expected startFilterRevisionUpdated in the generated code")
-	}
-	if !strings.Contains(code, "_contract *contract.NewsroomContract") {
-		t.Error("Did not see expected newsroom.NewsroomContract in the generated code")
 	}
 }

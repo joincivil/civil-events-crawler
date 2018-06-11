@@ -26,25 +26,35 @@ import (
 {{- end}}
 )
 
-type {{.ContractTypeName}}Filterers struct {}
+func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.ContractTypeName}}Filterers {
+	return &{{.ContractTypeName}}Filterers{
+		contractAddress: contractAddress,
+	}
+}
+
+type {{.ContractTypeName}}Filterers struct {
+	contractAddress common.Address
+	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
+}
 
 func (r *{{.ContractTypeName}}Filterers) ContractName() string {
     return "{{.ContractTypeName}}"
 }
 
-func (r *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend, contractAddress common.Address,
+func (r *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend,
     pastEvents *[]model.CivilEvent, startBlock uint64) error {
-    return r.Start{{.ContractTypeName}}Filterers(client, contractAddress, pastEvents, startBlock)
+    return r.Start{{.ContractTypeName}}Filterers(client, pastEvents, startBlock)
 }
 
 // Start{{.ContractTypeName}}Filterers retrieves events for {{.ContractTypeName}}
-func (r *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(client bind.ContractBackend, 
-    contractAddress common.Address, pastEvents *[]model.CivilEvent, startBlock uint64) error {
-    contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(contractAddress, client)
+func (r *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(client bind.ContractBackend,
+    pastEvents *[]model.CivilEvent, startBlock uint64) error {
+    contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(r.contractAddress, client)
     if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
         return err
     }
+	r.contract = contract
 
     var opts = &bind.FilterOpts{
         Start: startBlock,
@@ -53,7 +63,7 @@ func (r *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-    err = startFilter{{.EventMethod}}(opts, contract, pastEvents)
+    err = r.startFilter{{.EventMethod}}(opts, pastEvents)
     if err != nil {
         return fmt.Errorf("Error retrieving {{.EventMethod}}: err: %v", err)
     }
@@ -67,8 +77,8 @@ func (r *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-func startFilter{{.EventMethod}}(opts *bind.FilterOpts, _contract *{{$.ContractTypePackage}}.{{$.ContractTypeName}}, pastEvents *[]model.CivilEvent) error {
-    itr, err := _contract.Filter{{.EventMethod}}(
+func (r *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(opts *bind.FilterOpts, pastEvents *[]model.CivilEvent) error {
+    itr, err := r.contract.Filter{{.EventMethod}}(
         opts,
     {{- if .ParamValues -}}
     {{range .ParamValues}}
@@ -82,7 +92,7 @@ func startFilter{{.EventMethod}}(opts *bind.FilterOpts, _contract *{{$.ContractT
     }
     nextEvent := itr.Next()
     for nextEvent {
-        civilEvent := model.NewCivilEvent("{{.EventMethod}}", itr.Event)
+        civilEvent := model.NewCivilEvent("{{.EventMethod}}", r.contractAddress, itr.Event)
         *pastEvents = append(*pastEvents, *civilEvent)
         nextEvent = itr.Next()
     }

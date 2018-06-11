@@ -7,7 +7,6 @@ import (
 	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
@@ -15,15 +14,11 @@ import (
 
 // NewCivilEventListener creates a new CivilEventListener given the address
 // of the contract to listen to.
-func NewCivilEventListener(client bind.ContractBackend, contractAddress string,
-	watchers []model.ContractWatchers) *CivilEventListener {
-	address := common.HexToAddress(contractAddress)
+func NewCivilEventListener(client bind.ContractBackend, watchers []model.ContractWatchers) *CivilEventListener {
 	listener := &CivilEventListener{
-		ContractAddress:    address,
-		ContractAddressStr: contractAddress,
-		EventRecvChan:      make(chan model.CivilEvent),
-		client:             client,
-		watchers:           watchers,
+		EventRecvChan: make(chan model.CivilEvent),
+		client:        client,
+		watchers:      watchers,
 	}
 	return listener
 }
@@ -33,12 +28,6 @@ type CivilEventListener struct {
 
 	// client is a ethereum backend from go-ethereum
 	client bind.ContractBackend
-
-	// ContractAddress is the Address type for the contract to watch
-	ContractAddress common.Address
-
-	// ContractAddressStr is the string repr for the address of the contract
-	ContractAddressStr string
 
 	// EventRecvChan is the channel to send and receive CivilEvents
 	EventRecvChan chan model.CivilEvent
@@ -57,7 +46,6 @@ func (l *CivilEventListener) Start() error {
 	for _, watcher := range l.watchers {
 		subs, err = watcher.StartWatchers(
 			l.client,
-			l.ContractAddress,
 			l.EventRecvChan,
 		)
 		if err != nil {

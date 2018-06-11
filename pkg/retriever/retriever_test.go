@@ -38,10 +38,9 @@ func TestEventCollection(t *testing.T) {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
 	filterers := []model.ContractFilterers{
-		&filterer.CivilTCRContractFilterers{},
-		&filterer.NewsroomContractFilterers{},
+		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, testTCRAddress, startBlock, filterers)
+	retrieve := retriever.NewCivilEventRetriever(client, startBlock, filterers)
 	err = retrieve.Retrieve()
 	if err != nil {
 		t.Errorf("Error retrieving events: %v", err)
@@ -81,15 +80,14 @@ func TestSorting(t *testing.T) {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
 	filterers := []model.ContractFilterers{
-		&filterer.CivilTCRContractFilterers{},
-		&filterer.NewsroomContractFilterers{},
+		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, testTCRAddress, startBlock, filterers)
-	model1 := model.NewCivilEvent("ApplicationWhitelisted", testEvent1)
-	model2 := model.NewCivilEvent("Application", testEvent2)
+	retrieve := retriever.NewCivilEventRetriever(client, startBlock, filterers)
+	model1 := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(testTCRAddress), testEvent1)
+	model2 := model.NewCivilEvent("Application", common.HexToAddress(testTCRAddress), testEvent2)
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
 	ok := retrieve.SortEventsByBlock()
-	if ok == false {
+	if !ok {
 		t.Error("Sorting didn't happen")
 	}
 
@@ -123,15 +121,14 @@ func TestSortingFail(t *testing.T) {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
 	filterers := []model.ContractFilterers{
-		&filterer.CivilTCRContractFilterers{},
-		&filterer.NewsroomContractFilterers{},
+		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, testTCRAddress, startBlock, filterers)
-	model1 := model.NewCivilEvent("ApplicationWhitelisted", testEvent1)
-	model2 := model.NewCivilEvent("Application", testEvent2)
+	retrieve := retriever.NewCivilEventRetriever(client, startBlock, filterers)
+	model1 := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(testTCRAddress), testEvent1)
+	model2 := model.NewCivilEvent("Application", common.HexToAddress(testTCRAddress), testEvent2)
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
 	ok := retrieve.SortEventsByBlock()
-	if ok == true {
+	if ok {
 		t.Error("Sorting happened when it shouldn't have")
 	}
 
