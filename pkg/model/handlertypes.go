@@ -1,4 +1,4 @@
-// Package model contains the general data models for the Civil crawler.
+// Package model contains the general data models and interfaces for the Civil crawler.
 package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
