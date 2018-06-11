@@ -3,35 +3,36 @@ package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // ListenerMetaDataPersister handles storing any metadata related to running
 // the listener.
 type ListenerMetaDataPersister interface {
-	// LastBlockNumber returns the last block number seen by the listener
-	LastBlockNumber() uint64
+	// LastBlockNumber returns the last block number seen by the listener for
+	// an event type and contract address
+	LastBlockNumber(eventType string, contractAddress common.Address) uint64
 
-	// LastBlockHash returns the last block hash seen by the listener
-	LastBlockHash() common.Hash
+	// LastBlockHash returns the last block hash seen by the listener for an
+	// event type and contract address
+	LastBlockHash(eventType string, contractAddress common.Address) common.Hash
 
-	// UpdateDataFromRawLog should update the last block data from the raw event
-	// types.Log
-	UpdateDataFromRawLog(rawLog types.Log) error
+	// UpdateLastBlockData should update the last block data from the CivilEvent
+	UpdateLastBlockData(event *CivilEvent) error
 }
 
 // RetrieverMetaDataPersister handles storing any metadata related to running
 // the listener.
 type RetrieverMetaDataPersister interface {
-	// LastBlockNumber returns the last block number seen by the retriever
-	LastBlockNumber() uint64
+	// LastBlockNumber returns the last block number seen by the retriever for
+	// an event type and contract address
+	LastBlockNumber(eventType string, contractAddress common.Address) uint64
 
-	// LastBlockHash returns the last block hash seen by the retriever
-	LastBlockHash() common.Hash
+	// LastBlockHash returns the last block hash seen by the retriever for an event
+	// type and contract address
+	LastBlockHash(eventType string, contractAddress common.Address) common.Hash
 
-	// UpdateDataFromRawLog should update the last block data from the raw event
-	// types.Log
-	UpdateDataFromRawLog(rawLog types.Log) error
+	// UpdateLastBlockData should update the last block data from the CivilEvent
+	UpdateLastBlockData(event *CivilEvent) error
 }
 
 // EventDataPersister handles storing the received CivilEvent data.
