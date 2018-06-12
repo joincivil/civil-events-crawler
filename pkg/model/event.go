@@ -55,28 +55,28 @@ func (e *CivilEvent) hashEvent() string {
 	return h.Hex()
 }
 
-// GetHash returns the hash of the CivilEvent
-func (e *CivilEvent) GetHash() string {
+// Hash returns the hash of the CivilEvent
+func (e *CivilEvent) Hash() string {
 	return e.eventHash
 }
 
-// GetEventType returns the eventType for the CivilEvent
-func (e *CivilEvent) GetEventType() string {
+// EventType returns the eventType for the CivilEvent
+func (e *CivilEvent) EventType() string {
 	return e.eventType
 }
 
-//GetContractAddress returns the contractAddress for the CivilEvent
-func (e *CivilEvent) GetContractAddress() common.Address {
+// ContractAddress returns the contractAddress for the CivilEvent
+func (e *CivilEvent) ContractAddress() common.Address {
 	return e.contractAddress
 }
 
-//GetTimestamp returns the timestamp for the CivilEvent
-func (e *CivilEvent) GetTimestamp() int {
+// Timestamp returns the timestamp for the CivilEvent
+func (e *CivilEvent) Timestamp() int {
 	return e.timestamp
 }
 
-//GetPayload returns the event payload for the CivilEvent
-func (e *CivilEvent) GetPayload() *CivilEventPayload {
+// Payload returns the event payload for the CivilEvent
+func (e *CivilEvent) Payload() *CivilEventPayload {
 	return e.payload
 }
 

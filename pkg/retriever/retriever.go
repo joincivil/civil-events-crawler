@@ -63,10 +63,10 @@ func (r *CivilEventRetriever) SortEventsByBlock() bool {
 	pastEvents := r.PastEvents
 	var errVar string
 	sort.Slice(pastEvents, func(i, j int) bool {
-		payload1 := pastEvents[i].GetPayload()
-		eventHash1 := pastEvents[i].GetHash()
-		payload2 := pastEvents[j].GetPayload()
-		eventHash2 := pastEvents[j].GetHash()
+		payload1 := pastEvents[i].Payload()
+		eventHash1 := pastEvents[i].Hash()
+		payload2 := pastEvents[j].Payload()
+		eventHash2 := pastEvents[j].Hash()
 
 		rawPayload1, ok := payload1.Value("Raw")
 		if !ok {

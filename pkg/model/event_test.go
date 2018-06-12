@@ -49,20 +49,20 @@ func TestCivilEventSetup(t *testing.T) {
 	if event == nil {
 		t.Errorf("Civil event was not initialized correctly")
 	}
-	if event.GetEventType() != "_Application" {
-		t.Errorf("EventType was not init correctly: %v", event.GetEventType())
+	if event.EventType() != "_Application" {
+		t.Errorf("EventType was not init correctly: %v", event.EventType())
 	}
-	if event.GetTimestamp() <= 0 {
-		t.Errorf("Timestamp was not init correctly: %v", event.GetTimestamp())
+	if event.Timestamp() <= 0 {
+		t.Errorf("Timestamp was not init correctly: %v", event.Timestamp())
 	}
-	if event.GetPayload() == nil {
-		t.Errorf("Payload was not init correctly: %v", event.GetPayload())
+	if event.Payload() == nil {
+		t.Errorf("Payload was not init correctly: %v", event.Payload())
 	}
 }
 
 func TestCivilEventPayload(t *testing.T) {
 	event := setupCivilEvent()
-	payload := event.GetPayload()
+	payload := event.Payload()
 	datafields := payload.Keys()
 	if len(datafields) != 6 {
 		t.Errorf("Payload does not have all the fields: %v", datafields)
@@ -71,7 +71,7 @@ func TestCivilEventPayload(t *testing.T) {
 
 func TestCivilEventPayloadValues(t *testing.T) {
 	event := setupCivilEvent()
-	payload := event.GetPayload()
+	payload := event.Payload()
 	_, ok := payload.Value("NonexistentKey")
 	if ok {
 		t.Errorf("Non-existent key should not return value")
@@ -160,7 +160,7 @@ func TestCivilEventHash(t *testing.T) {
 		testEvent)
 	civilEvent2 := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(contractAddress),
 		testEvent2)
-	if civilEvent2.GetHash() == civilEvent1.GetHash() {
+	if civilEvent2.Hash() == civilEvent1.Hash() {
 		t.Error("These events should have different hashes but they are the same")
 	}
 }

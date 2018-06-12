@@ -69,8 +69,8 @@ func TestCivilListenerEventChan(t *testing.T) {
 		for {
 			select {
 			case event := <-listener.EventRecvChan:
-				if event.GetEventType() != "_Application" {
-					t.Errorf("Eventtype is not correct: %v", event.GetEventType())
+				if event.EventType() != "_Application" {
+					t.Errorf("Eventtype is not correct: %v", event.EventType())
 				}
 				recv <- true
 			case <-quit:
@@ -126,9 +126,9 @@ func TestCivilListenerContractEvents(t *testing.T) {
 		for {
 			select {
 			case event := <-listener.EventRecvChan:
-				if event.GetEventType() != "_Application" && event.GetEventType() != "_Withdrawal" &&
-					event.GetEventType() != "_Deposit" {
-					t.Errorf("EventType is not correct: eventType: %v", event.GetEventType())
+				if event.EventType() != "_Application" && event.EventType() != "_Withdrawal" &&
+					event.EventType() != "_Deposit" {
+					t.Errorf("EventType is not correct: eventType: %v", event.EventType())
 				}
 				recv <- true
 			case <-quit:
