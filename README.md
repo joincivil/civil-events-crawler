@@ -67,7 +67,6 @@ make generate-watchers
 ```
 This is run along with the `make lint`, `make build`, `make test` commands below.
 
-
 ## Lint
 
 Check all the packages for linting errors using a variety of linters via `gometalinter`.  Check the `Makefile` for the up to date list of linters.
@@ -85,7 +84,7 @@ make build
 
 ## Testing
 
-Runs the tests and checks code coverage across the project.  Produces a `coverage.txt` file for use later.
+Runs the tests and checks code coverage across the project. Produces a `coverage.txt` file for use later.
 
 ```
 make test
@@ -99,4 +98,9 @@ Run `make test` and launches the HTML code coverage tool.
 make cover
 ```
 
+## Persistence
+
+The crawler is build to accept an implementation of persistence interfaces as defined in `pkg/model/persisttypes.go`.  These interfaces allow the crawler to store down specific data related to it's operation as well as the events to be collected. 
+
+The initial reference implementation will be written for storing the data to `PostgreSQL`. However, the hope to add additional implementations as needed and as the community sees fit.
 
