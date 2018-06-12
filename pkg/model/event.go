@@ -31,24 +31,23 @@ func NewCivilEvent(eventType string, contractAddress common.Address, eventData i
 // a single type to handle in the listener/retriever.
 type CivilEvent struct {
 
-	//EventHash is the hash of event
+	// eventHash is the hash of event
 	eventHash string
 
 	// eventType is the type of event. i.e. _Challenge, _Appeal, _Application.
 	eventType string
 
-	// Address of the contract emitting the event
+	// contractAddress of the contract emitting the event
 	contractAddress common.Address
 
-	// Timestamp is the time this event was created.
+	// timestamp is the time this event was created.
 	timestamp int
 
-	// Payload is the data from the raw event.
+	// payload is the data from the raw event.
 	payload *CivilEventPayload
 }
 
-// HashEvent returns a hash for event based on data
-// Hash is of contractAddress, eventType and timestamp
+// hashEvent returns a hash for event using contractAddress, eventType and timestamp
 func (e *CivilEvent) hashEvent() string {
 	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType,
 		strconv.Itoa(e.timestamp)})
