@@ -49,21 +49,21 @@ func TestCivilEventSetup(t *testing.T) {
 	if event == nil {
 		t.Errorf("Civil event was not initialized correctly")
 	}
-	if event.EventType != "_Application" {
-		t.Errorf("EventType was not init correctly: %v", event.EventType)
+	if event.GetEventType() != "_Application" {
+		t.Errorf("EventType was not init correctly: %v", event.GetEventType())
 	}
-	if event.Timestamp <= 0 {
-		t.Errorf("Timestamp was not init correctly: %v", event.Timestamp)
+	if event.GetTimestamp() <= 0 {
+		t.Errorf("Timestamp was not init correctly: %v", event.GetTimestamp())
 	}
-	if event.Payload == nil {
-		t.Errorf("Payload was not init correctly: %v", event.Payload)
+	if event.GetPayload() == nil {
+		t.Errorf("Payload was not init correctly: %v", event.GetPayload())
 	}
 }
 
 func TestCivilEventPayload(t *testing.T) {
 	event := setupCivilEvent()
-
-	datafields := event.Payload.Keys()
+	payload := event.GetPayload()
+	datafields := payload.Keys()
 	if len(datafields) != 6 {
 		t.Errorf("Payload does not have all the fields: %v", datafields)
 	}
@@ -71,13 +71,13 @@ func TestCivilEventPayload(t *testing.T) {
 
 func TestCivilEventPayloadValues(t *testing.T) {
 	event := setupCivilEvent()
-
-	_, ok := event.Payload.Value("NonexistentKey")
+	payload := event.GetPayload()
+	_, ok := payload.Value("NonexistentKey")
 	if ok {
 		t.Errorf("Non-existent key should not return value")
 	}
 
-	value, ok := event.Payload.Value("ListingAddress")
+	value, ok := payload.Value("ListingAddress")
 	if !ok {
 		t.Errorf("ListingAddress not found")
 	}
@@ -107,7 +107,7 @@ func TestCivilEventPayloadValues(t *testing.T) {
 		t.Errorf("ListingAddress should fail on type assert to int64")
 	}
 
-	value, ok = event.Payload.Value("Deposit")
+	value, ok = payload.Value("Deposit")
 	if !ok {
 		t.Errorf("Deposit not found")
 	}
@@ -129,7 +129,7 @@ func TestCivilEventPayloadValues(t *testing.T) {
 		t.Errorf("Deposit not an ptr kind: %v", value.Kind())
 	}
 
-	value, ok = event.Payload.Value("Data")
+	value, ok = payload.Value("Data")
 	if !ok {
 		t.Errorf("Data not found")
 	}
@@ -142,7 +142,7 @@ func TestCivilEventPayloadValues(t *testing.T) {
 		t.Errorf("Data not == original: %v", dataStr)
 	}
 
-	value, ok = event.Payload.Value("Raw")
+	value, ok = payload.Value("Raw")
 	if !ok {
 		t.Errorf("Raw not found")
 	}
@@ -153,12 +153,14 @@ func TestCivilEventPayloadValues(t *testing.T) {
 }
 
 // Test that these 2 event hashes are not equal
+// check for 2 events of the same type that are emitted at the same time..
+// what situation might this happen?
 func TestCivilEventHash(t *testing.T) {
 	civilEvent1 := model.NewCivilEvent("Application", common.HexToAddress(contractAddress),
 		testEvent)
 	civilEvent2 := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(contractAddress),
 		testEvent2)
-	if civilEvent2.EventHash == civilEvent1.EventHash {
+	if civilEvent2.GetHash() == civilEvent1.GetHash() {
 		t.Error("These events should have different hashes but they are the same")
 	}
 }

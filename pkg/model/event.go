@@ -14,17 +14,15 @@ import (
 )
 
 // NewCivilEvent is a convenience function to create a new CivilEvent
-// NOTE (IS): I think fields should be static if we want a hash to be totally proper
 func NewCivilEvent(eventType string, contractAddress common.Address, eventData interface{}) *CivilEvent {
 	event := &CivilEvent{}
-	event.EventType = eventType
-	event.ContractAddress = contractAddress
-	event.Timestamp = utils.CurrentEpochSecsInInt()
-	event.Payload = &CivilEventPayload{
+	event.eventType = eventType
+	event.contractAddress = contractAddress
+	event.timestamp = utils.CurrentEpochSecsInInt()
+	event.payload = &CivilEventPayload{
 		data: structs.New(eventData),
 	}
-	// Assuming here that once a CivilEvent is created, fields will not be changed
-	event.EventHash = event.HashEvent()
+	event.eventHash = event.hashEvent()
 	return event
 }
 
@@ -34,30 +32,53 @@ func NewCivilEvent(eventType string, contractAddress common.Address, eventData i
 type CivilEvent struct {
 
 	//EventHash is the hash of event
-	EventHash string
+	eventHash string
 
-	// EventType is the type of event. i.e. _Challenge, _Appeal, _Application.
-	EventType string
+	// eventType is the type of event. i.e. _Challenge, _Appeal, _Application.
+	eventType string
 
 	// Address of the contract emitting the event
-	ContractAddress common.Address
+	contractAddress common.Address
 
 	// Timestamp is the time this event was created.
-	Timestamp int
+	timestamp int
 
 	// Payload is the data from the raw event.
-	Payload *CivilEventPayload
+	payload *CivilEventPayload
 }
 
-// HashEvent creates a hash for event based on data
-// Hash is of ContractAddress, EventType and Timestamp
-// Not good practice to save this as a mutable field bc the hash could be
-// changed...
-func (e *CivilEvent) HashEvent() string {
-	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.ContractAddress.Hex(), e.EventType,
-		strconv.Itoa(e.Timestamp)})
+// HashEvent returns a hash for event based on data
+// Hash is of contractAddress, eventType and timestamp
+func (e *CivilEvent) hashEvent() string {
+	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType,
+		strconv.Itoa(e.timestamp)})
 	h := crypto.Keccak256Hash(eventBytes)
 	return h.Hex()
+}
+
+// GetHash returns the hash of the CivilEvent
+func (e *CivilEvent) GetHash() string {
+	return e.eventHash
+}
+
+// GetEventType returns the eventType for the CivilEvent
+func (e *CivilEvent) GetEventType() string {
+	return e.eventType
+}
+
+//GetContractAddress returns the contractAddress for the CivilEvent
+func (e *CivilEvent) GetContractAddress() common.Address {
+	return e.contractAddress
+}
+
+//GetTimestamp returns the timestamp for the CivilEvent
+func (e *CivilEvent) GetTimestamp() int {
+	return e.timestamp
+}
+
+//GetPayload returns the event payload for the CivilEvent
+func (e *CivilEvent) GetPayload() *CivilEventPayload {
+	return e.payload
 }
 
 // CivilEventPayload represents the data from a Civil contract event
