@@ -27,6 +27,15 @@ var (
 			BlockNumber: 8888888,
 		},
 	}
+	testEvent2 = &contract.CivilTCRContractApplicationWhitelisted{
+		ListingAddress: common.HexToAddress(testAddress),
+		Raw: types.Log{
+			Address:     common.HexToAddress(testAddress),
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8888888,
+		},
+	}
 )
 
 func setupCivilEvent() *model.CivilEvent {
@@ -140,5 +149,16 @@ func TestCivilEventPayloadValues(t *testing.T) {
 	_, ok = value.Log()
 	if !ok {
 		t.Errorf("Raw log cannot be the type types.Log")
+	}
+}
+
+// Test that these 2 event hashes are not equal
+func TestCivilEventHash(t *testing.T) {
+	civilEvent1 := model.NewCivilEvent("Application", common.HexToAddress(contractAddress),
+		testEvent)
+	civilEvent2 := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(contractAddress),
+		testEvent2)
+	if civilEvent2.EventHash == civilEvent1.EventHash {
+		t.Error("These events should have different hashes but they are the same")
 	}
 }

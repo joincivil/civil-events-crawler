@@ -4,15 +4,18 @@ package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/fatih/structs"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 	"math/big"
 	"reflect"
+	"strconv"
 )
 
 // NewCivilEvent is a convenience function to create a new CivilEvent
-func NewCivilEvent(eventType string, contractAddress common.Address,
-	eventData interface{}) *CivilEvent {
+// NOTE (IS): I think fields should be static if we want a hash to be totally proper
+func NewCivilEvent(eventType string, contractAddress common.Address, eventData interface{}) *CivilEvent {
 	event := &CivilEvent{}
 	event.EventType = eventType
 	event.ContractAddress = contractAddress
@@ -20,6 +23,8 @@ func NewCivilEvent(eventType string, contractAddress common.Address,
 	event.Payload = &CivilEventPayload{
 		data: structs.New(eventData),
 	}
+	// Assuming here that once a CivilEvent is created, fields will not be changed
+	event.EventHash = event.HashEvent()
 	return event
 }
 
@@ -27,6 +32,9 @@ func NewCivilEvent(eventType string, contractAddress common.Address,
 // Represents any event type from the sol/abi generated code and creates
 // a single type to handle in the listener/retriever.
 type CivilEvent struct {
+
+	//EventHash is the hash of event
+	EventHash string
 
 	// EventType is the type of event. i.e. _Challenge, _Appeal, _Application.
 	EventType string
@@ -39,6 +47,17 @@ type CivilEvent struct {
 
 	// Payload is the data from the raw event.
 	Payload *CivilEventPayload
+}
+
+// HashEvent creates a hash for event based on data
+// Hash is of ContractAddress, EventType and Timestamp
+// Not good practice to save this as a mutable field bc the hash could be
+// changed...
+func (e *CivilEvent) HashEvent() string {
+	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.ContractAddress.Hex(), e.EventType,
+		strconv.Itoa(e.Timestamp)})
+	h := crypto.Keccak256Hash(eventBytes)
+	return h.Hex()
 }
 
 // CivilEventPayload represents the data from a Civil contract event

@@ -69,38 +69,34 @@ func (r *CivilEventRetriever) SortEventsByBlock() bool {
 	sort.Slice(pastEvents, func(i, j int) bool {
 		rawPayload1, ok := pastEvents[i].Payload.Value("Raw")
 		if !ok {
-			log.Error("Can't get raw value from event")
-			errVar = fmt.Sprintf("Can't get raw value for %v", pastEvents[i].EventType)
-			// errors = append(errors, errVar)
+			errVar = fmt.Sprintf("Can't get raw value for %v", pastEvents[i].EventHash)
+			log.Error(errVar)
 		}
 		rawPayload2, ok := pastEvents[j].Payload.Value("Raw")
 		if !ok {
-			log.Error("Can't get raw value from event")
-			errVar = fmt.Sprintf("Can't get raw value for %v", pastEvents[j].EventType)
-			// errors = append(errors, errVar)
+			errVar = fmt.Sprintf("Can't get raw value for %v", pastEvents[j].EventHash)
+			log.Error(errVar)
 		}
 		rawPayloadLog1, ok := rawPayload1.Log()
 		if !ok {
-			log.Error("Can't convert to Log")
-			errVar = fmt.Sprintf("Can't get raw value for %v", pastEvents[j].EventType)
-			// errors = append(errors, errVar)
+			errVar = fmt.Sprintf("Can't get raw value for %v", pastEvents[j].EventHash)
+			log.Error(errVar)
 		}
 		rawPayloadLog2, ok := rawPayload2.Log()
 		if !ok {
-			log.Error("Can't get raw value from event")
-			errVar = fmt.Sprintf("Can't get raw value for %v", pastEvents[j].EventType)
-			// errors = append(errors, errVar)
+			errVar = fmt.Sprintf("Can't get raw value for %v", pastEvents[j].EventHash)
+			log.Error(errVar)
 		}
 		// BlockNumber is 0 when the value isn't there.
 		blockNumber1 := rawPayloadLog1.BlockNumber
 		if blockNumber1 == 0 {
-			log.Error("Can't get block number from event")
-			errVar = fmt.Sprintf("Can't get block number for %v", pastEvents[i].EventType)
+			errVar = fmt.Sprintf("Can't get block number for %v", pastEvents[i].EventHash)
+			log.Error(errVar)
 		}
 		blockNumber2 := rawPayloadLog2.BlockNumber
 		if blockNumber2 == 0 {
-			log.Error("Can't get block number from event")
-			errVar = fmt.Sprintf("Can't get block number for %v", pastEvents[j].EventType)
+			errVar = fmt.Sprintf("Can't get block number for %v", pastEvents[j].EventHash)
+			log.Error(errVar)
 		}
 		return rawPayloadLog1.BlockNumber < rawPayloadLog2.BlockNumber
 	})
