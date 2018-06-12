@@ -57,16 +57,12 @@ func (e *CivilEvent) hashEvent() string {
 	}
 	rawPayloadLog, ok := rawPayload.Log()
 	if !ok {
-		log.Error("Cannot get Log of Event")
+		log.Error("Cannot get Log of raw Event")
 	}
 	logIndex := int(rawPayloadLog.Index)
-	// NOTE: I hope logIndex can't be 0, if the field doesn't exist, this defaults to 0.
-	if logIndex == 0 {
-		log.Error("Index field does not exist in raw event payload")
-
-	}
+	txHash := rawPayloadLog.TxHash.Hex()
 	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType,
-		strconv.Itoa(e.timestamp), strconv.Itoa(logIndex)})
+		strconv.Itoa(logIndex), txHash})
 	h := crypto.Keccak256Hash(eventBytes)
 	return h.Hex()
 }
