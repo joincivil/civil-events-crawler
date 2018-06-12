@@ -8,12 +8,13 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 func TestCivilListener(t *testing.T) {
@@ -68,8 +69,8 @@ func TestCivilListenerEventChan(t *testing.T) {
 		for {
 			select {
 			case event := <-listener.EventRecvChan:
-				if event.EventType != "_Application" {
-					t.Errorf("Eventtype is not correct: %v", event.EventType)
+				if event.EventType() != "_Application" {
+					t.Errorf("Eventtype is not correct: %v", event.EventType())
 				}
 				recv <- true
 			case <-quit:
@@ -78,12 +79,20 @@ func TestCivilListenerEventChan(t *testing.T) {
 		}
 	}(quitChan, eventRecv)
 
-	newEvent := &model.CivilEvent{
-		EventType:       "_Application",
-		ContractAddress: contracts.CivilTcrAddr,
-		Timestamp:       utils.CurrentEpochSecsInInt(),
-		Payload:         &model.CivilEventPayload{},
+	tempPayload := &contract.CivilTCRContractApplication{
+		ListingAddress: contracts.CivilTcrAddr,
+		Deposit:        big.NewInt(1000),
+		AppEndDate:     big.NewInt(1653860896),
+		Data:           "DATA",
+		Applicant:      contracts.CivilTcrAddr,
+		Raw: types.Log{
+			Address:     contracts.CivilTcrAddr,
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8888888,
+		},
 	}
+	newEvent := model.NewCivilEvent("_Application", contracts.CivilTcrAddr, tempPayload)
 	listener.EventRecvChan <- *newEvent
 
 	select {
@@ -117,9 +126,9 @@ func TestCivilListenerContractEvents(t *testing.T) {
 		for {
 			select {
 			case event := <-listener.EventRecvChan:
-				if event.EventType != "_Application" && event.EventType != "_Withdrawal" &&
-					event.EventType != "_Deposit" {
-					t.Errorf("EventType is not correct: eventType: %v", event.EventType)
+				if event.EventType() != "_Application" && event.EventType() != "_Withdrawal" &&
+					event.EventType() != "_Deposit" {
+					t.Errorf("EventType is not correct: eventType: %v", event.EventType())
 				}
 				recv <- true
 			case <-quit:

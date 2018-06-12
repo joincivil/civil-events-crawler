@@ -4,22 +4,26 @@ package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/fatih/structs"
+	log "github.com/golang/glog"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 	"math/big"
 	"reflect"
+	"strconv"
 )
 
 // NewCivilEvent is a convenience function to create a new CivilEvent
-func NewCivilEvent(eventType string, contractAddress common.Address,
-	eventData interface{}) *CivilEvent {
+func NewCivilEvent(eventType string, contractAddress common.Address, eventData interface{}) *CivilEvent {
 	event := &CivilEvent{}
-	event.EventType = eventType
-	event.ContractAddress = contractAddress
-	event.Timestamp = utils.CurrentEpochSecsInInt()
-	event.Payload = &CivilEventPayload{
+	event.eventType = eventType
+	event.contractAddress = contractAddress
+	event.timestamp = utils.CurrentEpochSecsInInt()
+	event.payload = &CivilEventPayload{
 		data: structs.New(eventData),
 	}
+	event.eventHash = event.hashEvent()
 	return event
 }
 
@@ -28,17 +32,64 @@ func NewCivilEvent(eventType string, contractAddress common.Address,
 // a single type to handle in the listener/retriever.
 type CivilEvent struct {
 
-	// EventType is the type of event. i.e. _Challenge, _Appeal, _Application.
-	EventType string
+	// eventHash is the hash of event
+	eventHash string
 
-	// Address of the contract emitting the event
-	ContractAddress common.Address
+	// eventType is the type of event. i.e. _Challenge, _Appeal, _Application.
+	eventType string
 
-	// Timestamp is the time this event was created.
-	Timestamp int
+	// contractAddress of the contract emitting the event
+	contractAddress common.Address
 
-	// Payload is the data from the raw event.
-	Payload *CivilEventPayload
+	// timestamp is the time this event was created.
+	timestamp int
+
+	// payload is the data from the raw event.
+	payload *CivilEventPayload
+}
+
+// hashEvent returns a hash for event using contractAddress, eventType, timestamp, and log index
+// NOTE: Should we hash more parameters here?
+func (e *CivilEvent) hashEvent() string {
+	rawPayload, ok := e.payload.Value("Raw")
+	if !ok {
+		log.Error("Cannot extract Raw field of Event")
+	}
+	rawPayloadLog, ok := rawPayload.Log()
+	if !ok {
+		log.Error("Cannot get Log of raw Event")
+	}
+	logIndex := int(rawPayloadLog.Index)
+	txHash := rawPayloadLog.TxHash.Hex()
+	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType,
+		strconv.Itoa(logIndex), txHash})
+	h := crypto.Keccak256Hash(eventBytes)
+	return h.Hex()
+}
+
+// Hash returns the hash of the CivilEvent
+func (e *CivilEvent) Hash() string {
+	return e.eventHash
+}
+
+// EventType returns the eventType for the CivilEvent
+func (e *CivilEvent) EventType() string {
+	return e.eventType
+}
+
+// ContractAddress returns the contractAddress for the CivilEvent
+func (e *CivilEvent) ContractAddress() common.Address {
+	return e.contractAddress
+}
+
+// Timestamp returns the timestamp for the CivilEvent
+func (e *CivilEvent) Timestamp() int {
+	return e.timestamp
+}
+
+// Payload returns the event payload for the CivilEvent
+func (e *CivilEvent) Payload() *CivilEventPayload {
+	return e.payload
 }
 
 // CivilEventPayload represents the data from a Civil contract event

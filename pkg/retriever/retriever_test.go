@@ -90,7 +90,6 @@ func TestSorting(t *testing.T) {
 	if !ok {
 		t.Error("Sorting didn't happen")
 	}
-
 }
 
 // TestSorting tests that sorting is happening by block number
