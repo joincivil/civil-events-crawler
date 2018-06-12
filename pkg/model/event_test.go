@@ -25,6 +25,7 @@ var (
 			Topics:      []common.Hash{},
 			Data:        []byte{},
 			BlockNumber: 8888888,
+			Index:       2,
 		},
 	}
 	testEvent2 = &contract.CivilTCRContractApplicationWhitelisted{
@@ -34,6 +35,7 @@ var (
 			Topics:      []common.Hash{},
 			Data:        []byte{},
 			BlockNumber: 8888888,
+			Index:       1,
 		},
 	}
 )
@@ -153,8 +155,6 @@ func TestCivilEventPayloadValues(t *testing.T) {
 }
 
 // Test that these 2 event hashes are not equal
-// check for 2 events of the same type that are emitted at the same time..
-// what situation might this happen?
 func TestCivilEventHash(t *testing.T) {
 	civilEvent1 := model.NewCivilEvent("Application", common.HexToAddress(contractAddress),
 		testEvent)

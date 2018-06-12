@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/fatih/structs"
+	log "github.com/golang/glog"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 	"math/big"
 	"reflect"
@@ -47,10 +48,25 @@ type CivilEvent struct {
 	payload *CivilEventPayload
 }
 
-// hashEvent returns a hash for event using contractAddress, eventType and timestamp
+// hashEvent returns a hash for event using contractAddress, eventType, timestamp, and log index
+// NOTE: Should we hash more parameters here?
 func (e *CivilEvent) hashEvent() string {
+	rawPayload, ok := e.payload.Value("Raw")
+	if !ok {
+		log.Error("Cannot extract Raw field of Event")
+	}
+	rawPayloadLog, ok := rawPayload.Log()
+	if !ok {
+		log.Error("Cannot get Log of Event")
+	}
+	logIndex := int(rawPayloadLog.Index)
+	// NOTE: I hope logIndex can't be 0, if the field doesn't exist, this defaults to 0.
+	if logIndex == 0 {
+		log.Error("Index field does not exist in raw event payload")
+
+	}
 	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType,
-		strconv.Itoa(e.timestamp)})
+		strconv.Itoa(e.timestamp), strconv.Itoa(logIndex)})
 	h := crypto.Keccak256Hash(eventBytes)
 	return h.Hex()
 }
