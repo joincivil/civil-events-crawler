@@ -2,6 +2,7 @@
 package listener_test
 
 import (
+	"errors"
 	"math/big"
 	"runtime"
 	"testing"
@@ -10,6 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
+
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
@@ -46,6 +49,51 @@ func TestCivilListenerStop(t *testing.T) {
 	listener.Stop()
 	if initialNumRoutines <= runtime.NumGoroutine() {
 		t.Errorf("Number of goroutines has not gone down since listener.Stop")
+	}
+}
+
+type testErrorWatcher struct{}
+
+func (t *testErrorWatcher) ContractName() string {
+	return "TestErrorContract"
+}
+
+func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
+	eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
+	return nil, errors.New("This is an error starting watchers")
+}
+
+func TestCivilListenerEmptyWatchers(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: %v", err)
+	}
+	watchers := []model.ContractWatchers{
+		&testErrorWatcher{},
+	}
+	listener := listener.NewCivilEventListener(contracts.Client, watchers)
+	if listener == nil {
+		t.Fatal("Listener should not be nil")
+	}
+	err = listener.Start()
+	if err == nil {
+		t.Errorf("Listener should have failed with no watchers: %v", err)
+	}
+}
+
+func TestCivilListenerErrorStartWatchers(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: %v", err)
+	}
+	watchers := []model.ContractWatchers{}
+	listener := listener.NewCivilEventListener(contracts.Client, watchers)
+	if listener == nil {
+		t.Fatal("Listener should not be nil")
+	}
+	err = listener.Start()
+	if err == nil {
+		t.Errorf("Listener should have failed with error from StartWatchers: %v", err)
 	}
 }
 
@@ -92,7 +140,7 @@ func TestCivilListenerEventChan(t *testing.T) {
 			BlockNumber: 8888888,
 		},
 	}
-	newEvent := model.NewCivilEvent("_Application", contracts.CivilTcrAddr, tempPayload)
+	newEvent, _ := model.NewCivilEvent("_Application", contracts.CivilTcrAddr, tempPayload)
 	listener.EventRecvChan <- *newEvent
 
 	select {

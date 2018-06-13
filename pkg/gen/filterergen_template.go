@@ -92,7 +92,11 @@ func (r *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(opts *bind
     }
     nextEvent := itr.Next()
     for nextEvent {
-        civilEvent := model.NewCivilEvent("{{.EventMethod}}", r.contractAddress, itr.Event)
+        civilEvent, err := model.NewCivilEvent("{{.EventMethod}}", r.contractAddress, itr.Event)
+		if err != nil {
+			log.Errorf("Error creating new civil event: event: %v, err: %v", itr.Event, err)
+			continue
+		}
         *pastEvents = append(*pastEvents, *civilEvent)
         nextEvent = itr.Next()
     }

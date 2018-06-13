@@ -2,20 +2,22 @@
 package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
+	"errors"
+	"math/big"
+	"reflect"
+	"strconv"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/fatih/structs"
-	log "github.com/golang/glog"
+
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
-	"math/big"
-	"reflect"
-	"strconv"
 )
 
 // NewCivilEvent is a convenience function to create a new CivilEvent
-func NewCivilEvent(eventType string, contractAddress common.Address, eventData interface{}) *CivilEvent {
+func NewCivilEvent(eventType string, contractAddress common.Address, eventData interface{}) (*CivilEvent, error) {
 	event := &CivilEvent{}
 	event.eventType = eventType
 	event.contractAddress = contractAddress
@@ -23,8 +25,12 @@ func NewCivilEvent(eventType string, contractAddress common.Address, eventData i
 	event.payload = &CivilEventPayload{
 		data: structs.New(eventData),
 	}
-	event.eventHash = event.hashEvent()
-	return event
+	hash, err := event.hashEvent()
+	if err != nil {
+		return nil, err
+	}
+	event.eventHash = hash
+	return event, nil
 }
 
 // CivilEvent represents a single Civil smart contract event log item.
@@ -50,21 +56,21 @@ type CivilEvent struct {
 
 // hashEvent returns a hash for event using contractAddress, eventType, timestamp, and log index
 // NOTE: Should we hash more parameters here?
-func (e *CivilEvent) hashEvent() string {
+func (e *CivilEvent) hashEvent() (string, error) {
 	rawPayload, ok := e.payload.Value("Raw")
 	if !ok {
-		log.Error("Cannot extract Raw field of Event")
+		return "", errors.New("Cannot extract Raw field of Event")
 	}
 	rawPayloadLog, ok := rawPayload.Log()
 	if !ok {
-		log.Error("Cannot get Log of raw Event")
+		return "", errors.New("Cannot get Log of raw Event")
 	}
 	logIndex := int(rawPayloadLog.Index)
 	txHash := rawPayloadLog.TxHash.Hex()
 	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType,
 		strconv.Itoa(logIndex), txHash})
 	h := crypto.Keccak256Hash(eventBytes)
-	return h.Hex()
+	return h.Hex(), nil
 }
 
 // Hash returns the hash of the CivilEvent
