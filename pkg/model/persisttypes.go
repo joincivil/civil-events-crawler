@@ -21,7 +21,7 @@ type ListenerMetaDataPersister interface {
 }
 
 // RetrieverMetaDataPersister handles storing any metadata related to running
-// the listener.
+// the retriever.
 type RetrieverMetaDataPersister interface {
 	// LastBlockNumber returns the last block number seen by the retriever for
 	// an event type and contract address

@@ -10,22 +10,22 @@ import (
 	"sort"
 )
 
-// NewCivilEventRetriever creates a CivilEventRetriever given a contract address
-// connection to client and startBlock. Logic should go in main script to
-// check startblock of last event?
-func NewCivilEventRetriever(client bind.ContractBackend, startBlock int,
+// NewCivilEventRetriever creates a CivilEventRetriever given a ContractFilterer
+// connection to client and startBlock.
+// Because contract name is now abstracted, we need startBlockToEvent to be a map from
+// filterer as well
+func NewCivilEventRetriever(client bind.ContractBackend, // startBlockToEvent [string]uint64,
 	filterers []model.ContractFilterers) *CivilEventRetriever {
 	retriever := &CivilEventRetriever{
 		client:     client,
 		PastEvents: make([]model.CivilEvent, 0),
-		StartBlock: uint64(startBlock),
-		filterers:  filterers,
+		// StartBlock: startBlockToEvent,
+		filterers: filterers,
 	}
 	return retriever
 }
 
 // CivilEventRetriever handles the iterator returned from retrieving past events
-// TODO (IS): We should pass a different StartBlock for each type of event in case of failure.
 type CivilEventRetriever struct {
 
 	// Client is the ethereum client from go-ethereum
@@ -34,8 +34,8 @@ type CivilEventRetriever struct {
 	// PastEvents is a slice that holds all past CivilEvents requested
 	PastEvents []model.CivilEvent
 
-	// StartBlock is the block number from where PastEvents were scraped from
-	StartBlock uint64
+	// // StartBlock is the block number from where PastEvents were scraped from
+	// StartBlockToEvent map[string]uint64
 
 	filterers []model.ContractFilterers
 }
@@ -48,7 +48,7 @@ func (r *CivilEventRetriever) Retrieve() error {
 		err = filterer.StartFilterers(
 			r.client,
 			&r.PastEvents,
-			r.StartBlock,
+			// r.StartBlockToEvent,
 		)
 		if err != nil {
 			return err
