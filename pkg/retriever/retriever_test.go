@@ -2,6 +2,7 @@
 package retriever_test
 
 import (
+	// "fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -19,7 +20,6 @@ import (
 const (
 	rinkebyAddress = "https://rinkeby.infura.io"
 	testTCRAddress = "0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d"
-	startBlock     = 2335623
 )
 
 func setupRinkebyClient() (*ethclient.Client, error) {
@@ -40,7 +40,7 @@ func TestEventCollection(t *testing.T) {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, startBlock, filterers)
+	retrieve := retriever.NewCivilEventRetriever(client, filterers)
 	err = retrieve.Retrieve()
 	if err != nil {
 		t.Errorf("Error retrieving events: %v", err)
@@ -82,7 +82,7 @@ func TestSorting(t *testing.T) {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, startBlock, filterers)
+	retrieve := retriever.NewCivilEventRetriever(client, filterers)
 	model1 := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(testTCRAddress), testEvent1)
 	model2 := model.NewCivilEvent("Application", common.HexToAddress(testTCRAddress), testEvent2)
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
@@ -122,7 +122,7 @@ func TestSortingFail(t *testing.T) {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, startBlock, filterers)
+	retrieve := retriever.NewCivilEventRetriever(client, filterers)
 	model1 := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(testTCRAddress), testEvent1)
 	model2 := model.NewCivilEvent("Application", common.HexToAddress(testTCRAddress), testEvent2)
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)

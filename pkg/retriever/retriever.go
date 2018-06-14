@@ -14,13 +14,11 @@ import (
 // connection to client and startBlock.
 // Because contract name is now abstracted, we need startBlockToEvent to be a map from
 // filterer as well
-func NewCivilEventRetriever(client bind.ContractBackend, // startBlockToEvent [string]uint64,
-	filterers []model.ContractFilterers) *CivilEventRetriever {
+func NewCivilEventRetriever(client bind.ContractBackend, filterers []model.ContractFilterers) *CivilEventRetriever {
 	retriever := &CivilEventRetriever{
 		client:     client,
 		PastEvents: make([]model.CivilEvent, 0),
-		// StartBlock: startBlockToEvent,
-		filterers: filterers,
+		filterers:  filterers,
 	}
 	return retriever
 }
@@ -34,22 +32,13 @@ type CivilEventRetriever struct {
 	// PastEvents is a slice that holds all past CivilEvents requested
 	PastEvents []model.CivilEvent
 
-	// // StartBlock is the block number from where PastEvents were scraped from
-	// StartBlockToEvent map[string]uint64
-
 	filterers []model.ContractFilterers
 }
 
 // Retrieve gets all events from StartBlock until now
 func (r *CivilEventRetriever) Retrieve() error {
-	var err error
-
-	for _, filterer := range r.filterers {
-		err = filterer.StartFilterers(
-			r.client,
-			&r.PastEvents,
-			// r.StartBlockToEvent,
-		)
+	for _, filter := range r.filterers {
+		err := filter.StartFilterers(r.client, &r.PastEvents)
 		if err != nil {
 			return err
 		}
