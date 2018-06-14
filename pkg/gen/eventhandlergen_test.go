@@ -73,10 +73,10 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 	if !strings.Contains(watcherCode, "func (w *CivilTCRContractWatchers) startWatchApplicationRemoved") {
 		t.Error("Did not see expected startWatchApplicationRemoved in the generated watcher code")
 	}
-	if !strings.Contains(filtererCode, "func (r *CivilTCRContractFilterers) StartFilterers") {
+	if !strings.Contains(filtererCode, "func (f *CivilTCRContractFilterers) StartFilterers") {
 		t.Error("Did not see expected StartFilterers in the generated Filterer code")
 	}
-	if !strings.Contains(filtererCode, "func (r *CivilTCRContractFilterers) startFilterApplication") {
+	if !strings.Contains(filtererCode, "func (f *CivilTCRContractFilterers) startFilterApplication") {
 		t.Error("Did not see expected startFilterApplication in the generated filterer code")
 	}
 
@@ -134,13 +134,13 @@ func TestGenerateRetrieversForCivilTcr(t *testing.T) {
 
 	// TODO(IS): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
-	if !strings.Contains(code, "func (r *CivilTCRContractFilterers) StartFilterers") {
+	if !strings.Contains(code, "func (f *CivilTCRContractFilterers) StartFilterers") {
 		t.Error("Did not see expected StartFilterers in the generated code")
 	}
-	if !strings.Contains(code, "func (r *CivilTCRContractFilterers) startFilterApplication") {
+	if !strings.Contains(code, "func (f *CivilTCRContractFilterers) startFilterApplication") {
 		t.Error("Did not see expected startFilterApplication in the generated code")
 	}
-	if !strings.Contains(code, "func (r *CivilTCRContractFilterers) startFilterApplicationRemoved") {
+	if !strings.Contains(code, "func (f *CivilTCRContractFilterers) startFilterApplicationRemoved") {
 		t.Error("Did not see expected startFilterApplicationRemoved in the generated code")
 	}
 }
@@ -154,10 +154,10 @@ func TestGenerateRetrieversForNewsroom(t *testing.T) {
 
 	// TODO(IS): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
-	if !strings.Contains(code, "func (r *NewsroomContractFilterers) StartFilterers") {
+	if !strings.Contains(code, "func (f *NewsroomContractFilterers) StartFilterers") {
 		t.Error("Did not see expected StartFilterers in the generated code")
 	}
-	if !strings.Contains(code, "func (r *NewsroomContractFilterers) startFilterRevisionUpdated") {
+	if !strings.Contains(code, "func (f *NewsroomContractFilterers) startFilterRevisionUpdated") {
 		t.Error("Did not see expected startFilterRevisionUpdated in the generated code")
 	}
 }

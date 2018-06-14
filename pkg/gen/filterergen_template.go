@@ -27,7 +27,7 @@ import (
 )
 
 {{if .EventHandlers -}}
-var eventNames = [...]string{
+var eventNames{{.ContractTypeName}} = []string{
     {{- range .EventHandlers}}
         "{{.EventMethod}}",
     {{- end}}
@@ -35,15 +35,20 @@ var eventNames = [...]string{
 {{- end}}
 
 func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.ContractTypeName}}Filterers {
-	return &{{.ContractTypeName}}Filterers{
-		contractAddress: contractAddress,
-        eventNames: eventNames,
-	}
+    var c {{.ContractTypeName}}Filterers
+    c.contractAddress = contractAddress
+    c.eventNames = eventNames{{.ContractTypeName}}
+    c.eventToStartBlock = make(map[string]uint64)
+    for _, eventName := range c.eventNames {
+        c.eventToStartBlock[eventName] = 0
+    }
+    return &c
 }
 
 type {{.ContractTypeName}}Filterers struct {
 	contractAddress common.Address
 	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
+    eventNames []string
     eventToStartBlock map[string]uint64
 }
 
@@ -51,40 +56,35 @@ func (f *{{.ContractTypeName}}Filterers) ContractName() string {
     return "{{.ContractTypeName}}"
 }
 
-func (f *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend,
-    pastEvents *[]model.CivilEvent, startBlock uint64) error {
-    return r.Start{{.ContractTypeName}}Filterers(client, pastEvents, startBlock)
+func (f *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend, pastEvents *[]model.CivilEvent) error {
+    return f.Start{{.ContractTypeName}}Filterers(client, pastEvents)
 }
 
 func (f *{{.ContractTypeName}}Filterers) EventNames() []string {
     return f.eventNames
 }
 
-func (f *{{.ContractTypeName}}Filterers) UpdateStartBlock(eventName string, startBlock uint64) []string {
-    return eventToStartBlock[eventName]
+func (f *{{.ContractTypeName}}Filterers) UpdateStartBlock(eventName string, startBlock int) {
+    f.eventToStartBlock[eventName] = uint64(startBlock)
 }
 
 // Start{{.ContractTypeName}}Filterers retrieves events for {{.ContractTypeName}}
-func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(client bind.ContractBackend,
-    pastEvents *[]model.CivilEvent, startBlock uint64) error {
-    contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(r.contractAddress, client)
+func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(client bind.ContractBackend, pastEvents *[]model.CivilEvent) error {
+    contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(f.contractAddress, client)
     if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
         return err
     }
 	f.contract = contract
-
-    var opts = &bind.FilterOpts{
-        Start: startBlock,
-    }
-
+    var startBlock uint64
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
-
-    err = f.startFilter{{.EventMethod}}(opts, pastEvents)
+    startBlock = f.eventToStartBlock["{{.EventMethod}}"]
+    err = f.startFilter{{.EventMethod}}(startBlock, pastEvents)
     if err != nil {
         return fmt.Errorf("Error retrieving {{.EventMethod}}: err: %v", err)
     }
+
 
 {{- end}}
 {{- end}}
@@ -95,8 +95,11 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(opts *bind.FilterOpts, pastEvents *[]model.CivilEvent) error {
-    itr, err := r.contract.Filter{{.EventMethod}}(
+func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock uint64, pastEvents *[]model.CivilEvent) error {
+    var opts = &bind.FilterOpts{
+        Start: startBlock,
+    }
+    itr, err := f.contract.Filter{{.EventMethod}}(
         opts,
     {{- if .ParamValues -}}
     {{range .ParamValues}}
