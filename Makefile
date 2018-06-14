@@ -70,17 +70,28 @@ install-abigen: check-go-env ## Installs the Ethereum abigen tool
 .PHONY: setup
 setup: check-go-env install-dep install-linter install-cover install-abigen ## Sets up the tooling.
 
-.PHONY: postgres-start
-postgres-start: check-docker-env ## Starts up a development PostgreSQL server
+.PHONY: postgres-setup-launch
+postgres-setup-launch:
 ifeq ("$(wildcard $(POSTGRES_DATA_DIR))", "")
 	@mkdir -p $(POSTGRES_DATA_DIR)
 	@docker run -v $$PWD/$(POSTGRES_DATA_DIR):/tmp/$(POSTGRES_DATA_DIR) -i -t $(POSTGRES_DOCKER_IMAGE) \
 		/bin/bash -c "cp -rp /var/lib/postgresql /tmp/$(POSTGRES_DATA_DIR)"
-	@echo 'Prepped postgres'
 endif
 	@docker run -v $$PWD/$(POSTGRES_DATA_DIR)/postgresql:/var/lib/postgresql -d -p $(POSTGRES_PORT):$(POSTGRES_PORT) \
 		$(POSTGRES_DOCKER_IMAGE);
-	@echo 'Postgres started'
+
+.PHONY: postgres-check-available
+postgres-check-available:
+	@for i in `seq 1 10`; \
+	do \
+		nc -z localhost 5432 2> /dev/null && exit 0; \
+		sleep 3; \
+	done; \
+	exit 1;
+
+.PHONY: postgres-start
+postgres-start: check-docker-env postgres-setup-launch postgres-check-available ## Starts up a development PostgreSQL server
+	@echo "Postgresql launched and available"
 
 .PHONY: postgres-stop
 postgres-stop: check-docker-env ## Stops the development PostgreSQL server
