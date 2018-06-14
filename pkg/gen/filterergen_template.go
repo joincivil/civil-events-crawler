@@ -113,7 +113,7 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
     }
     nextEvent := itr.Next()
     for nextEvent {
-        civilEvent, err := model.NewCivilEvent("{{.EventMethod}}", r.contractAddress, itr.Event)
+        civilEvent, err := model.NewCivilEvent("{{.EventMethod}}", f.contractAddress, itr.Event)
 		if err != nil {
 			log.Errorf("Error creating new civil event: event: %v, err: %v", itr.Event, err)
 			continue
