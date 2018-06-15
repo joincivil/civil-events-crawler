@@ -3,8 +3,9 @@
 package contractutils
 
 import (
-	log "github.com/golang/glog"
 	"math/big"
+
+	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
@@ -53,7 +54,7 @@ func SetupRinkebyClient() (*ethclient.Client, error) {
 
 // SetupSimulatedClient returns an an instance of the simulated backend.
 func SetupSimulatedClient(gasLimit uint64) (*backends.SimulatedBackend, *bind.TransactOpts) {
-	key, _ := crypto.GenerateKey()
+	key, _ := crypto.GenerateKey() // nolint: gas
 	auth := bind.NewKeyedTransactor(key)
 	genAlloc := make(core.GenesisAlloc)
 	genAlloc[auth.From] = core.GenesisAccount{Balance: big.NewInt(9223372036854775807)}
