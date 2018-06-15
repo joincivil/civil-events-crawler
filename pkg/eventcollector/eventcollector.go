@@ -11,7 +11,7 @@ import (
 // NewCivilEventCollector creates a new civil event collector
 func NewCivilEventCollector(client bind.ContractBackend, filterers []model.ContractFilterers,
 	watchers []model.ContractWatchers, retrieverPersister model.RetrieverMetaDataPersister,
-	listenerPersister model.ListenerMetaDataPersister, listen listener.CivilEventListener) *CivilEventCollector {
+	listenerPersister model.ListenerMetaDataPersister, eventDataPersister model.EventDataPersister) *CivilEventCollector {
 
 	eventcollector := &CivilEventCollector{
 		client:             client,
@@ -19,8 +19,8 @@ func NewCivilEventCollector(client bind.ContractBackend, filterers []model.Contr
 		watchers:           watchers,
 		retrieverPersister: retrieverPersister,
 		listenerPersister:  listenerPersister,
-		listen:             listen,
 	}
+	eventcollector.listen = listener.NewCivilEventListener(client, watchers)
 	return eventcollector
 }
 
@@ -37,15 +37,19 @@ type CivilEventCollector struct {
 
 	listenerPersister model.ListenerMetaDataPersister
 
+	eventDataPersister model.EventDataPersister
+
 	listen listener.CivilEventListener
+
+	retrieve retriever.CivilEventRetriever
 }
 
 // StartCollection contains logic to run retriever and listener.
 func (c *CivilEventCollector) StartCollection() error {
 	c.updateStartingBlocks()
-	retrieve := retriever.NewCivilEventRetriever(c.client, c.filterers)
-	retrieve.Retrieve()
-	retrieve.SortEventsByBlock()
+	c.retrieve = retriever.NewCivilEventRetriever(c.client, c.filterers)
+	c.retrieve.Retrieve()
+	c.retrieve.SortEventsByBlock()
 	// Here should update where the retrieving left off
 	err := c.listen.Start()
 	if err != nil {
