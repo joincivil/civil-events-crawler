@@ -2,18 +2,22 @@
 package listener_test
 
 import (
+	"errors"
 	"math/big"
 	"runtime"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
 
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 func TestCivilListener(t *testing.T) {
@@ -48,6 +52,51 @@ func TestCivilListenerStop(t *testing.T) {
 	}
 }
 
+type testErrorWatcher struct{}
+
+func (t *testErrorWatcher) ContractName() string {
+	return "TestErrorContract"
+}
+
+func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
+	eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
+	return nil, errors.New("This is an error starting watchers")
+}
+
+func TestCivilListenerEmptyWatchers(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: %v", err)
+	}
+	watchers := []model.ContractWatchers{
+		&testErrorWatcher{},
+	}
+	listener := listener.NewCivilEventListener(contracts.Client, watchers)
+	if listener == nil {
+		t.Fatal("Listener should not be nil")
+	}
+	err = listener.Start()
+	if err == nil {
+		t.Errorf("Listener should have failed with no watchers: %v", err)
+	}
+}
+
+func TestCivilListenerErrorStartWatchers(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: %v", err)
+	}
+	watchers := []model.ContractWatchers{}
+	listener := listener.NewCivilEventListener(contracts.Client, watchers)
+	if listener == nil {
+		t.Fatal("Listener should not be nil")
+	}
+	err = listener.Start()
+	if err == nil {
+		t.Errorf("Listener should have failed with error from StartWatchers: %v", err)
+	}
+}
+
 // TestCivilListenerEventChan mainly tests the EventRecvChan to ensure it can
 // pass along a CivilEvent object
 func TestCivilListenerEventChan(t *testing.T) {
@@ -68,8 +117,8 @@ func TestCivilListenerEventChan(t *testing.T) {
 		for {
 			select {
 			case event := <-listener.EventRecvChan:
-				if event.EventType != "_Application" {
-					t.Errorf("Eventtype is not correct: %v", event.EventType)
+				if event.EventType() != "_Application" {
+					t.Errorf("Eventtype is not correct: %v", event.EventType())
 				}
 				recv <- true
 			case <-quit:
@@ -78,12 +127,20 @@ func TestCivilListenerEventChan(t *testing.T) {
 		}
 	}(quitChan, eventRecv)
 
-	newEvent := &model.CivilEvent{
-		EventType:       "_Application",
-		ContractAddress: contracts.CivilTcrAddr,
-		Timestamp:       utils.CurrentEpochSecsInInt(),
-		Payload:         &model.CivilEventPayload{},
+	tempPayload := &contract.CivilTCRContractApplication{
+		ListingAddress: contracts.CivilTcrAddr,
+		Deposit:        big.NewInt(1000),
+		AppEndDate:     big.NewInt(1653860896),
+		Data:           "DATA",
+		Applicant:      contracts.CivilTcrAddr,
+		Raw: types.Log{
+			Address:     contracts.CivilTcrAddr,
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8888888,
+		},
 	}
+	newEvent, _ := model.NewCivilEvent("_Application", contracts.CivilTcrAddr, tempPayload)
 	listener.EventRecvChan <- *newEvent
 
 	select {
@@ -117,9 +174,9 @@ func TestCivilListenerContractEvents(t *testing.T) {
 		for {
 			select {
 			case event := <-listener.EventRecvChan:
-				if event.EventType != "_Application" && event.EventType != "_Withdrawal" &&
-					event.EventType != "_Deposit" {
-					t.Errorf("EventType is not correct: eventType: %v", event.EventType)
+				if event.EventType() != "_Application" && event.EventType() != "_Withdrawal" &&
+					event.EventType() != "_Deposit" {
+					t.Errorf("EventType is not correct: eventType: %v", event.EventType())
 				}
 				recv <- true
 			case <-quit:
