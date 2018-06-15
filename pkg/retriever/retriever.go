@@ -48,7 +48,7 @@ func (r *CivilEventRetriever) Retrieve() error {
 func (r *CivilEventRetriever) GetBlockNumber(event model.CivilEvent) (uint64, error) {
 	payload := event.Payload()
 	eventHash := event.Hash()
-	// NOTE (IS): IMO the following error handling is not necessary. they will be already thrown if
+	// NOTE (IS): IMO the following error handling is not necessary. errors will be thrown if
 	// the hash can't be created in the event creation.
 	rawPayload, ok := payload.Value("Raw")
 	if !ok {

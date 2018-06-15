@@ -3,6 +3,7 @@ package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
 )
 
@@ -15,7 +16,8 @@ type ContractWatchers interface {
 // ContractFilterers defines an interface for event retrievers.
 type ContractFilterers interface {
 	ContractName() string
+	ContractAddress() common.Address
 	StartFilterers(client bind.ContractBackend, pastEvents *[]CivilEvent) error
-	EventNames() []string
-	UpdateStartBlock(eventName string, startBlock int)
+	EventTypes() []string
+	UpdateStartBlock(eventType string, startBlock int)
 }

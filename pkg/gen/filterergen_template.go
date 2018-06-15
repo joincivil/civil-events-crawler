@@ -27,7 +27,7 @@ import (
 )
 
 {{if .EventHandlers -}}
-var eventNames{{.ContractTypeName}} = []string{
+var eventTypes{{.ContractTypeName}} = []string{
     {{- range .EventHandlers}}
         "{{.EventMethod}}",
     {{- end}}
@@ -35,20 +35,21 @@ var eventNames{{.ContractTypeName}} = []string{
 {{- end}}
 
 func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.ContractTypeName}}Filterers {
-    var c {{.ContractTypeName}}Filterers
-    c.contractAddress = contractAddress
-    c.eventNames = eventNames{{.ContractTypeName}}
-    c.eventToStartBlock = make(map[string]uint64)
-    for _, eventName := range c.eventNames {
-        c.eventToStartBlock[eventName] = 0
+    contractFilterers := &{{.ContractTypeName}}Filterers{
+        contractAddress: contractAddress,
+        eventTypes: eventTypes{{.ContractTypeName}},
+        eventToStartBlock: make(map[string]uint64),
     }
-    return &c
+    for _, eventType := range contractFilterers.eventTypes {
+        contractFilterers.eventToStartBlock[eventType] = 0
+    }
+    return contractFilterers
 }
 
 type {{.ContractTypeName}}Filterers struct {
 	contractAddress common.Address
 	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
-    eventNames []string
+    eventTypes []string
     eventToStartBlock map[string]uint64
 }
 
@@ -56,16 +57,20 @@ func (f *{{.ContractTypeName}}Filterers) ContractName() string {
     return "{{.ContractTypeName}}"
 }
 
+func (f *{{.ContractTypeName}}Filterers) ContractAddress() common.Address {
+    return f.contractAddress
+}
+
 func (f *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend, pastEvents *[]model.CivilEvent) error {
     return f.Start{{.ContractTypeName}}Filterers(client, pastEvents)
 }
 
-func (f *{{.ContractTypeName}}Filterers) EventNames() []string {
-    return f.eventNames
+func (f *{{.ContractTypeName}}Filterers) EventTypes() []string {
+    return f.eventTypes
 }
 
-func (f *{{.ContractTypeName}}Filterers) UpdateStartBlock(eventName string, startBlock int) {
-    f.eventToStartBlock[eventName] = uint64(startBlock)
+func (f *{{.ContractTypeName}}Filterers) UpdateStartBlock(eventName string, startBlock uint64) {
+    f.eventToStartBlock[eventName] = startBlock
 }
 
 // Start{{.ContractTypeName}}Filterers retrieves events for {{.ContractTypeName}}
