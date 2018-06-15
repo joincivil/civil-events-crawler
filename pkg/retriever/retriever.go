@@ -3,17 +3,15 @@
 package retriever // import "github.com/joincivil/civil-events-crawler/pkg/retriever"
 
 import (
+	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	log "github.com/golang/glog"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"sort"
 )
 
-// NewCivilEventRetriever creates a CivilEventRetriever given a ContractFilterer
-// connection to client and startBlock.
-// Because contract name is now abstracted, we need startBlockToEvent to be a map from
-// filterer as well
+// NewCivilEventRetriever creates a CivilEventRetriever given a list of ContractFilterers and
+// connection to client
 func NewCivilEventRetriever(client bind.ContractBackend, filterers []model.ContractFilterers) *CivilEventRetriever {
 	retriever := &CivilEventRetriever{
 		client:     client,
@@ -43,52 +41,43 @@ func (r *CivilEventRetriever) Retrieve() error {
 			return err
 		}
 	}
-
 	return nil
 }
 
-// SortEventsByBlock sorts events in PastEvents by block number
-func (r *CivilEventRetriever) SortEventsByBlock() bool {
-	pastEvents := r.PastEvents
-	var errVar string
-	sort.Slice(pastEvents, func(i, j int) bool {
-		payload1 := pastEvents[i].Payload()
-		eventHash1 := pastEvents[i].Hash()
-		payload2 := pastEvents[j].Payload()
-		eventHash2 := pastEvents[j].Hash()
+// GetBlockNumber is a helper function to get the block number of an event
+func (r *CivilEventRetriever) GetBlockNumber(event model.CivilEvent) (uint64, error) {
+	payload := event.Payload()
+	eventHash := event.Hash()
+	// NOTE (IS): IMO the following error handling is not necessary. they will be already thrown if
+	// the hash can't be created in the event creation.
+	rawPayload, ok := payload.Value("Raw")
+	if !ok {
+		err := fmt.Sprintf("Can't get raw value for %v", eventHash)
+		return uint64(0), errors.New(err)
+	}
+	rawPayloadLog, ok := rawPayload.Log()
+	if !ok {
+		err := fmt.Sprintf("Can't get log field of raw value for %v", eventHash)
+		return uint64(0), errors.New(err)
+	}
+	return rawPayloadLog.BlockNumber, nil
+}
 
-		rawPayload1, ok := payload1.Value("Raw")
-		if !ok {
-			errVar = fmt.Sprintf("Can't get raw value for %v", eventHash1)
-			log.Error(errVar)
+// SortEventsByBlock sorts events in PastEvents by block number
+// NOTE(IS): This is not optimal, but for now checking that values exist outside of sort
+// Also, see note on L51.
+func (r *CivilEventRetriever) SortEventsByBlock() error {
+	pastEvents := r.PastEvents
+	for _, event := range pastEvents {
+		_, err := r.GetBlockNumber(event)
+		if err != nil {
+			return err
 		}
-		rawPayload2, ok := payload2.Value("Raw")
-		if !ok {
-			errVar = fmt.Sprintf("Can't get raw value for %v", eventHash2)
-			log.Error(errVar)
-		}
-		rawPayloadLog1, ok := rawPayload1.Log()
-		if !ok {
-			errVar = fmt.Sprintf("Can't get raw value for %v", eventHash1)
-			log.Error(errVar)
-		}
-		rawPayloadLog2, ok := rawPayload2.Log()
-		if !ok {
-			errVar = fmt.Sprintf("Can't get raw value for %v", eventHash2)
-			log.Error(errVar)
-		}
-		// BlockNumber is 0 when the value isn't there.
-		blockNumber1 := rawPayloadLog1.BlockNumber
-		if blockNumber1 == 0 {
-			errVar = fmt.Sprintf("Can't get block number for %v", eventHash1)
-			log.Error(errVar)
-		}
-		blockNumber2 := rawPayloadLog2.BlockNumber
-		if blockNumber2 == 0 {
-			errVar = fmt.Sprintf("Can't get block number for %v", eventHash2)
-			log.Error(errVar)
-		}
-		return rawPayloadLog1.BlockNumber < rawPayloadLog2.BlockNumber
+	}
+	sort.Slice(pastEvents, func(i, j int) bool {
+		blockNumber1, _ := r.GetBlockNumber(pastEvents[i])
+		blockNumber2, _ := r.GetBlockNumber(pastEvents[j])
+		return blockNumber1 < blockNumber2
 	})
-	return errVar == ""
+	return nil
 }

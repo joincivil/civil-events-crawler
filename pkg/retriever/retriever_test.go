@@ -89,49 +89,8 @@ func TestSorting(t *testing.T) {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
 	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
-	ok := retrieve.SortEventsByBlock()
-	if !ok {
+	err = retrieve.SortEventsByBlock()
+	if err != nil {
 		t.Error("Sorting didn't happen")
 	}
-}
-
-// TestSorting tests that sorting is happening by block number
-func TestSortingFail(t *testing.T) {
-	testEvent1 := &contract.CivilTCRContractApplicationWhitelisted{
-		ListingAddress: common.HexToAddress(testTCRAddress),
-		Raw: types.Log{
-			Address: common.HexToAddress(testTCRAddress),
-			Topics:  []common.Hash{},
-			Data:    []byte{},
-		},
-	}
-	testEvent2 := &contract.CivilTCRContractApplication{
-		ListingAddress: common.HexToAddress(testTCRAddress),
-		Deposit:        big.NewInt(1000),
-		AppEndDate:     big.NewInt(1653860896),
-		Data:           "DATA",
-		Applicant:      common.HexToAddress(testTCRAddress),
-		Raw: types.Log{
-			Address:     common.HexToAddress(testTCRAddress),
-			Topics:      []common.Hash{},
-			Data:        []byte{},
-			BlockNumber: 8888886,
-		},
-	}
-	client, err := setupRinkebyClient()
-	if err != nil {
-		t.Errorf("Error connecting to rinkeby: %v", err)
-	}
-	filterers := []model.ContractFilterers{
-		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
-	}
-	retrieve := retriever.NewCivilEventRetriever(client, filterers)
-	model1, _ := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(testTCRAddress), testEvent1)
-	model2, _ := model.NewCivilEvent("Application", common.HexToAddress(testTCRAddress), testEvent2)
-	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
-	ok := retrieve.SortEventsByBlock()
-	if ok {
-		t.Error("Sorting happened when it shouldn't have")
-	}
-
 }
