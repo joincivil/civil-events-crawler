@@ -67,7 +67,7 @@ func (e *CivilEvent) hashEvent() (string, error) {
 	}
 	logIndex := int(rawPayloadLog.Index)
 	txHash := rawPayloadLog.TxHash.Hex()
-	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType,
+	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType, // nolint: gas
 		strconv.Itoa(logIndex), txHash})
 	h := crypto.Keccak256Hash(eventBytes)
 	return h.Hex(), nil

@@ -51,7 +51,7 @@ func main() {
 	if err != nil {
 		fmt.Printf("Listener should have started with no errors: %v", err)
 	}
-	defer listener.Stop()
+	defer cleanup(listener)
 
 	quitChan := make(chan interface{})
 	eventRecv := make(chan bool)
@@ -69,11 +69,15 @@ func main() {
 	}(quitChan, eventRecv)
 
 	numEvents := 0
-	for {
-		select {
-		case <-eventRecv:
-			numEvents++
+	for s := range eventRecv {
+		fmt.Println("incrementing events", s)
+		numEvents++
+	}
+}
 
-		}
+func cleanup(listener *listener.CivilEventListener) {
+	err := listener.Stop()
+	if err != nil {
+		fmt.Println("error stopping listener")
 	}
 }
