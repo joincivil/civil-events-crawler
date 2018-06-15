@@ -56,7 +56,7 @@ install-linter: check-go-env ## Installs linter
 	@$(GOGET) -u github.com/alecthomas/gometalinter
 	@gometalinter --install
 ifdef APT
-	@sudo apt-get install golang-race-detector-runtime
+	@sudo apt-get install golang-race-detector-runtime || true
 endif
 
 .PHONY: install-cover
