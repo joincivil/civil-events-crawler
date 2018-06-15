@@ -42,7 +42,7 @@ type CivilEventCollector struct {
 
 // StartCollection contains logic to run retriever and listener.
 func (c *CivilEventCollector) StartCollection() error {
-	c.UpdateStartingBlocks()
+	c.updateStartingBlocks()
 	retrieve := retriever.NewCivilEventRetriever(c.client, c.filterers)
 	retrieve.Retrieve()
 	retrieve.SortEventsByBlock()
@@ -62,7 +62,7 @@ func (c *CivilEventCollector) StopCollection() error {
 }
 
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
-func (c *CivilEventCollector) UpdateStartingBlocks() {
+func (c *CivilEventCollector) updateStartingBlocks() {
 	for _, filter := range c.filterers {
 		contractAddress := filter.ContractAddress()
 		eventTypes := filter.EventTypes()

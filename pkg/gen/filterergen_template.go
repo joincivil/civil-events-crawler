@@ -69,8 +69,8 @@ func (f *{{.ContractTypeName}}Filterers) EventTypes() []string {
     return f.eventTypes
 }
 
-func (f *{{.ContractTypeName}}Filterers) UpdateStartBlock(eventName string, startBlock uint64) {
-    f.eventToStartBlock[eventName] = startBlock
+func (f *{{.ContractTypeName}}Filterers) UpdateStartBlock(eventType string, startBlock uint64) {
+    f.eventToStartBlock[eventType] = startBlock
 }
 
 // Start{{.ContractTypeName}}Filterers retrieves events for {{.ContractTypeName}}
