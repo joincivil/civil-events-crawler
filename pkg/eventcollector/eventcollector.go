@@ -2,6 +2,8 @@
 package eventcollector // import "github.com/joincivil/civil-events-crawler/pkg/eventcollector"
 
 import (
+	"errors"
+	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
@@ -20,7 +22,6 @@ func NewCivilEventCollector(client bind.ContractBackend, filterers []model.Contr
 		retrieverPersister: retrieverPersister,
 		listenerPersister:  listenerPersister,
 	}
-	eventcollector.listen = listener.NewCivilEventListener(client, watchers)
 	return eventcollector
 }
 
@@ -39,28 +40,74 @@ type CivilEventCollector struct {
 
 	eventDataPersister model.EventDataPersister
 
-	listen listener.CivilEventListener
+	listen *listener.CivilEventListener
 
-	retrieve retriever.CivilEventRetriever
+	retrieve *retriever.CivilEventRetriever
 }
 
 // StartCollection contains logic to run retriever and listener.
 func (c *CivilEventCollector) StartCollection() error {
-	c.updateStartingBlocks()
-	c.retrieve = retriever.NewCivilEventRetriever(c.client, c.filterers)
-	c.retrieve.Retrieve()
-	c.retrieve.SortEventsByBlock()
-	// Here should update where the retrieving left off
-	err := c.listen.Start()
+	err := c.setupRetriever()
 	if err != nil {
 		return err
 	}
-	return nil
+	pastEvents := c.retrieve.PastEvents
+	err = c.eventDataPersister.SaveEvents(pastEvents)
+	if err != nil {
+		return err
+	}
+	err = c.endRetrieving()
+	if err != nil {
+		return err
+	}
+
+	err = c.setupListener()
+	if err != nil {
+		return err
+	}
+	defer c.listen.Stop()
+
+	eventRecv := make(chan bool)
+	// errors channel to catch persistence errors
+	errors := make(chan error)
+
+	go func(recv chan<- bool, errors chan<- error) {
+		for {
+			select {
+			case event := <-c.listen.EventRecvChan:
+				// Save event to persister
+				err = c.eventDataPersister.SaveEvents([]model.CivilEvent{event})
+				if err != nil {
+					errors <- err
+					return
+				}
+				// Update last block in persistence in case of error
+				err = c.listenerPersister.UpdateLastBlockData([]model.CivilEvent{event})
+				if err != nil {
+					errors <- err
+					return
+				}
+				recv <- true
+			}
+		}
+	}(eventRecv, errors)
+
+	// If we get an error in persistence, we should break from the loop and return error.
+Loop:
+	for {
+		select {
+		case <-eventRecv:
+			continue
+		case err = <-errors:
+			break Loop
+		}
+	}
+
+	return err
 }
 
-// StopCollection stops listener
+// StopCollection is for stopping the listener
 func (c *CivilEventCollector) StopCollection() error {
-	// TODO: update for last blocks of each event type and put all events together
 	err := c.listen.Stop()
 	return err
 }
@@ -75,4 +122,37 @@ func (c *CivilEventCollector) updateStartingBlocks() {
 			filter.UpdateStartBlock(eventType, lastBlock)
 		}
 	}
+}
+
+func (c *CivilEventCollector) setupRetriever() error {
+	c.updateStartingBlocks()
+	c.retrieve = retriever.NewCivilEventRetriever(c.client, c.filterers)
+	err := c.retrieve.Retrieve()
+	if err != nil {
+		return err
+	}
+	err = c.retrieve.SortEventsByBlock()
+	return err
+}
+
+func (c *CivilEventCollector) setupListener() error {
+	c.listen = listener.NewCivilEventListener(c.client, c.watchers)
+	if c.listen == nil {
+		return errors.New("Listener should not be nil")
+	}
+	err := c.listen.Start()
+	if err != nil {
+		return fmt.Errorf("Listener should have started with no errors: %v", err)
+	}
+	return nil
+}
+
+// endRetrieving saves the last seen events for each filter to persistence
+func (c *CivilEventCollector) endRetrieving() error {
+	var err error
+	for _, filter := range c.filterers {
+		err = c.retrieverPersister.UpdateLastBlockData(filter.LastEvents())
+		return err
+	}
+	return err
 }
