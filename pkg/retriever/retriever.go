@@ -30,16 +30,19 @@ type CivilEventRetriever struct {
 	// PastEvents is a slice that holds all past CivilEvents requested
 	PastEvents []model.CivilEvent
 
+	// filterers contains a list of ContractFilterers
 	filterers []model.ContractFilterers
 }
 
 // Retrieve gets all events from StartBlock until now
 func (r *CivilEventRetriever) Retrieve() error {
 	for _, filter := range r.filterers {
-		err := filter.StartFilterers(r.client, &r.PastEvents)
+		err, pastEvents := filter.StartFilterers(r.client, r.PastEvents)
 		if err != nil {
 			return err
 		}
+		r.PastEvents = pastEvents
+
 	}
 	return nil
 }
@@ -48,8 +51,6 @@ func (r *CivilEventRetriever) Retrieve() error {
 func (r *CivilEventRetriever) GetBlockNumber(event model.CivilEvent) (uint64, error) {
 	payload := event.Payload()
 	eventHash := event.Hash()
-	// NOTE (IS): IMO the following error handling is not necessary. errors will be thrown if
-	// the hash can't be created in the event creation.
 	rawPayload, ok := payload.Value("Raw")
 	if !ok {
 		err := fmt.Sprintf("Can't get raw value for %v", eventHash)
@@ -65,7 +66,6 @@ func (r *CivilEventRetriever) GetBlockNumber(event model.CivilEvent) (uint64, er
 
 // SortEventsByBlock sorts events in PastEvents by block number
 // NOTE(IS): This is not optimal, but for now checking that values exist outside of sort
-// Also, see note on L51.
 func (r *CivilEventRetriever) SortEventsByBlock() error {
 	pastEvents := r.PastEvents
 	for _, event := range pastEvents {
