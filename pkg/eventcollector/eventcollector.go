@@ -68,10 +68,11 @@ func (c *CivilEventCollector) StartCollection() error {
 	defer c.listen.Stop()
 
 	eventRecv := make(chan bool)
+	quitChan := make(chan interface{})
 	// errors channel to catch persistence errors
 	errors := make(chan error)
 
-	go func(recv chan<- bool, errors chan<- error) {
+	go func(recv chan<- bool, quit <-chan interface{}, errors chan<- error) {
 		for {
 			select {
 			case event := <-c.listen.EventRecvChan:
@@ -88,9 +89,11 @@ func (c *CivilEventCollector) StartCollection() error {
 					return
 				}
 				recv <- true
+			case <-quit:
+				return
 			}
 		}
-	}(eventRecv, errors)
+	}(eventRecv, quitChan, errors)
 
 	// If we get an error in persistence, we should break from the loop and return error.
 Loop:
