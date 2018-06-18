@@ -48,8 +48,8 @@ func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.Contr
 }
 
 type {{.ContractTypeName}}Filterers struct {
-	contractAddress common.Address
-	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
+    contractAddress common.Address
+    contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
     eventTypes []string
     eventToStartBlock map[string]uint64
     lastEvents  []model.CivilEvent
@@ -86,7 +86,7 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
         return err, pastEvents
     }
-	f.contract = contract
+    f.contract = contract
     var startBlock uint64
     prevEventsLength := len(pastEvents)
 {{if .EventHandlers -}}
@@ -131,10 +131,10 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
     nextEvent := itr.Next()
     for nextEvent {
         civilEvent, err := model.NewCivilEvent("{{.EventMethod}}", f.contractAddress, itr.Event)
-		if err != nil {
-			log.Errorf("Error creating new civil event: event: %v, err: %v", itr.Event, err)
-			continue
-		}
+        if err != nil {
+            log.Errorf("Error creating new civil event: event: %v, err: %v", itr.Event, err)
+            continue
+        }
         pastEvents = append(pastEvents, *civilEvent)
         nextEvent = itr.Next()
     }
