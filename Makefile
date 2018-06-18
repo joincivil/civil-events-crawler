@@ -134,7 +134,7 @@ endif
 
 .PHONY: build
 build: ## Builds the code.
-	$(GOBUILD) -o ./build/crawler cmd/crawler/crawler.go
+	$(GOBUILD) -o ./build/crawler cmd/crawler/main.go
 
 .PHONY: test
 test: ## Runs unit tests and tests code coverage.
