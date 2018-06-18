@@ -16,7 +16,6 @@ import (
 func main() {
 	client, err := contractutils.SetupRinkebyClient()
 	tcrAddr := "0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d"
-	startBlock := 0
 	if err != nil {
 		fmt.Printf("Error connecting to rinkeby: %v", err)
 		os.Exit(1)
@@ -25,7 +24,7 @@ func main() {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(tcrAddr)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, startBlock, filterers)
+	retrieve := retriever.NewCivilEventRetriever(client, filterers)
 	err = retrieve.Retrieve()
 	if err != nil {
 		fmt.Printf("Error Retrieving events: %v\n", err)
