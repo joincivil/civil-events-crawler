@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	log "github.com/golang/glog"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
@@ -64,7 +65,7 @@ func (c *CivilEventCollector) StartCollection() error {
 	if err != nil {
 		return err
 	}
-	defer c.listen.Stop()
+	defer c.stopListener()
 
 	eventRecv := make(chan bool)
 	quitChan := make(chan interface{})
@@ -104,6 +105,13 @@ func (c *CivilEventCollector) StartCollection() error {
 func (c *CivilEventCollector) StopCollection() error {
 	err := c.listen.Stop()
 	return err
+}
+
+func (c *CivilEventCollector) stopListener() {
+	err := c.listen.Stop()
+	if err != nil {
+		log.Errorf("Error stopping listener")
+	}
 }
 
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
