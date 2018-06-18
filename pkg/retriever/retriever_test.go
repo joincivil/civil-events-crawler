@@ -2,11 +2,10 @@
 package retriever_test
 
 import (
-	// "fmt"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-	log "github.com/golang/glog"
+	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
@@ -18,22 +17,12 @@ import (
 // Using rinkeby for now
 // TODO(IS) change to simulated backend, write more tests
 const (
-	rinkebyAddress = "https://rinkeby.infura.io"
 	testTCRAddress = "0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d"
 )
 
-func setupRinkebyClient() (*ethclient.Client, error) {
-	client, err := ethclient.Dial(rinkebyAddress)
-	if err != nil {
-		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
-		return nil, err
-	}
-	return client, nil
-}
-
 // TestEventCollection tests that events are being collected,
 func TestEventCollection(t *testing.T) {
-	client, err := setupRinkebyClient()
+	client, err := cutils.SetupRinkebyClient()
 	if err != nil {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
@@ -75,7 +64,7 @@ func TestSorting(t *testing.T) {
 			BlockNumber: 8888886,
 		},
 	}
-	client, err := setupRinkebyClient()
+	client, err := cutils.SetupRinkebyClient()
 	if err != nil {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
@@ -92,5 +81,28 @@ func TestSorting(t *testing.T) {
 	err = retrieve.SortEventsByBlock()
 	if err != nil {
 		t.Error("Sorting didn't happen")
+	}
+}
+
+// Check last events. TODO: make better test here w simulated backend
+func TestLastEvents(t *testing.T) {
+	client, err := cutils.SetupRinkebyClient()
+	if err != nil {
+		t.Errorf("Error connecting to rinkeby: %v", err)
+	}
+	filterers := []model.ContractFilterers{
+		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
+	}
+	retrieve := retriever.NewCivilEventRetriever(client, filterers)
+	fmt.Println()
+	if len(filterers[0].LastEvents()) != 0 {
+		t.Error("LastEvents should be empty")
+	}
+	err = retrieve.Retrieve()
+	if err != nil {
+		t.Errorf("Error retrieving events: %v", err)
+	}
+	if len(filterers[0].LastEvents()) == 0 {
+		t.Error("LastEvents should not be empty")
 	}
 }
