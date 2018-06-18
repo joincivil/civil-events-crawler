@@ -67,12 +67,11 @@ func (c *CivilEventCollector) StartCollection() error {
 	}
 	defer c.stopListener()
 
-	eventRecv := make(chan bool)
 	quitChan := make(chan interface{})
 	// errors channel to catch persistence errors
 	errors := make(chan error)
 
-	go func(recv chan<- bool, quit <-chan interface{}, errors chan<- error) {
+	go func(quit <-chan interface{}, errors chan<- error) {
 		for {
 			select {
 			case event := <-c.listen.EventRecvChan:
@@ -88,14 +87,14 @@ func (c *CivilEventCollector) StartCollection() error {
 					errors <- err
 					return
 				}
-				recv <- true
 			case <-quit:
 				return
 			}
 		}
-	}(eventRecv, quitChan, errors)
+	}(quitChan, errors)
 
 	for err = range errors {
+		close(quitChan)
 		return err
 	}
 	return err
@@ -110,7 +109,7 @@ func (c *CivilEventCollector) StopCollection() error {
 func (c *CivilEventCollector) stopListener() {
 	err := c.listen.Stop()
 	if err != nil {
-		log.Errorf("Error stopping listener")
+		log.Errorf("Error stopping listener, %v", err)
 	}
 }
 
