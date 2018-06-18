@@ -43,6 +43,9 @@ type CivilEventCollector struct {
 	listen *listener.CivilEventListener
 
 	retrieve *retriever.CivilEventRetriever
+
+	// quitChan is created in StartCollection() and stops the goroutine listening for events.
+	quitChan chan interface{}
 }
 
 // StartCollection contains logic to run retriever and listener.
@@ -67,7 +70,7 @@ func (c *CivilEventCollector) StartCollection() error {
 	}
 	defer c.stopListener()
 
-	quitChan := make(chan interface{})
+	c.quitChan = make(chan interface{})
 	// errors channel to catch persistence errors
 	errors := make(chan error)
 
@@ -91,10 +94,10 @@ func (c *CivilEventCollector) StartCollection() error {
 				return
 			}
 		}
-	}(quitChan, errors)
+	}(c.quitChan, errors)
 
 	for err = range errors {
-		close(quitChan)
+		close(c.quitChan)
 		return err
 	}
 	return err
@@ -103,11 +106,12 @@ func (c *CivilEventCollector) StartCollection() error {
 // StopCollection is for stopping the listener
 func (c *CivilEventCollector) StopCollection() error {
 	err := c.listen.Stop()
+	close(c.quitChan)
 	return err
 }
 
 func (c *CivilEventCollector) stopListener() {
-	err := c.listen.Stop()
+	err := c.StopCollection()
 	if err != nil {
 		log.Errorf("Error stopping listener, %v", err)
 	}
