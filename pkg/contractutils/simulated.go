@@ -34,8 +34,8 @@ func newSimulatedBackendWithGasLimit(alloc core.GenesisAlloc, gasLimit uint64) *
 	genesis := core.Genesis{Config: params.AllEthashProtocolChanges, Alloc: alloc, GasLimit: gasLimit}
 	genesis.MustCommit(database)
 
-	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vm.Config{})
-	events := filters.NewEventSystem(new(event.TypeMux), &filterBackend{database, blockchain}, false) //nolint: megacheck, staticcheck
+	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vm.Config{}) // nolint: gas
+	events := filters.NewEventSystem(new(event.TypeMux), &filterBackend{database, blockchain}, false)  //nolint: megacheck, staticcheck
 
 	be := reflect.ValueOf(backend)
 	field := be.Elem().FieldByName("database")
