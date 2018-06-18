@@ -34,6 +34,18 @@ func TestIsValidEthAPIURL(t *testing.T) {
 	if !utils.IsValidEthAPIURL("wss://thisisvalid.com/ws") {
 		t.Error("Should have not failed on an valid eth API url")
 	}
+	if !utils.IsValidEthAPIURL("wss://localhost/ws") {
+		t.Error("Should have not failed on an valid eth API url")
+	}
+	if !utils.IsValidEthAPIURL("wss://localhost:8545/ws") {
+		t.Error("Should have not failed on an valid eth API url")
+	}
+	if !utils.IsValidEthAPIURL("wss://127.0.0.1/ws") {
+		t.Error("Should have not failed on an valid eth API url")
+	}
+	if !utils.IsValidEthAPIURL("wss://127.0.0.1:8545/ws") {
+		t.Error("Should have not failed on an valid eth API url")
+	}
 }
 
 func TestIsValidContractAddress(t *testing.T) {
