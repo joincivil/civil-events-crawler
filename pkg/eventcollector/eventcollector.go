@@ -72,7 +72,7 @@ func (c *CivilEventCollector) StartCollection() error {
 
 	c.quitChan = make(chan interface{})
 	// errors channel to catch persistence errors
-	errors := make(chan error)
+	errorsChan := make(chan error)
 
 	go func(quit <-chan interface{}, errors chan<- error) {
 		for {
@@ -94,13 +94,14 @@ func (c *CivilEventCollector) StartCollection() error {
 				return
 			}
 		}
-	}(c.quitChan, errors)
+	}(c.quitChan, errorsChan)
 
-	for err = range errors {
-		close(c.quitChan)
+	select {
+	case err = <-errorsChan:
 		return err
+	case <-c.quitChan:
+		return nil
 	}
-	return err
 }
 
 // StopCollection is for stopping the listener
