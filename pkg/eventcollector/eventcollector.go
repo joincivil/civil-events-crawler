@@ -27,7 +27,6 @@ func NewCivilEventCollector(client bind.ContractBackend, filterers []model.Contr
 
 // CivilEventCollector handles logic for getting historical and live events
 type CivilEventCollector struct {
-	// Client is the ethereum client from go-ethereum
 	client bind.ContractBackend
 
 	filterers []model.ContractFilterers
@@ -47,7 +46,7 @@ type CivilEventCollector struct {
 
 // StartCollection contains logic to run retriever and listener.
 func (c *CivilEventCollector) StartCollection() error {
-	err := c.setupRetriever()
+	err := c.retrieveEvents()
 	if err != nil {
 		return err
 	}
@@ -56,12 +55,12 @@ func (c *CivilEventCollector) StartCollection() error {
 	if err != nil {
 		return err
 	}
-	err = c.endRetrieving()
+	err = c.persistRetrieverLastBlockData()
 	if err != nil {
 		return err
 	}
 
-	err = c.setupListener()
+	err = c.startListener()
 	if err != nil {
 		return err
 	}
@@ -95,17 +94,9 @@ func (c *CivilEventCollector) StartCollection() error {
 		}
 	}(eventRecv, quitChan, errors)
 
-	// If we get an error in persistence, we should break from the loop and return error.
-Loop:
-	for {
-		select {
-		case <-eventRecv:
-			continue
-		case err = <-errors:
-			break Loop
-		}
+	for err = range errors {
+		return err
 	}
-
 	return err
 }
 
@@ -116,7 +107,7 @@ func (c *CivilEventCollector) StopCollection() error {
 }
 
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
-func (c *CivilEventCollector) updateStartingBlocks() {
+func (c *CivilEventCollector) updateRetrieverStartingBlocks() {
 	for _, filter := range c.filterers {
 		contractAddress := filter.ContractAddress()
 		eventTypes := filter.EventTypes()
@@ -127,8 +118,8 @@ func (c *CivilEventCollector) updateStartingBlocks() {
 	}
 }
 
-func (c *CivilEventCollector) setupRetriever() error {
-	c.updateStartingBlocks()
+func (c *CivilEventCollector) retrieveEvents() error {
+	c.updateRetrieverStartingBlocks()
 	c.retrieve = retriever.NewCivilEventRetriever(c.client, c.filterers)
 	err := c.retrieve.Retrieve()
 	if err != nil {
@@ -138,7 +129,7 @@ func (c *CivilEventCollector) setupRetriever() error {
 	return err
 }
 
-func (c *CivilEventCollector) setupListener() error {
+func (c *CivilEventCollector) startListener() error {
 	c.listen = listener.NewCivilEventListener(c.client, c.watchers)
 	if c.listen == nil {
 		return errors.New("Listener should not be nil")
@@ -151,7 +142,7 @@ func (c *CivilEventCollector) setupListener() error {
 }
 
 // endRetrieving saves the last seen events for each filter to persistence
-func (c *CivilEventCollector) endRetrieving() error {
+func (c *CivilEventCollector) persistRetrieverLastBlockData() error {
 	var err error
 	for _, filter := range c.filterers {
 		err = c.retrieverPersister.UpdateLastBlockData(filter.LastEvents())

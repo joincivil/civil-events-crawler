@@ -37,7 +37,7 @@ type RetrieverMetaDataPersister interface {
 
 // EventDataPersister handles storing the received CivilEvent data.
 type EventDataPersister interface {
-	// SaveEvents stores a list of events
+	// SaveEvents stores a list of CivilEvent(s)
 	SaveEvents(events []CivilEvent) error
 
 	// RetrieveEvents retrieves the CivilEvents from the persistence layer based

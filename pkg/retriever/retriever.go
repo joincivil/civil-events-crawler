@@ -3,7 +3,6 @@
 package retriever // import "github.com/joincivil/civil-events-crawler/pkg/retriever"
 
 import (
-	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
@@ -53,13 +52,11 @@ func (r *CivilEventRetriever) GetBlockNumber(event model.CivilEvent) (uint64, er
 	eventHash := event.Hash()
 	rawPayload, ok := payload.Value("Raw")
 	if !ok {
-		err := fmt.Sprintf("Can't get raw value for %v", eventHash)
-		return uint64(0), errors.New(err)
+		return uint64(0), fmt.Errorf("Can't get raw value for %v", eventHash)
 	}
 	rawPayloadLog, ok := rawPayload.Log()
 	if !ok {
-		err := fmt.Sprintf("Can't get log field of raw value for %v", eventHash)
-		return uint64(0), errors.New(err)
+		return uint64(0), fmt.Errorf("Can't get log field of raw value for %v", eventHash)
 	}
 	return rawPayloadLog.BlockNumber, nil
 }
