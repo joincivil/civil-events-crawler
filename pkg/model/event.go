@@ -3,6 +3,7 @@ package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -96,6 +97,21 @@ func (e *CivilEvent) Timestamp() int {
 // Payload returns the event payload for the CivilEvent
 func (e *CivilEvent) Payload() *CivilEventPayload {
 	return e.payload
+}
+
+// GetBlockNumber gets the block number for the CivilEvent
+func (e *CivilEvent) GetBlockNumber() (uint64, error) {
+	payload := e.Payload()
+	eventHash := e.Hash()
+	rawPayload, ok := payload.Value("Raw")
+	if !ok {
+		return uint64(0), fmt.Errorf("Can't get raw value for %v", eventHash)
+	}
+	rawPayloadLog, ok := rawPayload.Log()
+	if !ok {
+		return uint64(0), fmt.Errorf("Can't get log field of raw value for %v", eventHash)
+	}
+	return rawPayloadLog.BlockNumber, nil
 }
 
 // CivilEventPayload represents the data from a Civil contract event
