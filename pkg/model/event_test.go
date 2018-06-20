@@ -2,14 +2,15 @@
 package model_test
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
-	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"math/big"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
+	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
 var (
