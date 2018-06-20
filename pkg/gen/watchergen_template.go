@@ -114,6 +114,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 			return err
 		}
 		defer sub.Unsubscribe()
+		log.Infof("Starting up Watch{{.EventMethod}} for contract %v", w.contractAddress.Hex())
 		for {
 			select {
 			case event := <-recvChan:

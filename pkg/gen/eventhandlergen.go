@@ -2,55 +2,31 @@
 package gen
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	log "github.com/golang/glog"
-	"go/format"
 	"io"
 	"regexp"
 	"sort"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 
-	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
-)
-
-const (
-	// CivilTcrContractType is the enum value for the Civil TCR type
-	CivilTcrContractType ContractType = 0
-
-	// NewsroomContractType is the enum value for the Newsroom type
-	NewsroomContractType ContractType = 1
+	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
 var (
-	// NameToContractTypes is the map from a readable name to ContractType
-	NameToContractTypes = NameToContractType{
-		"civiltcr": CivilTcrContractType,
-		"newsroom": NewsroomContractType,
+	handlerToTemplate = map[string]TemplateData{
+		"watcher": {
+			tmplName: "watcher.tmpl",
+			tmplVar:  watcherTmpl,
+		},
+		"filterer": {
+			tmplName: "filterer.tmpl",
+			tmplVar:  filtererTmpl,
+		},
 	}
 )
-
-var handlerToTemplate = map[string]TemplateData{
-	"watcher": {
-		tmplName: "watcher.tmpl",
-		tmplVar:  watcherTmpl,
-	},
-	"filterer": {
-		tmplName: "filterer.tmpl",
-		tmplVar:  filtererTmpl,
-	},
-}
-
-// ContractType is an enum for the Civil contract type
-type ContractType int
-
-// NameToContractType is a map type of readable name to a ContractType enum value
-type NameToContractType map[string]ContractType
 
 // TemplateData is a struct to store template information
 type TemplateData struct {
@@ -58,61 +34,32 @@ type TemplateData struct {
 	tmplVar  string
 }
 
-// Names returns a list of the names in NameToContractType
-func (n NameToContractType) Names() []string {
-	keys := make([]string, len(n))
-	keyIndex := 0
-	for k := range n {
-		keys[keyIndex] = k
-		keyIndex++
-	}
-	return keys
-}
-
-// GenerateCivilEventHandlers will code gen the contract event handlers for a given
+// GenerateEventHandlers will code gen the contract event handlers for a given
 // ContractType. It will output the generated code to the given io.Writer.
 // Currently supports only the CivilTCR and Newsroom ContractTypes.
-func GenerateCivilEventHandlers(writer io.Writer, contractType ContractType, packageName string,
+func GenerateEventHandlers(writer io.Writer, contractType model.ContractType, packageName string,
 	handlerName string) error {
-	var err error
-	switch contractType {
-	case CivilTcrContractType:
-		err = generateCivilTCREventHandlers(writer, packageName, handlerName)
-	case NewsroomContractType:
-		err = generateNewsroomEventHandlers(writer, packageName, handlerName)
-	default:
+
+	contractSpecs, ok := model.ContractTypeToSpecs.Get(contractType)
+	if !ok {
 		return errors.New("Invalid ContractType")
 	}
-	return err
+
+	return generateEventHandlersFromABI(writer, contractSpecs.AbiStr(), packageName,
+		contractSpecs.ImportPath(), contractSpecs.TypePackage(), contractSpecs.Name(), handlerName)
 }
 
 // GenerateEventHandlersFromTemplate will code gen the contract event handlers for the
 // given contract data.  It will output the generated code to the given io.Writer.
 // If gofmt is true, will run go formatting on the code before output.
 // packageName specifies for listener or retriever code
-func GenerateEventHandlersFromTemplate(writer io.Writer, contractData *ContractData, gofmt bool,
-	handlerName string) error {
-	var t *template.Template
+func GenerateEventHandlersFromTemplate(writer io.Writer, tmplData *EventHandlerContractTmplData,
+	gofmt bool, handlerName string) error {
 	tmpData, ok := handlerToTemplate[handlerName]
 	if !ok {
 		return errors.New("Invalid handlerName")
 	}
-	t = template.Must(template.New(tmpData.tmplName).Parse(tmpData.tmplVar))
-	buf := &bytes.Buffer{}
-	err := t.Execute(buf, contractData)
-	if err != nil {
-		return err
-	}
-	output := buf.Bytes()
-	if gofmt {
-		output, err = format.Source(buf.Bytes())
-		if err != nil {
-			log.Errorf("ERROR Gofmt: template generated code:\n%v", buf.String())
-			return err
-		}
-	}
-	_, err = writer.Write(output)
-	return err
+	return generate(writer, tmpData.tmplName, tmpData.tmplVar, tmplData, gofmt)
 }
 
 // EventHandlerMethodParam represents a value to be passed into the
@@ -122,58 +69,40 @@ type EventHandlerMethodParam struct {
 	Type string
 }
 
-// EventHandler represents data for an individual contract event method in a
+// EventHandlerTmplData represents data for an individual contract event method in a
 // Civil smart contract.
 // Maps to actions in the event handler templates.
-type EventHandler struct {
+type EventHandlerTmplData struct {
 	EventMethod string
 	EventType   string
 	ParamValues []*EventHandlerMethodParam
 	EventName   string
 }
 
-// ContractData represents data for a category of contract event methods.
+// EventHandlerContractTmplData represents data for a category of contract event methods.
 // Maps to actions in the event handler templates.
-type ContractData struct {
+type EventHandlerContractTmplData struct {
 	PackageName         string
 	AdditionalImports   []string
 	ContractImportPath  string
 	ContractTypePackage string
 	ContractTypeName    string
 	GenTime             time.Time
-	EventHandlers       []*EventHandler
+	EventHandlers       []*EventHandlerTmplData
 }
 
-func generateCivilTCREventHandlers(writer io.Writer, packageName string, handlerName string) error {
-	contractTypePackage := "contract"
-	contractImportPath := "github.com/joincivil/civil-events-crawler/pkg/generated/contract"
-	contractTypeName := "CivilTCRContract"
-	abi, err := abi.JSON(strings.NewReader(contract.CivilTCRContractABI))
-	if err != nil {
-		return err
-	}
-	return generateEventHandlers(writer, abi, packageName, contractImportPath,
-		contractTypePackage, contractTypeName, handlerName)
-}
-
-func generateNewsroomEventHandlers(writer io.Writer, packageName string, handlerName string) error {
-	contractTypePackage := "contract"
-	contractImportPath := "github.com/joincivil/civil-events-crawler/pkg/generated/contract"
-	contractTypeName := "NewsroomContract"
-	abi, err := abi.JSON(strings.NewReader(contract.NewsroomContractABI))
-	if err != nil {
-		return err
-	}
-	return generateEventHandlers(writer, abi, packageName, contractImportPath,
-		contractTypePackage, contractTypeName, handlerName)
-}
-
-func generateEventHandlers(writer io.Writer, _abi abi.ABI, packageName string,
+func generateEventHandlersFromABI(writer io.Writer, _abiStr string, packageName string,
 	contractImportPath string, contractTypePackage string, contractTypeName string,
 	handlerName string) error {
+	_abi, err := abi.JSON(strings.NewReader(_abiStr))
+	if err != nil {
+		return err
+	}
+
 	eventsIndex := 0
-	eventHandlers := make([]*EventHandler, len(_abi.Events))
+	eventHandlers := make([]*EventHandlerTmplData, len(_abi.Events))
 	additionalImports := []string{}
+
 	// Keep the event methods sorted by name
 	sortedEvents := eventsToSortedEventsSlice(_abi.Events)
 	for _, event := range sortedEvents {
@@ -188,7 +117,7 @@ func generateEventHandlers(writer io.Writer, _abi abi.ABI, packageName string,
 				params = append(params, val)
 			}
 		}
-		eventHandler := &EventHandler{
+		eventHandler := &EventHandlerTmplData{
 			EventName:   event.Name,
 			EventMethod: cleanEventName(event.Name),
 			EventType:   eventType(contractTypeName, event.Name),
@@ -198,7 +127,7 @@ func generateEventHandlers(writer io.Writer, _abi abi.ABI, packageName string,
 		eventHandlers[eventsIndex] = eventHandler
 		eventsIndex++
 	}
-	contractData := &ContractData{
+	contractData := &EventHandlerContractTmplData{
 		PackageName:         packageName,
 		AdditionalImports:   additionalImports,
 		ContractImportPath:  contractImportPath,

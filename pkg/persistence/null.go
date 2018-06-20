@@ -34,10 +34,11 @@ func (n *NullPersister) UpdateLastBlockData(events []model.CivilEvent) error {
 			rawVal, _ := event.Payload().Value("Raw")
 			eventLog, _ := rawVal.Log()
 			log.Infof(
-				"NullPersister: UpdatedLastBlockData: event: type: %v, addr: %v, blknum: %v\n",
+				"NullPersister: UpdatedLastBlockData: event: type: %v, addr: %v, blknum: %v, removed: %v\n",
 				event.EventType(),
 				event.ContractAddress().Hex(),
 				eventLog.BlockNumber,
+				eventLog.Removed,
 			)
 		}
 	}
@@ -52,10 +53,11 @@ func (n *NullPersister) SaveEvents(events []model.CivilEvent) error {
 			rawVal, _ := event.Payload().Value("Raw")
 			eventLog, _ := rawVal.Log()
 			log.Infof(
-				"NullPersister: SaveEvents: event: type: %v, addr: %v, blknum: %v\n",
+				"NullPersister: SaveEvents: event: type: %v, addr: %v, blknum: %v, removed: %v\n",
 				event.EventType(),
 				event.ContractAddress().Hex(),
 				eventLog.BlockNumber,
+				eventLog.Removed,
 			)
 		}
 	}

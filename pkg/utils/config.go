@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -53,9 +54,12 @@ const (
 // CrawlerConfig is the master config for the crawler derived from environment
 // variables.
 type CrawlerConfig struct {
-	EthAPIURL           string                    `envconfig:"eth_api_url" required:"true" desc:"Ethereum API address"`
-	ContractAddresses   map[string]string         `split_words:"true" required:"true" desc:"Map contract type name to hex address of contract"`
-	ContractAddressObjs map[string]common.Address `ignored:"true"`
+	EthAPIURL string `envconfig:"eth_api_url" required:"true" desc:"Ethereum API address"`
+
+	// ContractAddresses map a contract type to a string of contract addresses.  If there are more than 1
+	// contract to be tracked for a particular type, delimit the addresses with '|'.
+	ContractAddresses   map[string]string           `split_words:"true" required:"true" desc:"<contract name>:<contract addr>. Delimit contract address with '|' for multiple addresses"`
+	ContractAddressObjs map[string][]common.Address `ignored:"true"`
 
 	PersisterType            PersisterType `ignored:"true"`
 	PersisterTypeName        string        `split_words:"true" required:"true" desc:"Sets the persister type to use"`
@@ -106,16 +110,27 @@ func (c *CrawlerConfig) populatePersisterType() error {
 }
 
 func (c *CrawlerConfig) populateContractAddressObjs() {
-	c.ContractAddressObjs = map[string]common.Address{}
+	c.ContractAddressObjs = map[string][]common.Address{}
 	for contractName, addrStr := range c.ContractAddresses {
-		c.ContractAddressObjs[contractName] = common.HexToAddress(addrStr)
+		addrs := splitStrByPipe(addrStr)
+		addrList := make([]common.Address, len(addrs))
+		for i, addr := range addrs {
+			addrList[i] = common.HexToAddress(addr)
+		}
+		c.ContractAddressObjs[contractName] = addrList
 	}
 }
 
 func (c *CrawlerConfig) validateContractAddresses() error {
 	for _, addrStr := range c.ContractAddresses {
-		if addrStr == "" || !IsValidContractAddress(addrStr) {
+		if addrStr == "" {
 			return fmt.Errorf("Invalid contract address: '%v'", addrStr)
+		}
+		addrs := splitStrByPipe(addrStr)
+		for _, addr := range addrs {
+			if !IsValidContractAddress(addr) {
+				return fmt.Errorf("Invalid contract address: '%v'", addr)
+			}
 		}
 	}
 	return nil
@@ -166,4 +181,8 @@ func PersisterTypeFromName(typeStr string) (PersisterType, error) {
 			fmt.Errorf("Invalid persister value: %v; valid types %v", typeStr, validNames)
 	}
 	return pType, nil
+}
+
+func splitStrByPipe(str string) []string {
+	return strings.Split(str, "|")
 }

@@ -89,6 +89,8 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
     f.contract = contract
     var startBlock uint64
     prevEventsLength := len(pastEvents)
+
+
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
@@ -116,6 +118,8 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
     var opts = &bind.FilterOpts{
         Start: startBlock,
     }
+
+	log.Infof("Filtering events for {{.EventMethod}} for contract %v", f.contractAddress.Hex())
     itr, err := f.contract.Filter{{.EventMethod}}(
         opts,
     {{- if .ParamValues -}}
