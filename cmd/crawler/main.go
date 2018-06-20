@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	log "github.com/golang/glog"
 	"os"
@@ -11,45 +12,18 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/joincivil/civil-events-crawler/pkg/eventcollector"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/handlerlist"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 func contractFilterers(config *utils.CrawlerConfig) []model.ContractFilterers {
-	filters := []model.ContractFilterers{}
-	addr, ok := config.ContractAddressObjs["civiltcr"]
-	if ok {
-		filter := filterer.NewCivilTCRContractFilterers(addr)
-		filters = append(filters, filter)
-		log.Info("Added CivilTCR filterer")
-	}
-	addr, ok = config.ContractAddressObjs["newsroom"]
-	if ok {
-		filter := filterer.NewNewsroomContractFilterers(addr)
-		filters = append(filters, filter)
-		log.Info("Added Newsroom filterer")
-	}
-	return filters
+	return handlerlist.ContractFilterers(config.ContractAddressObjs)
 }
 
 func contractWatchers(config *utils.CrawlerConfig) []model.ContractWatchers {
-	watchers := []model.ContractWatchers{}
-	addr, ok := config.ContractAddressObjs["civiltcr"]
-	if ok {
-		watch := watcher.NewCivilTCRContractWatchers(addr)
-		watchers = append(watchers, watch)
-		log.Info("Added CivilTCR watcher")
-	}
-	addr, ok = config.ContractAddressObjs["newsroom"]
-	if ok {
-		watch := watcher.NewNewsroomContractWatchers(addr)
-		watchers = append(watchers, watch)
-		log.Info("Added Newsroom watcher")
-	}
-	return watchers
+	return handlerlist.ContractWatchers(config.ContractAddressObjs)
 }
 
 func listenerMetaDataPersister(config *utils.CrawlerConfig) model.ListenerMetaDataPersister {
@@ -95,6 +69,13 @@ func startUp(config *utils.CrawlerConfig) error {
 	client, err := ethclient.Dial(config.EthAPIURL)
 	if err != nil {
 		return err
+	}
+
+	if log.V(2) {
+		header, err := client.HeaderByNumber(context.TODO(), nil)
+		if err == nil {
+			log.Infof("Latest block number is: %v", header.Number)
+		}
 	}
 
 	log.Info("Setting up event collector")
