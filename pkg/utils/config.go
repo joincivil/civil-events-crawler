@@ -58,7 +58,7 @@ type CrawlerConfig struct {
 
 	// ContractAddresses map a contract type to a string of contract addresses.  If there are more than 1
 	// contract to be tracked for a particular type, delimit the addresses with '|'.
-	ContractAddresses   map[string]string           `split_words:"true" required:"true" desc:"Map contract type name to hex address of contract"`
+	ContractAddresses   map[string]string           `split_words:"true" required:"true" desc:"<contract name>:<contract addr>. Delimit contract address with '|' for multiple addresses"`
 	ContractAddressObjs map[string][]common.Address `ignored:"true"`
 
 	PersisterType            PersisterType `ignored:"true"`
