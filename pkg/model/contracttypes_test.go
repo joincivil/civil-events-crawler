@@ -20,7 +20,7 @@ func TestNameToContractTypes(t *testing.T) {
 		t.Error("Should have not found an invalid name")
 	}
 	names := model.NameToContractTypes.Names()
-	if names == nil || len(names) == 0 {
+	if len(names) == 0 {
 		t.Error("Should have returned a valid names list")
 	}
 }
@@ -51,7 +51,7 @@ func TestContractTypeToSpecs(t *testing.T) {
 		t.Error("Should have not found invalid type specs")
 	}
 	_types := model.ContractTypeToSpecs.Types()
-	if _types == nil || len(_types) == 0 {
+	if len(_types) == 0 {
 		t.Error("Should have returned a valid list of specs")
 	}
 }
