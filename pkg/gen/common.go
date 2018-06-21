@@ -21,7 +21,7 @@ func generate(writer io.Writer, tmplName string, tmpl string,
 	if gofmt {
 		output, err = format.Source(buf.Bytes())
 		if err != nil {
-			log.Errorf("ERROR Gofmt: template generated code:\n%v", buf.String())
+			log.Errorf("ERROR Gofmt: err:%v\ntemplate generated code:\n%v", err, buf.String())
 			return err
 		}
 	}

@@ -118,6 +118,12 @@ func TestCivilEventPayloadValues(t *testing.T) {
 		t.Errorf("Non-existent key should not return value")
 	}
 
+	toStr := payload.ToString()
+	if toStr == "" {
+		t.Errorf("ToString is returning an empty string")
+	}
+	t.Logf("payload string: %v", toStr)
+
 	value, ok := payload.Value("ListingAddress")
 	if !ok {
 		t.Errorf("ListingAddress not found")
