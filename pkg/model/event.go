@@ -3,9 +3,11 @@ package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -123,6 +125,35 @@ func (p *CivilEventPayload) Value(key string) (*CivilEventPayloadValue, bool) {
 		return nil, ok
 	}
 	return &CivilEventPayloadValue{value: field}, ok
+}
+
+// ToString returns a string representation for the payload
+func (p *CivilEventPayload) ToString() string {
+	strs := []string{}
+	for _, key := range p.Keys() {
+		var str string
+		val, _ := p.Value(key)
+		if v, ok := val.Address(); ok {
+			str = fmt.Sprintf("%v: %v", key, v.Hex())
+		} else if v, ok := val.Log(); ok {
+			str = fmt.Sprintf(
+				"%v: addr: %v, blknum: %v, ind: %v, rem: %v",
+				key,
+				v.Address.Hex(),
+				v.BlockNumber,
+				v.Index,
+				v.Removed,
+			)
+		} else if v, ok := val.BigInt(); ok {
+			str = fmt.Sprintf("%v: %v", key, v)
+		} else if v, ok := val.String(); ok {
+			str = fmt.Sprintf("%v: %v", key, v)
+		} else if v, ok := val.Int64(); ok {
+			str = fmt.Sprintf("%v: %v", key, v)
+		}
+		strs = append(strs, str)
+	}
+	return strings.Join(strs, "\n")
 }
 
 // CivilEventPayloadValue represents a single value for a key in the payload

@@ -79,6 +79,15 @@ func (c *CivilEventCollector) StartCollection() error {
 		for {
 			select {
 			case event := <-c.listen.EventRecvChan:
+				if log.V(2) {
+					log.Infof(
+						"event received: %v, %v, %v, \n%v",
+						event.EventType(),
+						event.Hash(),
+						event.Timestamp(),
+						event.Payload().ToString(),
+					)
+				}
 				// Save event to persister
 				err = c.eventDataPersister.SaveEvents([]model.CivilEvent{event})
 				if err != nil {
