@@ -121,6 +121,27 @@ Run `make test` and launches the HTML code coverage tool.
 make cover
 ```
 
+## Run
+
+The crawler relies on environment vars for configuration.  At the root of the project, run:
+
+```
+CRAWL_ETH_API_URL=<RPC API URL>
+CRAWL_CONTRACT_ADDRESSES="<contract short name>:<contract address>,..."
+CRAWL_PERSISTER_TYPE_NAME=<persister type>
+go run cmd/crawler/main.go 
+```
+
+### Contract Short Names
+`civiltcr`, `newsroom`
+
+### Persister Types
+`none`, `postgresql`
+
+### Enable Info Logging
+
+Add `-logtostderr=true -stderrthreshold=INFO -v=2` as arguments for the `main.go` command.
+
 ## Persistence
 
 The crawler is build to accept an implementation of persistence interfaces as defined in `pkg/model/persisttypes.go`.  These interfaces allow the crawler to store down specific data related to it's operation as well as the events to be collected. 
