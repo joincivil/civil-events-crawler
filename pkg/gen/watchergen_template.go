@@ -36,10 +36,23 @@ func New{{.ContractTypeName}}Watchers(contractAddress common.Address) *{{.Contra
 type {{.ContractTypeName}}Watchers struct {
 	contractAddress common.Address
 	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
+	activeSubs []event.Subscription
+}
+
+func (w *{{.ContractTypeName}}Watchers) ContractAddress() common.Address {
+	return w.contractAddress
 }
 
 func (w *{{.ContractTypeName}}Watchers) ContractName() string {
 	return "{{.ContractTypeName}}"
+}
+
+func (w *{{.ContractTypeName}}Watchers) StopWatchers() error {
+	for _, sub := range w.activeSubs {
+		sub.Unsubscribe()
+	}
+	w.activeSubs = nil
+	return nil
 }
 
 func (w *{{.ContractTypeName}}Watchers) StartWatchers(client bind.ContractBackend,
@@ -71,6 +84,7 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 {{- end}}
 {{- end}}
 
+	w.activeSubs = subs
     return subs, nil
 }
 

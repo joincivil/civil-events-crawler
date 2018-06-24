@@ -7,7 +7,6 @@ import (
 	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/event"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
@@ -19,7 +18,7 @@ func NewCivilEventListener(client bind.ContractBackend, watchers []model.Contrac
 		EventRecvChan: make(chan model.CivilEvent),
 		client:        client,
 		watchers:      watchers,
-		watcherSubs:   []event.Subscription{},
+		active:        false,
 	}
 	return listener
 }
@@ -35,39 +34,83 @@ type CivilEventListener struct {
 
 	watchers []model.ContractWatchers
 
-	watcherSubs []event.Subscription
+	active bool
 }
 
 // Start starts up the event listener and watchers
 func (l *CivilEventListener) Start() error {
-	var err error
-	var subs []event.Subscription
-	for _, watcher := range l.watchers {
-		subs, err = watcher.StartWatchers(
+	hasSubs := false
+	for _, watchers := range l.watchers {
+		newSubs, err := watchers.StartWatchers(
 			l.client,
 			l.EventRecvChan,
 		)
 		if err != nil {
-			log.Errorf("Error starting watchers for %v: err: %v",
-				watcher.ContractName(), err)
+			log.Errorf("Error starting watchers for %v at %v: err: %v",
+				watchers.ContractName(), watchers.ContractAddress(), err)
 		}
-		l.watcherSubs = append(l.watcherSubs, subs...)
+		if len(newSubs) > 0 {
+			hasSubs = true
+		}
 	}
 
-	if len(subs) <= 0 {
+	if !hasSubs {
 		return errors.New("No watchers have been started")
 	}
 
+	l.active = true
+	return nil
+}
+
+// AddWatchers will add watchersto the listener. If the listener is already
+// started, add to the list of watchers, start up with the watcher, and add it
+// to the list of subscriptions in the listener.
+// If the listener is not already started, will just be added to the list of watchers.
+func (l *CivilEventListener) AddWatchers(w model.ContractWatchers) error {
+	l.watchers = append(l.watchers, w)
+	if l.active {
+		_, err := w.StartWatchers(
+			l.client,
+			l.EventRecvChan,
+		)
+		if err != nil {
+			log.Errorf("Error starting watchers for %v at %v: err: %v",
+				w.ContractName(), w.ContractAddress(), err)
+			return err
+		}
+	}
+	return nil
+}
+
+// RemoveWatchers will remove given watcher from the listener. If the listener is already
+// started, stop the watcher, removes the subscription, and removes from watcher list.
+// If the listener is not already started, will just be removed from the list of watchers.
+func (l *CivilEventListener) RemoveWatchers(w model.ContractWatchers) error {
+	if l.watchers != nil && len(l.watchers) > 0 {
+		for index, ew := range l.watchers {
+			if w.ContractAddress() == ew.ContractAddress() &&
+				w.ContractName() == ew.ContractName() {
+				if l.active {
+					_ = ew.StopWatchers()
+				}
+				// Delete the item in the watchers list.
+				copy(l.watchers[index:], l.watchers[index+1:])
+				l.watchers[len(l.watchers)-1] = nil
+				l.watchers = l.watchers[:len(l.watchers)-1]
+				return nil
+			}
+		}
+	}
 	return nil
 }
 
 // Stop shuts down the event listener and performs clean up
 func (l *CivilEventListener) Stop() error {
-	if l.watcherSubs != nil && len(l.watcherSubs) > 0 {
-		for _, sub := range l.watcherSubs {
-			sub.Unsubscribe()
+	if l.watchers != nil && len(l.watchers) > 0 {
+		for _, w := range l.watchers {
+			_ = w.StopWatchers()
 		}
-		l.watcherSubs = nil
 	}
+	l.active = false
 	return nil
 }

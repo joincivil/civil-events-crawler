@@ -10,7 +10,9 @@ import (
 // ContractWatchers defines an interface that starts up a particular set of listeners watcher loops.
 type ContractWatchers interface {
 	ContractName() string
+	ContractAddress() common.Address
 	StartWatchers(client bind.ContractBackend, eventRecvChan chan CivilEvent) ([]event.Subscription, error)
+	StopWatchers() error
 }
 
 // ContractFilterers defines an interface that starts up a particular set of filterers
