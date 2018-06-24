@@ -26,6 +26,13 @@ func contractWatchers(config *utils.CrawlerConfig) []model.ContractWatchers {
 	return handlerlist.ContractWatchers(config.ContractAddressObjs)
 }
 
+func eventTriggers(config *utils.CrawlerConfig) []eventcollector.Trigger {
+	return []eventcollector.Trigger{
+		&eventcollector.AddNewsroomWatchersTrigger{},
+		&eventcollector.RemoveNewsroomWatchersTrigger{},
+	}
+}
+
 func listenerMetaDataPersister(config *utils.CrawlerConfig) model.ListenerMetaDataPersister {
 	p := persister(config)
 	return p.(model.ListenerMetaDataPersister)
@@ -86,6 +93,7 @@ func startUp(config *utils.CrawlerConfig) error {
 		listenerMetaDataPersister(config),
 		retrieverMetaDataPersister(config),
 		eventDataPersister(config),
+		eventTriggers(config),
 	)
 
 	setupKillNotify(eventCol)

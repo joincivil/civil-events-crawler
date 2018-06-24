@@ -14,7 +14,8 @@ import (
 // NewCivilEventCollector creates a new civil event collector
 func NewCivilEventCollector(client bind.ContractBackend, filterers []model.ContractFilterers,
 	watchers []model.ContractWatchers, retrieverPersister model.RetrieverMetaDataPersister,
-	listenerPersister model.ListenerMetaDataPersister, eventDataPersister model.EventDataPersister) *CivilEventCollector {
+	listenerPersister model.ListenerMetaDataPersister, eventDataPersister model.EventDataPersister,
+	triggers []Trigger) *CivilEventCollector {
 
 	eventcollector := &CivilEventCollector{
 		client:             client,
@@ -23,6 +24,7 @@ func NewCivilEventCollector(client bind.ContractBackend, filterers []model.Contr
 		retrieverPersister: retrieverPersister,
 		listenerPersister:  listenerPersister,
 		eventDataPersister: eventDataPersister,
+		triggers:           triggers,
 	}
 	return eventcollector
 }
@@ -30,6 +32,8 @@ func NewCivilEventCollector(client bind.ContractBackend, filterers []model.Contr
 // CivilEventCollector handles logic for getting historical and live events
 type CivilEventCollector struct {
 	client bind.ContractBackend
+
+	triggers []Trigger
 
 	filterers []model.ContractFilterers
 
@@ -100,11 +104,17 @@ func (c *CivilEventCollector) StartCollection() error {
 					errors <- err
 					return
 				}
+				// Call event triggers
+				err = c.callTriggers(&event)
+				if err != nil {
+					log.Errorf("Error calling triggers: err: %v", err)
+				}
 			case <-quit:
 				return
 			}
 		}
 	}(c.quitChan, errorsChan)
+
 	select {
 	case err = <-errorsChan:
 		return err
@@ -125,11 +135,14 @@ func (c *CivilEventCollector) StopCollection() error {
 	return err
 }
 
-func (c *CivilEventCollector) stopListener() {
-	err := c.StopCollection()
-	if err != nil {
-		log.Errorf("Error stopping listener, %v", err)
-	}
+// AddWatchers will add watchers to the embedded listener.
+func (c *CivilEventCollector) AddWatchers(w model.ContractWatchers) error {
+	return c.listen.AddWatchers(w)
+}
+
+// RemoveWatchers will remove given watcher from the embedded listener.
+func (c *CivilEventCollector) RemoveWatchers(w model.ContractWatchers) error {
+	return c.listen.RemoveWatchers(w)
 }
 
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
@@ -165,6 +178,23 @@ func (c *CivilEventCollector) startListener() error {
 		return fmt.Errorf("Listener should have started with no errors: %v", err)
 	}
 	return nil
+}
+
+func (c *CivilEventCollector) stopListener() {
+	err := c.StopCollection()
+	if err != nil {
+		log.Errorf("Error stopping listener, %v", err)
+	}
+}
+
+func (c *CivilEventCollector) callTriggers(event *model.CivilEvent) error {
+	var err error
+	for _, trigger := range c.triggers {
+		if trigger.ShouldRun(c, event) {
+			err = trigger.Run(c, event)
+		}
+	}
+	return err
 }
 
 // endRetrieving saves the last seen events for each filter to persistence

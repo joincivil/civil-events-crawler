@@ -11,11 +11,15 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
+const (
+	eventRecvChanBufferSize = 1
+)
+
 // NewCivilEventListener creates a new CivilEventListener given the address
 // of the contract to listen to.
 func NewCivilEventListener(client bind.ContractBackend, watchers []model.ContractWatchers) *CivilEventListener {
 	listener := &CivilEventListener{
-		EventRecvChan: make(chan model.CivilEvent),
+		EventRecvChan: make(chan model.CivilEvent, eventRecvChanBufferSize),
 		client:        client,
 		watchers:      watchers,
 		active:        false,
