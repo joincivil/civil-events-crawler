@@ -14,7 +14,7 @@ var (
 				Required().HintAction(gen.NameToContractTypes.Names).Enum(gen.NameToContractTypes.Names()...)
 	packageName = kingpin.Arg("package-name", "Package name for the generated files.").
 			Required().String()
-	handlerName = kingpin.Arg("handler-name", "Handler name retriever, or listener.").
+	handlerName = kingpin.Arg("handler-name", "Handler name retriever, listener, or eventdef.").
 			Required().String()
 )
 

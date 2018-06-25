@@ -25,6 +25,7 @@ GENERATED_DIR=pkg/generated
 GENERATED_CONTRACT_DIR=pkg/generated/contract
 GENERATED_WATCHER_DIR=pkg/generated/watcher
 GENERATED_FILTERER_DIR=pkg/generated/filterer
+GENERATED_EVENTDEF_DIR=pkg/generated/eventdef
 
 EVENTHANDLER_GEN_MAIN=cmd/eventhandlergen/main.go
 
@@ -117,6 +118,12 @@ generate-filterers: ## Runs filterergen to generate contract Filter* wrapper cod
 	@mkdir -p $(GENERATED_FILTERER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr filterer filterer > ./$(GENERATED_FILTERER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroom.go
+
+.PHONY: generate-eventdef
+generate-eventdef: ## Runs filterergen to generate contract Filter* wrapper code.
+	mkdir -p $(GENERATED_EVENTDEF_DIR)
+	$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr eventdef eventdef > ./$(GENERATED_EVENTDEF_DIR)/civiltcr.go
+	$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom eventdef eventdef > ./$(GENERATED_EVENTDEF_DIR)/newsroom.go
 
 .PHONY: generate-contracts
 generate-contracts: ## Builds the contract wrapper code from the ABIs in /abi.
