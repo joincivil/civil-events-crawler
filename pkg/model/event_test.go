@@ -42,7 +42,7 @@ var (
 )
 
 func setupCivilEvent() (*model.CivilEvent, error) {
-	return model.NewCivilEvent("_Application", common.HexToAddress(contractAddress),
+	return model.NewCivilEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent)
 }
 
@@ -85,7 +85,7 @@ func TestCivilEventPayloadNoRaw(t *testing.T) {
 	noRawTestEvent := &testStructNoRaw{
 		name: "name",
 	}
-	_, err := model.NewCivilEvent("_Application", common.HexToAddress(contractAddress),
+	_, err := model.NewCivilEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		noRawTestEvent)
 	if err == nil {
 		t.Errorf("Event creation should have failed with no raw event to create hash: err: %v", err)
@@ -102,7 +102,7 @@ func TestCivilEventPayloadNotLog(t *testing.T) {
 		name: "name",
 		Raw:  "name",
 	}
-	_, err := model.NewCivilEvent("_Application", common.HexToAddress(contractAddress),
+	_, err := model.NewCivilEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		notLogTestEvent)
 	if err == nil {
 		t.Errorf("Event creation should have failed with no Log found: err: %v", err)
@@ -195,9 +195,9 @@ func TestCivilEventPayloadValues(t *testing.T) {
 
 // Test that these 2 event hashes are not equal
 func TestCivilEventHash(t *testing.T) {
-	civilEvent1, _ := model.NewCivilEvent("Application", common.HexToAddress(contractAddress),
+	civilEvent1, _ := model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent)
-	civilEvent2, _ := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(contractAddress),
+	civilEvent2, _ := model.NewCivilEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent2)
 	if civilEvent2.Hash() == civilEvent1.Hash() {
 		t.Error("These events should have different hashes but they are the same")

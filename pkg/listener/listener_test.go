@@ -140,7 +140,7 @@ func TestCivilListenerEventChan(t *testing.T) {
 			BlockNumber: 8888888,
 		},
 	}
-	newEvent, _ := model.NewCivilEvent("_Application", contracts.CivilTcrAddr, tempPayload)
+	newEvent, _ := model.NewCivilEvent("_Application", "CivilTCRContract", contracts.CivilTcrAddr, tempPayload)
 	listener.EventRecvChan <- *newEvent
 
 	select {

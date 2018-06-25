@@ -18,11 +18,13 @@ import (
 )
 
 // NewCivilEvent is a convenience function to create a new CivilEvent
-func NewCivilEvent(eventType string, contractAddress common.Address, eventData interface{}) (*CivilEvent, error) {
+func NewCivilEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{}) (*CivilEvent, error) {
 	event := &CivilEvent{}
 	event.eventType = eventType
+	event.contractName = contractName
 	event.contractAddress = contractAddress
 	event.timestamp = utils.CurrentEpochSecsInInt()
+	event.payloadRaw = eventData
 	event.payload = &CivilEventPayload{
 		data: structs.New(eventData),
 	}
@@ -48,11 +50,17 @@ type CivilEvent struct {
 	// contractAddress of the contract emitting the event
 	contractAddress common.Address
 
+	// contractName is the name of the contract
+	contractName string
+
 	// timestamp is the time this event was created.
 	timestamp int
 
 	// payload is the data from the raw event.
 	payload *CivilEventPayload
+
+	// raw payload that isn't obstructed by structs package
+	payloadRaw interface{}
 }
 
 // hashEvent returns a hash for event using contractAddress, eventType, timestamp, and log index
@@ -99,7 +107,12 @@ func (e *CivilEvent) Payload() *CivilEventPayload {
 	return e.payload
 }
 
-// GetBlockNumber gets the block number for the CivilEvent
+// ContractName returns the contract name
+func (e *CivilEvent) ContractName() string {
+	return e.contractName
+}
+
+// GetBlockNumber gets the block number from the CivilEvent Payload
 func (e *CivilEvent) GetBlockNumber() (uint64, error) {
 	payload := e.Payload()
 	eventHash := e.Hash()
@@ -112,6 +125,26 @@ func (e *CivilEvent) GetBlockNumber() (uint64, error) {
 		return uint64(0), fmt.Errorf("Can't get log field of raw value for %v", eventHash)
 	}
 	return rawPayloadLog.BlockNumber, nil
+}
+
+// GetBlockHash gets the block hash from the CivilEvent Payload
+func (e *CivilEvent) GetBlockHash() (common.Hash, error) {
+	payload := e.Payload()
+	eventHash := e.Hash()
+	rawPayload, ok := payload.Value("Raw")
+	if !ok {
+		return common.Hash{}, fmt.Errorf("Can't get raw value for %v", eventHash)
+	}
+	rawPayloadLog, ok := rawPayload.Log()
+	if !ok {
+		return common.Hash{}, fmt.Errorf("Can't get log field of raw value for %v", eventHash)
+	}
+	return rawPayloadLog.BlockHash, nil
+}
+
+// RawPayload returns the raw payload unobstructed by structs package
+func (e *CivilEvent) RawPayload() interface{} {
+	return e.payloadRaw
 }
 
 // CivilEventPayload represents the data from a Civil contract event
