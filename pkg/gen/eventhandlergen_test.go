@@ -4,13 +4,14 @@ package gen_test
 import (
 	"bytes"
 	"github.com/joincivil/civil-events-crawler/pkg/gen"
+	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestGenerateEventHandlersFromTemplate(t *testing.T) {
-	Event1 := &gen.EventHandler{
+	Event1 := &gen.EventHandlerTmplData{
 		EventMethod: "Application",
 		EventName:   "_Application",
 		EventType:   "CivilTCRContractApplication",
@@ -19,7 +20,7 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 			{Type: "common.Address"},
 		},
 	}
-	Event2 := &gen.EventHandler{
+	Event2 := &gen.EventHandlerTmplData{
 		EventMethod: "ApplicationRemoved",
 		EventName:   "_ApplicationRemoved",
 		EventType:   "CivilTCRContractApplicationRemoved",
@@ -27,24 +28,24 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 			{Type: "common.Address"},
 		},
 	}
-	testWatchers := &gen.ContractData{
+	testWatchers := &gen.EventHandlerContractTmplData{
 		PackageName:         "watcher",
 		ContractImportPath:  "github.com/joincivil/civil-events-crawler/pkg/generated/contract",
 		ContractTypePackage: "contract",
 		ContractTypeName:    "CivilTCRContract",
 		GenTime:             time.Now().UTC(),
-		EventHandlers: []*gen.EventHandler{
+		EventHandlers: []*gen.EventHandlerTmplData{
 			Event1,
 			Event2,
 		},
 	}
-	testFilterers := &gen.ContractData{
+	testFilterers := &gen.EventHandlerContractTmplData{
 		PackageName:         "retrieve",
 		ContractImportPath:  "github.com/joincivil/civil-events-crawler/pkg/generated/contract",
 		ContractTypePackage: "contract",
 		ContractTypeName:    "CivilTCRContract",
 		GenTime:             time.Now().UTC(),
-		EventHandlers: []*gen.EventHandler{
+		EventHandlers: []*gen.EventHandlerTmplData{
 			Event1,
 			Event2,
 		},
@@ -84,7 +85,7 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 
 func TestGenerateWatchersForCivilTcr(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateCivilEventHandlers(buf, gen.CivilTcrContractType, "watcher", "watcher")
+	err := gen.GenerateEventHandlers(buf, model.CivilTcrContractType, "watcher", "watcher")
 	if err != nil {
 		t.Errorf("Error generating watchers for the Civil TCR contract: err: %v", err)
 	}
@@ -107,7 +108,7 @@ func TestGenerateWatchersForCivilTcr(t *testing.T) {
 
 func TestGenerateWatchersForNewsroom(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateCivilEventHandlers(buf, gen.NewsroomContractType, "watcher", "watcher")
+	err := gen.GenerateEventHandlers(buf, model.NewsroomContractType, "watcher", "watcher")
 	if err != nil {
 		t.Errorf("Error generating watchers for the Newsroom contract: err: %v", err)
 	}
@@ -127,7 +128,7 @@ func TestGenerateWatchersForNewsroom(t *testing.T) {
 
 func TestGenerateRetrieversForCivilTcr(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateCivilEventHandlers(buf, gen.CivilTcrContractType, "filterer", "filterer")
+	err := gen.GenerateEventHandlers(buf, model.CivilTcrContractType, "filterer", "filterer")
 	if err != nil {
 		t.Errorf("Error generating filterers for the Civil TCR contract: err: %v", err)
 	}
@@ -147,7 +148,7 @@ func TestGenerateRetrieversForCivilTcr(t *testing.T) {
 
 func TestGenerateRetrieversForNewsroom(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateCivilEventHandlers(buf, gen.NewsroomContractType, "filterer", "filterer")
+	err := gen.GenerateEventHandlers(buf, model.NewsroomContractType, "filterer", "filterer")
 	if err != nil {
 		t.Errorf("Error generating retrievers for the Newsroom contract: err: %v", err)
 	}

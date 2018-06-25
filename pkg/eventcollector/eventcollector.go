@@ -22,6 +22,7 @@ func NewCivilEventCollector(client bind.ContractBackend, filterers []model.Contr
 		watchers:           watchers,
 		retrieverPersister: retrieverPersister,
 		listenerPersister:  listenerPersister,
+		eventDataPersister: eventDataPersister,
 	}
 	return eventcollector
 }
@@ -78,6 +79,15 @@ func (c *CivilEventCollector) StartCollection() error {
 		for {
 			select {
 			case event := <-c.listen.EventRecvChan:
+				if log.V(2) {
+					log.Infof(
+						"event received: %v, %v, %v, \n%v",
+						event.EventType(),
+						event.Hash(),
+						event.Timestamp(),
+						event.Payload().ToString(),
+					)
+				}
 				// Save event to persister
 				err = c.eventDataPersister.SaveEvents([]model.CivilEvent{event})
 				if err != nil {
@@ -95,7 +105,6 @@ func (c *CivilEventCollector) StartCollection() error {
 			}
 		}
 	}(c.quitChan, errorsChan)
-
 	select {
 	case err = <-errorsChan:
 		return err
@@ -106,8 +115,13 @@ func (c *CivilEventCollector) StartCollection() error {
 
 // StopCollection is for stopping the listener
 func (c *CivilEventCollector) StopCollection() error {
-	err := c.listen.Stop()
-	close(c.quitChan)
+	var err error
+	if c.listen != nil {
+		err = c.listen.Stop()
+	}
+	if c.quitChan != nil {
+		close(c.quitChan)
+	}
 	return err
 }
 

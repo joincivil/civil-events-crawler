@@ -2,14 +2,15 @@
 package model_test
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
-	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"math/big"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
+	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
 var (
@@ -116,6 +117,12 @@ func TestCivilEventPayloadValues(t *testing.T) {
 	if ok {
 		t.Errorf("Non-existent key should not return value")
 	}
+
+	toStr := payload.ToString()
+	if toStr == "" {
+		t.Errorf("ToString is returning an empty string")
+	}
+	t.Logf("payload string: %v", toStr)
 
 	value, ok := payload.Value("ListingAddress")
 	if !ok {

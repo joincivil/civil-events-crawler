@@ -19,6 +19,7 @@ func NewCivilEventListener(client bind.ContractBackend, watchers []model.Contrac
 		EventRecvChan: make(chan model.CivilEvent),
 		client:        client,
 		watchers:      watchers,
+		watcherSubs:   []event.Subscription{},
 	}
 	return listener
 }
@@ -39,8 +40,6 @@ type CivilEventListener struct {
 
 // Start starts up the event listener and watchers
 func (l *CivilEventListener) Start() error {
-	l.watcherSubs = []event.Subscription{}
-
 	var err error
 	var subs []event.Subscription
 	for _, watcher := range l.watchers {
@@ -64,9 +63,11 @@ func (l *CivilEventListener) Start() error {
 
 // Stop shuts down the event listener and performs clean up
 func (l *CivilEventListener) Stop() error {
-	for _, sub := range l.watcherSubs {
-		sub.Unsubscribe()
+	if l.watcherSubs != nil && len(l.watcherSubs) > 0 {
+		for _, sub := range l.watcherSubs {
+			sub.Unsubscribe()
+		}
+		l.watcherSubs = nil
 	}
-	l.watcherSubs = nil
 	return nil
 }
