@@ -44,6 +44,10 @@ var handlerToTemplate = map[string]TemplateData{
 		tmplName: "filterer.tmpl",
 		tmplVar:  filtererTmpl,
 	},
+	"eventdef": {
+		tmplName: "eventdef.tmpl",
+		tmplVar:  eventdefTmpl,
+	},
 }
 
 // ContractType is an enum for the Civil contract type
