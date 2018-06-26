@@ -5,6 +5,7 @@ package listener // import "github.com/joincivil/civil-events-crawler/pkg/listen
 import (
 	"errors"
 	log "github.com/golang/glog"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 
@@ -39,10 +40,14 @@ type CivilEventListener struct {
 	watchers []model.ContractWatchers
 
 	active bool
+
+	mutex sync.Mutex
 }
 
 // Start starts up the event listener and watchers
 func (l *CivilEventListener) Start() error {
+	defer l.mutex.Unlock()
+	l.mutex.Lock()
 	hasSubs := false
 	for _, watchers := range l.watchers {
 		newSubs, err := watchers.StartWatchers(
@@ -71,6 +76,8 @@ func (l *CivilEventListener) Start() error {
 // to the list of subscriptions in the listener.
 // If the listener is not already started, will just be added to the list of watchers.
 func (l *CivilEventListener) AddWatchers(w model.ContractWatchers) error {
+	defer l.mutex.Unlock()
+	l.mutex.Lock()
 	l.watchers = append(l.watchers, w)
 	if l.active {
 		_, err := w.StartWatchers(
@@ -90,6 +97,8 @@ func (l *CivilEventListener) AddWatchers(w model.ContractWatchers) error {
 // started, stop the watcher, removes the subscription, and removes from watcher list.
 // If the listener is not already started, will just be removed from the list of watchers.
 func (l *CivilEventListener) RemoveWatchers(w model.ContractWatchers) error {
+	defer l.mutex.Unlock()
+	l.mutex.Lock()
 	if l.watchers != nil && len(l.watchers) > 0 {
 		for index, ew := range l.watchers {
 			if w.ContractAddress() == ew.ContractAddress() &&
@@ -110,6 +119,8 @@ func (l *CivilEventListener) RemoveWatchers(w model.ContractWatchers) error {
 
 // Stop shuts down the event listener and performs clean up
 func (l *CivilEventListener) Stop() error {
+	defer l.mutex.Unlock()
+	l.mutex.Lock()
 	if l.watchers != nil && len(l.watchers) > 0 {
 		for _, w := range l.watchers {
 			_ = w.StopWatchers()

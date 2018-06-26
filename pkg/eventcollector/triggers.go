@@ -3,6 +3,9 @@ package eventcollector // import "github.com/joincivil/civil-events-crawler/pkg/
 
 import (
 	"errors"
+
+	log "github.com/golang/glog"
+
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
@@ -38,9 +41,14 @@ func (n *AddNewsroomWatchersTrigger) Run(collector *CivilEventCollector,
 	if !ok {
 		return errors.New("Invalid address value")
 	}
-	return collector.AddWatchers(
+	err := collector.AddWatchers(
 		watcher.NewNewsroomContractWatchers(*newsroomAddr),
 	)
+	if err != nil {
+		return err
+	}
+	log.Infof("Adding watchers for newsroom at address: %v", newsroomAddr)
+	return nil
 }
 
 // RemoveNewsroomWatchersTrigger is a Trigger that removes a new watcher for a
@@ -72,7 +80,12 @@ func (n *RemoveNewsroomWatchersTrigger) Run(collector *CivilEventCollector,
 	if !ok {
 		return errors.New("Invalid address value")
 	}
-	return collector.RemoveWatchers(
+	err := collector.RemoveWatchers(
 		watcher.NewNewsroomContractWatchers(*newsroomAddr),
 	)
+	if err != nil {
+		return err
+	}
+	log.Infof("Removing watchers for newsroom at address: %v", newsroomAddr)
+	return nil
 }
