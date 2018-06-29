@@ -1,14 +1,17 @@
-package postgres
+package postgres // import "github.com/joincivil/civil-events-crawler/pkg/postgres"
 
 import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/eventdef"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"reflect"
+	"strings"
 )
 
 // eventPayloadMap is the jsonb payload
@@ -40,13 +43,13 @@ func (ep *eventPayloadMap) Scan(src interface{}) error {
 // CivilEvent is the model for events table in DB
 // TODO: struct tags giving me errors
 type CivilEvent struct {
-	eventType       string          //`db: "event_type"`
-	eventHash       string          //`db: "hash"`
-	contractAddress string          //`db: "contract_address"`
-	contractName    string          //`db: "contract_name"`
-	timestamp       int             //`db: "int"`
-	eventPayload    eventPayloadMap //`db: "payload`
-	logPayload      eventPayloadMap //`db: "log_payload"`
+	eventType       string          `db: "event_type"`
+	eventHash       string          `db: "hash"`
+	contractAddress string          `db: "contract_address"`
+	contractName    string          `db: "contract_name"`
+	timestamp       int             `db: "int"`
+	eventPayload    eventPayloadMap `db: "payload`
+	logPayload      eventPayloadMap `db: "log_payload"`
 }
 
 // NewCivilEvent constructs a civil event for DB from a model.civilevent
@@ -66,95 +69,84 @@ func NewCivilEvent(civilEvent model.CivilEvent) (*CivilEvent, error) {
 
 // parseEventPayload() parses and converts payloads from civilevent to store in DB:
 func (c *CivilEvent) parseEventPayload(civilEvent model.CivilEvent) error {
-	c.processEventData(civilEvent)
-	c.processEventLog(civilEvent.Payload())
+	_abi, err := civilEvent.AbiJSON()
+	if err != nil {
+		return err
+	}
+	err = c.convertEventDataToDB(civilEvent.EventPayload(), _abi)
+	if err != nil {
+		return err
+	}
+	c.convertEventLogDataToDB(civilEvent.LogPayload())
 	return nil
 }
 
 //convertEventToDB() converts event types so they can be stored in the DB
-func (c *CivilEvent) processEventData(civilEvent model.CivilEvent) {
-	rawPayload := civilEvent.RawPayload()
-	payload := civilEvent.Payload()
-	val := reflect.ValueOf(rawPayload).Elem()
-	for j := 0; j < val.NumField(); j++ {
-		name := val.Type().Field(j).Name
-		if name != "Raw" {
-			eventValue, _ := payload.Value(name)
-			switch val.Field(j).Type().String() {
-			case "common.Address":
-				address, _ := eventValue.Address()
-				c.eventPayload[name] = address.Hex()
-			case "*big.int":
-				num, _ := eventValue.BigInt()
-				c.eventPayload[name] = num
-			default:
-				c.eventPayload[name] = eventValue
-			}
+func (c *CivilEvent) convertEventDataToDB(civilEvent map[string]interface{}, _abi abi.ABI) error {
+	// loop through abi, and for each val in map, have a way to convert it
+	for _, input := range _abi.Events["_"+c.eventType].Inputs {
+		eventFieldName := strings.Title(input.Name)
+		eventField := civilEvent[eventFieldName]
+		switch input.Type.String() {
+		case "address":
+			c.eventPayload[eventFieldName] = eventField.(common.Address).Hex()
+		case "uint256":
+			// how to convert big int?
+			c.eventPayload[eventFieldName] = eventField
+		case "string":
+			c.eventPayload[eventFieldName] = eventField.(string)
+		case "default":
+			return fmt.Errorf("unsupported type")
+
 		}
 	}
+	return nil
 }
 
-//convertDBToEvent() converts queries to DB back to these types
-func (c *CivilEvent) convertDBToEvent(newsroomMapping *eventdef.NewsroomContractEventNameToStruct,
-	contractMapping *eventdef.CivilTCRContractEventNameToStruct) (*model.CivilEvent, error) {
-	// reconstruct eventdata here:
-	var eventData interface{}
-	switch c.contractName {
-	case "CivilTCRContract":
-		eventData = contractMapping.Map[c.contractName+c.eventType]
-	case "Newsroom":
-		eventData = newsroomMapping.Map[c.contractName+c.eventType]
-	}
-	newEvent := reflect.ValueOf(eventData).Elem()
-	dbEvent := reflect.ValueOf(c.eventPayload).Elem()
+// convertDBToEventData converts the db event model to a model.CivilEvent
+// NOTE: this only supports conversions for civil event types
+func (c *CivilEvent) convertDBToEventData() (*model.CivilEvent, error) {
 
-	for i := 0; i < newEvent.NumField(); i++ {
-		f := newEvent.Field(i)
-		fDB := dbEvent.Field(i)
+	
+	// // need to create a new instance of the civil event from contracts
+	// eventData := contractMapping.Map[c.contractName+c.EventType]
+	// for _, input := range _abi.Events[c.eventType].Inputs {
+	// 	dbField := c.eventPayload[input.Name]
+	// 	switch input.Type.String() {
+	// 	// this is the type in the ABI definition
+	// 	case "address":
+	// 		//do stuff for address conversion here
+	// 		model.CivilEventPayloadValue(common.HexToAddress(dbField))
+	// 	case "uint256":
+	// 		//do stuff for uint256. they convert this to a pointer to bigint
 
-		varName := newEvent.Type().Field(i).Name
-		varType := newEvent.Type().Field(i).Type
+	// 	}
+	// }
 
-		if varName == "Raw" {
-			f.Set(reflect.ValueOf(c.convertDBToLog()))
-		}
+	// this line needs to be a struct to align with the way constructor
+	// creates the map[string]interface{}
+	eventData = interface{}
+	return &model.NewCivilEvent(c.eventType, c.contractName, eventData, c.timestamp)
 
-		switch varType.String() {
-		case "common.Address":
-			stringVersion := reflect.ValueOf(fDB.Interface()).String()
-			addressVersion := common.HexToAddress(stringVersion)
-			f.Set(reflect.ValueOf(addressVersion))
-			// TODO:
-		// case "*big.int":
-		// 	// make this a pointer instead of just bigint
-		default:
-			f.Set(reflect.ValueOf(f))
-		}
-
-	}
-
-	return model.NewCivilEvent(c.eventType, c.contractName, common.HexToAddress(c.contractAddress), eventData)
 }
 
 // convertLogToDB() converts the "Raw"
-func (c *CivilEvent) processEventLog(payload *model.CivilEventPayload) {
-	rawPayload, _ := payload.Value("Raw")
-	rawLogPayload, _ := rawPayload.Log()
-	c.logPayload["Address"] = rawLogPayload.Address.Hex()
+func (c *CivilEvent) convertEventLogDataToDB(payload *types.Log) {
+	c.logPayload["Address"] = payload.Address.Hex()
 
-	topics := make([]string, len(rawLogPayload.Topics))
-	for _, topic := range rawLogPayload.Topics {
+	topics := make([]string, len(payload.Topics))
+	for _, topic := range payload.Topics {
 		topics = append(topics, topic.Hex())
 	}
 	c.logPayload["Topics"] = topics
 
-	c.logPayload["Data"] = common.BytesToHash(rawLogPayload.Data).Hex()
-	c.logPayload["BlockNumber"] = rawLogPayload.BlockNumber
-	c.logPayload["TxHash"] = rawLogPayload.TxHash.Hex()
-	c.logPayload["TxIndex"] = rawLogPayload.TxIndex
-	c.logPayload["BlockHash"] = rawLogPayload.BlockHash.Hex()
-	c.logPayload["Index"] = rawLogPayload.Index
-	c.logPayload["Removed"] = rawLogPayload.Removed
+	c.logPayload["Data"] = common.BytesToHash(payload.Data).Hex()
+	c.logPayload["BlockNumber"] = payload.BlockNumber
+	c.logPayload["TxHash"] = payload.TxHash.Hex()
+	c.logPayload["TxIndex"] = payload.TxIndex
+	c.logPayload["BlockHash"] = payload.BlockHash.Hex()
+	c.logPayload["Index"] = payload.Index
+	c.logPayload["Removed"] = payload.Removed
 
 }
 
@@ -179,3 +171,45 @@ func (c *CivilEvent) convertDBToLog() *types.Log {
 	log.Removed = c.logPayload["Removed"].(bool)
 	return log
 }
+
+// //convertDBToEvent() converts queries to DB back to these types
+// func (c *CivilEvent) convertDBToEventDataOld(newsroomMapping *eventdef.NewsroomContractEventNameToStruct,
+// 	contractMapping *eventdef.CivilTCRContractEventNameToStruct) (*model.CivilEvent, error) {
+// 	// reconstruct eventdata here:
+// 	var eventData interface{}
+// 	switch c.contractName {
+// 	case "CivilTCRContract":
+// 		eventData = contractMapping.Map[c.contractName+c.eventType]
+// 	case "Newsroom":
+// 		eventData = newsroomMapping.Map[c.contractName+c.eventType]
+// 	}
+// 	newEvent := reflect.ValueOf(eventData).Elem()
+// 	dbEvent := reflect.ValueOf(c.eventPayload).Elem()
+
+// 	for i := 0; i < newEvent.NumField(); i++ {
+// 		f := newEvent.Field(i)
+// 		fDB := dbEvent.Field(i)
+
+// 		varName := newEvent.Type().Field(i).Name
+// 		varType := newEvent.Type().Field(i).Type
+
+// 		if varName == "Raw" {
+// 			f.Set(reflect.ValueOf(c.convertDBToLog()))
+// 		}
+
+// 		switch varType.String() {
+// 		case "common.Address":
+// 			stringVersion := reflect.ValueOf(fDB.Interface()).String()
+// 			addressVersion := common.HexToAddress(stringVersion)
+// 			f.Set(reflect.ValueOf(addressVersion))
+// 			// TODO:
+// 		// case "*big.int":
+// 		// 	// make this a pointer instead of just bigint
+// 		default:
+// 			f.Set(reflect.ValueOf(f))
+// 		}
+
+// 	}
+// 	// if you do this below, the timestamp will be different
+// 	return model.NewCivilEvent(c.eventType, c.contractName, common.HexToAddress(c.contractAddress), eventData)
+// }
