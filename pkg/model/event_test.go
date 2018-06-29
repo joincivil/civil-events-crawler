@@ -2,6 +2,7 @@
 package model_test
 
 import (
+	// "fmt"
 	"math/big"
 	"reflect"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 var (
@@ -43,8 +45,8 @@ var (
 )
 
 func setupCivilEvent() (*model.CivilEvent, error) {
-	return model.NewCivilEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent)
+	return model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+		testEvent, utils.CurrentEpochSecsInInt())
 }
 
 func TestCivilEventSetup(t *testing.T) {
@@ -55,7 +57,7 @@ func TestCivilEventSetup(t *testing.T) {
 	if event == nil {
 		t.Errorf("Civil event was not initialized correctly")
 	}
-	if event.EventType() != "_Application" {
+	if event.EventType() != "Application" {
 		t.Errorf("EventType was not init correctly: %v", event.EventType())
 	}
 	if strings.ToLower(event.ContractAddress().Hex()) != strings.ToLower(contractAddress) {
@@ -64,17 +66,16 @@ func TestCivilEventSetup(t *testing.T) {
 	if event.Timestamp() <= 0 {
 		t.Errorf("Timestamp was not init correctly: %v", event.Timestamp())
 	}
-	if event.Payload() == nil {
-		t.Errorf("Payload was not init correctly: %v", event.Payload())
+	if event.EventPayload() == nil {
+		t.Errorf("Payload was not init correctly: %v", event.EventPayload())
 	}
 }
 
 func TestCivilEventPayload(t *testing.T) {
 	event, _ := setupCivilEvent()
-	payload := event.Payload()
-	datafields := payload.Keys()
-	if len(datafields) != 6 {
-		t.Errorf("Payload does not have all the fields: %v", datafields)
+	payload := event.EventPayload()
+	if len(payload) != 5 {
+		t.Errorf("Payload does not have all the fields: %v", payload)
 	}
 }
 
@@ -86,8 +87,8 @@ func TestCivilEventPayloadNoRaw(t *testing.T) {
 	noRawTestEvent := &testStructNoRaw{
 		name: "name",
 	}
-	_, err := model.NewCivilEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		noRawTestEvent)
+	_, err := model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+		noRawTestEvent, utils.CurrentEpochSecsInInt())
 	if err == nil {
 		t.Errorf("Event creation should have failed with no raw event to create hash: err: %v", err)
 	}
@@ -103,8 +104,8 @@ func TestCivilEventPayloadNotLog(t *testing.T) {
 		name: "name",
 		Raw:  "name",
 	}
-	_, err := model.NewCivilEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		notLogTestEvent)
+	_, err := model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+		notLogTestEvent, utils.CurrentEpochSecsInInt())
 	if err == nil {
 		t.Errorf("Event creation should have failed with no Log found: err: %v", err)
 	}
@@ -112,7 +113,85 @@ func TestCivilEventPayloadNotLog(t *testing.T) {
 
 func TestCivilEventPayloadValues(t *testing.T) {
 	event, _ := setupCivilEvent()
-	payload := event.Payload()
+	payload := event.EventPayload()
+	if len(payload) != 5 {
+		t.Errorf("Wrong number of fields in eventPayload field %v", payload)
+	}
+
+	value := payload["ListingAddress"]
+	if value != testEvent.ListingAddress {
+		t.Errorf("ListingAddress not converted correctly %v", value)
+	}
+
+	value = payload["Deposit"]
+	if value != testEvent.Deposit {
+		t.Errorf("Deposit not converted correctly %v", value)
+	}
+
+	value = payload["AppEndDate"]
+	if value != testEvent.AppEndDate {
+		t.Errorf("AppEndDate not converted correctly %v", value)
+	}
+
+	value = payload["Data"]
+	if value != testEvent.Data {
+		t.Errorf("Data not converted correctly %v", value)
+	}
+
+	value = payload["Applicant"]
+	if value != testEvent.Applicant {
+		t.Errorf("Applicant not converted correctly %v", value)
+	}
+}
+
+func TestCivilEventLogPayloadValues(t *testing.T) {
+	event, _ := setupCivilEvent()
+	payload := *event.LogPayload()
+
+	if reflect.DeepEqual(payload, testEvent.Raw) != true {
+		t.Errorf("Log was not set correctly in civil event")
+	}
+
+	valueAddress := payload.Address
+	if valueAddress != common.HexToAddress(testAddress) {
+		t.Errorf("Address is not correctly assigned in LogPayload %v", valueAddress)
+	}
+
+	// valueTopics := payload.Topics
+	// if valueTopics != []common.Hash{} {
+	// 	t.Errorf("Topics is not correctly assigned in LogPayload %v", valueTopics)
+	// }
+
+	// valueData := payload.Data
+	// if valueData != []byte{} {
+	// 	t.Errorf("Data is not correctly assigned in LogPayload %v", valueData)
+	// }
+
+	valueIndex := payload.Index
+	if valueIndex != 2 {
+		t.Errorf("Index is not correctly assigned in LogPayload %v", valueIndex)
+	}
+
+	valueBlockNumber := payload.BlockNumber
+	if valueBlockNumber != 8888888 {
+		t.Errorf("BlockNumber is not correctly assigned in LogPayload %v", valueBlockNumber)
+	}
+}
+
+// Test that these 2 event hashes are not equal
+func TestCivilEventHash(t *testing.T) {
+	civilEvent1, _ := model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
+		utils.CurrentEpochSecsInInt())
+	civilEvent2, _ := model.NewCivilEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
+		testEvent2, utils.CurrentEpochSecsInInt())
+	if civilEvent2.Hash() == civilEvent1.Hash() {
+		t.Error("These events should have different hashes but they are the same")
+	}
+}
+
+func TestCivilEventPayloadStructValues(t *testing.T) {
+	payload := model.NewCivilEventPayload(testEvent)
+
 	_, ok := payload.Value("NonexistentKey")
 	if ok {
 		t.Errorf("Non-existent key should not return value")
@@ -198,15 +277,4 @@ func TestCivilEventPayloadValues(t *testing.T) {
 		t.Errorf("Raw log cannot be the type types.Log")
 	}
 
-}
-
-// Test that these 2 event hashes are not equal
-func TestCivilEventHash(t *testing.T) {
-	civilEvent1, _ := model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent)
-	civilEvent2, _ := model.NewCivilEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent2)
-	if civilEvent2.Hash() == civilEvent1.Hash() {
-		t.Error("These events should have different hashes but they are the same")
-	}
 }
