@@ -120,12 +120,6 @@ generate-filterers: ## Runs filterergen to generate contract Filter* wrapper cod
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr filterer filterer > ./$(GENERATED_FILTERER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroom.go
 
-.PHONY: generate-eventdef
-generate-eventdef: ## Runs filterergen to generate contract Filter* wrapper code.
-	@mkdir -p $(GENERATED_EVENTDEF_DIR)
-	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr eventdef eventdef > ./$(GENERATED_EVENTDEF_DIR)/civiltcr.go
-	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom eventdef eventdef > ./$(GENERATED_EVENTDEF_DIR)/newsroom.go
-
 .PHONY: generate-handler-lists
 generate-handler-lists: ## Runs handlerlistgen to generate handler list wrapper code.
 	@mkdir -p $(GENERATED_HANDLER_LIST_DIR)

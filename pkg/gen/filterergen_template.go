@@ -16,6 +16,7 @@ import (
     "github.com/ethereum/go-ethereum/common"
 
     "github.com/joincivil/civil-events-crawler/pkg/model"
+    "github.com/joincivil/civil-events-crawler/pkg/utils"
 {{if .ContractImportPath -}}
     "{{.ContractImportPath}}"
 {{- end}}
@@ -134,7 +135,7 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
     }
     nextEvent := itr.Next()
     for nextEvent {
-        civilEvent, err := model.NewCivilEvent("{{.EventMethod}}", f.ContractName(), f.contractAddress, itr.Event)
+        civilEvent, err := model.NewCivilEventFromContractEvent("{{.EventMethod}}", f.ContractName(), f.contractAddress, itr.Event, utils.CurrentEpochSecsInInt())
         if err != nil {
             log.Errorf("Error creating new civil event: event: %v, err: %v", itr.Event, err)
             continue

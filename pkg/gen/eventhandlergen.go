@@ -24,10 +24,6 @@ var handlerToTemplate = map[string]TemplateData{
 		tmplName: "filterer.tmpl",
 		tmplVar:  filtererTmpl,
 	},
-	"eventdef": {
-		tmplName: "eventdef.tmpl",
-		tmplVar:  eventdefTmpl,
-	},
 }
 
 // TemplateData is a struct to store template information
@@ -100,7 +96,6 @@ func generateEventHandlersFromABI(writer io.Writer, _abiStr string, packageName 
 	if err != nil {
 		return err
 	}
-
 	eventsIndex := 0
 	eventHandlers := make([]*EventHandlerTmplData, len(_abi.Events))
 	additionalImports := []string{}

@@ -17,23 +17,35 @@ import (
 	"github.com/fatih/structs"
 )
 
-// ConvertEventStructToMap needs to be called on the struct to make it a map before it is used
-// in NewCivilEvent so that postgres persistence can successfully recreate a new CivilEvent.
-// func ConvertEventStructToMap(eventData interface{}) map[string]interface{} {
+// NewCivilEventFromContractEvent creates a new civil event after converting eventData to interface{}
+func NewCivilEventFromContractEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
+	timestamp int) (*CivilEvent, error) {
+	event := &CivilEvent{}
 
-// }
+	payload := NewCivilEventPayload(eventData)
+
+	logPayload, err := extractRawFieldFromEvent(payload)
+	if err != nil {
+		return event, err
+	}
+	// convert eventData to map[string]interface{}
+	eventPayload, err := extractFieldsFromEvent(payload, eventData, eventType, contractName)
+	if err != nil {
+		return event, err
+	}
+	event, err = NewCivilEvent(eventType, contractName, contractAddress, timestamp, eventPayload, logPayload)
+	return event, err
+}
 
 // NewCivilEvent is a convenience function to create a new CivilEvent
-func NewCivilEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
-	timestamp int) (*CivilEvent, error) {
+func NewCivilEvent(eventType string, contractName string, contractAddress common.Address, timestamp int,
+	eventPayload map[string]interface{}, logPayload *types.Log) (*CivilEvent, error) {
 	event := &CivilEvent{}
 	event.eventType = eventType
 	event.contractName = contractName
 	event.contractAddress = contractAddress
-	err := event.extractFields(eventData)
-	if err != nil {
-		return nil, err
-	}
+	event.eventPayload = eventPayload
+	event.logPayload = logPayload
 	event.timestamp = timestamp
 	event.eventHash = event.hashEvent()
 	return event, nil
@@ -66,56 +78,52 @@ type CivilEvent struct {
 	logPayload *types.Log
 }
 
-func (e *CivilEvent) extractFields(eventData interface{}) error {
-	payload := NewCivilEventPayload(eventData)
+func extractFieldsFromEvent(payload *CivilEventPayload, eventData interface{}, eventType string, contractName string) (map[string]interface{}, error) {
+
 	eventPayload := make(map[string]interface{}, len(payload.data.Fields()))
-	_abi, err := e.AbiJSON()
+
+	_abi, err := AbiJSON(contractName)
 	if err != nil {
-		return err
+		return eventPayload, err
 	}
-	for _, input := range _abi.Events["_"+e.eventType].Inputs {
+	for _, input := range _abi.Events["_"+eventType].Inputs {
 		eventFieldName := strings.Title(input.Name)
 		eventField, ok := payload.Value(eventFieldName)
 		if !ok {
-			return errors.New("Can't get event name in civil event")
+			return eventPayload, errors.New("Can't get event name in civil event")
 		}
 		switch input.Type.String() {
 		case "address":
 			addressVal, ok := eventField.Address()
 			if !ok {
-				return errors.New("Could not convert to common.address type")
+				return eventPayload, errors.New("Could not convert to common.address type")
 			}
 			eventPayload[eventFieldName] = addressVal
 
 		case "uint256":
 			bigintVal, ok := eventField.BigInt()
 			if !ok {
-				return errors.New("Could not convert to big.int")
+				return eventPayload, errors.New("Could not convert to big.int")
 			}
 			eventPayload[eventFieldName] = bigintVal
 		case "string":
 			stringVal, ok := eventField.String()
 			if !ok {
-				return errors.New("Could not convert to string")
+				return eventPayload, errors.New("Could not convert to string")
 			}
 			eventPayload[eventFieldName] = stringVal
 		default:
-			return fmt.Errorf("unsupported type encountered when parsing %v field for %v event %v",
-				input.Type.String(), e.contractName, e.eventType)
+			return eventPayload, fmt.Errorf("unsupported type encountered when parsing %v field for %v event %v",
+				input.Type.String(), contractName, eventType)
 		}
 	}
 
-	e.eventPayload = eventPayload
-	e.logPayload, err = e.extractRawFieldFromEvent(payload)
-	if err != nil {
-		return err
-	}
-	return nil
+	return eventPayload, nil
 }
 
-// AbiJSON returns parsed abi of this particular contract
-func (e *CivilEvent) AbiJSON() (abi.ABI, error) {
-	contractType, ok := NameToContractTypes.GetFromContractName(e.contractName)
+// AbiJSON returns parsed abi of this particular contract, maybe this can go in contracttypes.go
+func AbiJSON(contractName string) (abi.ABI, error) {
+	contractType, ok := NameToContractTypes.GetFromContractName(contractName)
 	if !ok {
 		return abi.ABI{}, errors.New("Contract Name does not exist")
 	}
@@ -130,14 +138,14 @@ func (e *CivilEvent) AbiJSON() (abi.ABI, error) {
 	return _abi, nil
 }
 
-func (e *CivilEvent) extractRawFieldFromEvent(payload *CivilEventPayload) (*types.Log, error) {
+func extractRawFieldFromEvent(payload *CivilEventPayload) (*types.Log, error) {
 	rawPayload, ok := payload.Value("Raw")
 	if !ok {
-		return &types.Log{}, fmt.Errorf("Can't get raw value for %v", e.eventHash)
+		return &types.Log{}, errors.New("Can't get raw value for event")
 	}
 	logPayload, ok := rawPayload.Log()
 	if !ok {
-		return &types.Log{}, fmt.Errorf("Can't get log field of raw value for %v", e.eventHash)
+		return &types.Log{}, errors.New("Can't get log field of raw value for event")
 	}
 	return logPayload, nil
 }
@@ -188,14 +196,26 @@ func (e *CivilEvent) LogPayload() *types.Log {
 	return e.logPayload
 }
 
-// GetBlockNumber gets the block number from the CivilEvent Payload
-func (e *CivilEvent) GetBlockNumber() uint64 {
+// BlockNumber gets the block number from the CivilEvent Payload
+func (e *CivilEvent) BlockNumber() uint64 {
 	return e.logPayload.BlockNumber
 }
 
-// GetBlockHash gets the block hash from the CivilEvent Payload
-func (e *CivilEvent) GetBlockHash() common.Hash {
+// BlockHash gets the block hash from the CivilEvent Payload
+func (e *CivilEvent) BlockHash() common.Hash {
 	return e.logPayload.BlockHash
+}
+
+// LogPayloadToString is a string representation of some fields of log
+func (e *CivilEvent) LogPayloadToString() string {
+	log := e.logPayload
+	return fmt.Sprintf(
+		"log: addr: %v, blknum: %v, ind: %v, rem: %v",
+		log.Address.Hex(),
+		log.BlockNumber,
+		log.Index,
+		log.Removed,
+	)
 }
 
 // CivilEventPayload represents the data from a Civil contract event

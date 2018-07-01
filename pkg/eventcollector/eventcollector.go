@@ -85,7 +85,7 @@ func (c *CivilEventCollector) StartCollection() error {
 						event.EventType(),
 						event.Hash(),
 						event.Timestamp(),
-						event.Payload().ToString(),
+						event.LogPayloadToString(),
 					)
 				}
 				// Save event to persister

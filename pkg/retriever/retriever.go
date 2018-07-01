@@ -49,15 +49,9 @@ func (r *CivilEventRetriever) Retrieve() error {
 // NOTE(IS): This is not optimal, but for now checking that values exist outside of sort
 func (r *CivilEventRetriever) SortEventsByBlock() error {
 	pastEvents := r.PastEvents
-	for _, event := range pastEvents {
-		_, err := event.GetBlockNumber()
-		if err != nil {
-			return err
-		}
-	}
 	sort.Slice(pastEvents, func(i, j int) bool {
-		blockNumber1, _ := pastEvents[i].GetBlockNumber()
-		blockNumber2, _ := pastEvents[j].GetBlockNumber()
+		blockNumber1 := pastEvents[i].BlockNumber()
+		blockNumber2 := pastEvents[j].BlockNumber()
 		return blockNumber1 < blockNumber2
 	})
 	return nil

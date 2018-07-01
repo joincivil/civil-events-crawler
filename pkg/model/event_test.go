@@ -45,7 +45,7 @@ var (
 )
 
 func setupCivilEvent() (*model.CivilEvent, error) {
-	return model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+	return model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent, utils.CurrentEpochSecsInInt())
 }
 
@@ -87,7 +87,7 @@ func TestCivilEventPayloadNoRaw(t *testing.T) {
 	noRawTestEvent := &testStructNoRaw{
 		name: "name",
 	}
-	_, err := model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+	_, err := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		noRawTestEvent, utils.CurrentEpochSecsInInt())
 	if err == nil {
 		t.Errorf("Event creation should have failed with no raw event to create hash: err: %v", err)
@@ -104,7 +104,7 @@ func TestCivilEventPayloadNotLog(t *testing.T) {
 		name: "name",
 		Raw:  "name",
 	}
-	_, err := model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+	_, err := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		notLogTestEvent, utils.CurrentEpochSecsInInt())
 	if err == nil {
 		t.Errorf("Event creation should have failed with no Log found: err: %v", err)
@@ -148,7 +148,7 @@ func TestCivilEventLogPayloadValues(t *testing.T) {
 	event, _ := setupCivilEvent()
 	payload := *event.LogPayload()
 
-	if reflect.DeepEqual(payload, testEvent.Raw) != true {
+	if !reflect.DeepEqual(payload, testEvent.Raw) {
 		t.Errorf("Log was not set correctly in civil event")
 	}
 
@@ -179,13 +179,25 @@ func TestCivilEventLogPayloadValues(t *testing.T) {
 }
 
 // Test that these 2 event hashes are not equal
-func TestCivilEventHash(t *testing.T) {
-	civilEvent1, _ := model.NewCivilEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
+func TestCivilEventHashDifferent(t *testing.T) {
+	civilEvent1, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
 		utils.CurrentEpochSecsInInt())
-	civilEvent2, _ := model.NewCivilEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
+	civilEvent2, _ := model.NewCivilEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent2, utils.CurrentEpochSecsInInt())
 	if civilEvent2.Hash() == civilEvent1.Hash() {
-		t.Error("These events should have different hashes but they are the same")
+		t.Error("These events should have different hashes")
+	}
+}
+
+// Test that hash created on the same event are the same
+func TestCivilEventHashSame(t *testing.T) {
+	timestamp := utils.CurrentEpochSecsInInt()
+	civilEvent, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
+		timestamp)
+	civilEventDup, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+		testEvent, timestamp)
+	if civilEvent.Hash() != civilEventDup.Hash() {
+		t.Error("These events should have the same hashes")
 	}
 }
 
