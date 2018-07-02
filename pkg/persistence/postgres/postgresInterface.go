@@ -26,7 +26,7 @@ type Interface struct {
 	db *sqlx.DB
 }
 
-// CreateTables() creates tables in DB if they don't exist
+// CreateTables creates tables in DB if they don't exist
 // TODO (IS): move this to postgres/civilevent.go
 func (p *Interface) CreateTables() error {
 	// TODO: per PN's advice have some logic to determine which models need to be part
@@ -51,9 +51,9 @@ func (p *Interface) CreateTables() error {
 func (p *Interface) SaveToEventsTable(events []*model.CivilEvent) error {
 	var err error
 	for _, event := range events {
-		dbEvent, err := NewCivilEvent(event)
-		if err != nil {
-			return err
+		dbEvent, dbErr := NewCivilEvent(event)
+		if dbErr != nil {
+			return dbErr
 		}
 		err = p.saveEvent(dbEvent)
 		if err != nil {

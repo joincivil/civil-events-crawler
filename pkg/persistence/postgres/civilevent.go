@@ -105,7 +105,6 @@ func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}, _abi abi.A
 }
 
 // DBToEventData converts the db event model to a model.CivilEvent
-// NOTE: this only supports conversions to civil event types
 func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 	civilEvent := &model.CivilEvent{}
 	_abi, err := model.AbiJSON(c.contractName)
@@ -122,22 +121,23 @@ func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 		}
 		switch input.Type.String() {
 		case "address":
-			address, ok := eventField.(string)
-			if !ok {
+			address, addressOk := eventField.(string)
+			if !addressOk {
 				return civilEvent, errors.New("Cannot cast DB contract address to string")
 			}
 			eventPayload[eventFieldName] = common.HexToAddress(address)
 		case "uint256":
-			num, ok := eventField.(int64)
-			if !ok {
+			num, numOk := eventField.(int64)
+			if !numOk {
 				return civilEvent, errors.New("Cannot cast DB int to int64")
 			}
 			eventPayload[eventFieldName] = big.NewInt(num)
 		case "string":
-			eventPayload[eventFieldName], ok = eventField.(string)
-			if !ok {
+			str, stringOk := eventField.(string)
+			if !stringOk {
 				return civilEvent, errors.New("Cannot cast DB string val to string")
 			}
+			eventPayload[eventFieldName] = str
 		default:
 			return civilEvent, fmt.Errorf("unsupported type in %v field encountered in %v event", eventFieldName, c.eventHash)
 		}
