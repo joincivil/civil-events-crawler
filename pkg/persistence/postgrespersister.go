@@ -24,7 +24,7 @@ func NewPostgresPersister(host string, port int, user string, password string, d
 	return pgPersister, nil
 }
 
-// PostgresPersister holds DB connection
+// PostgresPersister holds the DB connection and persistence
 type PostgresPersister struct {
 	eventToLastBlockNumber map[common.Address]map[string]PersisterBlockData
 	db                     *sqlx.DB
@@ -72,7 +72,7 @@ func (p *PostgresPersister) getInsertEventQueryString(tableName string) string {
 }
 
 // GetEvents gets all events from table
-// NOTE: this function gets all events from table.
+// NOTE: this function gets all events from table for now.
 func (p *PostgresPersister) GetEvents(tableName string) ([]postgres.CivilEvent, error) {
 	civilEventDB := []postgres.CivilEvent{}
 	err := p.db.Select(&civilEventDB, "SELECT event_type, hash, contract_address, contract_name, timestamp, payload, log_payload FROM events_test;")

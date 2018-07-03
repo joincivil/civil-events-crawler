@@ -5,6 +5,7 @@
 package persistence
 
 import (
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
@@ -55,6 +56,26 @@ func setupDBConnection() (*PostgresPersister, error) {
 	return postgresPersister, err
 }
 
+func setupTestTable() (*PostgresPersister, error) {
+	persister, err := setupDBConnection()
+	if err != nil {
+		return persister, fmt.Errorf("Error connecting to DB: %v", err)
+	}
+	_, err = persister.db.Query("CREATE TABLE events_test AS SELECT * FROM events WHERE 1=2;")
+	if err != nil {
+		return persister, fmt.Errorf("Couldn't create test table %v", err)
+	}
+	return persister, nil
+}
+
+func deleteTestTable(persister *PostgresPersister) error {
+	_, err := persister.db.Query("DROP TABLE events_test;")
+	if err != nil {
+		return fmt.Errorf("Couldn't delete test table %v", err)
+	}
+	return nil
+}
+
 func TestDBConnection(t *testing.T) {
 	persister, err := setupDBConnection()
 	if err != nil {
@@ -96,15 +117,12 @@ func TestTableSetup(t *testing.T) {
 
 }
 
-func TestSaveToEventsTable(t *testing.T) {
-	persister, err := setupDBConnection()
+func TestSaveToEventsTestTable(t *testing.T) {
+	persister, err := setupTestTable()
 	if err != nil {
-		t.Errorf("Error connecting to DB: %v", err)
+		t.Error(err)
 	}
-	_, err = persister.db.Query("CREATE TABLE events_test AS SELECT * FROM events WHERE 1=2;")
-	if err != nil {
-		t.Errorf("Couldn't create test table %v", err)
-	}
+	defer deleteTestTable(persister)
 	event, err := setupCivilEvent()
 	if err != nil {
 		t.Errorf("Couldn't setup civilEvent from contract %v", err)
@@ -121,10 +139,41 @@ func TestSaveToEventsTable(t *testing.T) {
 		t.Errorf("error querying event from events_test table: %v", err)
 	}
 	_ = &civilEventDB[0]
-
-	_, err = persister.db.Query("DROP TABLE events_test;")
+	err = deleteTestTable(persister)
 	if err != nil {
-		t.Errorf("Couldn't delete test table %v", err)
+		t.Error(err)
+	}
+}
+
+func BenchmarkTestSavingManyEventsToEventsTestTable(b *testing.B) {
+	persister, err := setupTestTable()
+	if err != nil {
+		b.Error(err)
+	}
+	defer deleteTestTable(persister)
+	event, err := setupCivilEvent()
+	if err != nil {
+		b.Errorf("Couldn't setup civilEvent from contract %v", err)
+	}
+
+	numEvents := 100
+	civilEventsFromContract := make([]*model.CivilEvent, 0)
+	for i := 1; i <= numEvents; i++ {
+		civilEventsFromContract = append(civilEventsFromContract, event)
+	}
+	err = persister.saveEventsToTable(civilEventsFromContract, "events_test")
+	if err != nil {
+		b.Errorf("Cannot save event to events_test table: %v", err)
+	}
+	var numRows int
+	err = persister.db.QueryRow(`SELECT COUNT(*) FROM
+                                        events_test`).Scan(&numRows)
+	if numRows != numEvents {
+		b.Errorf("Number of rows in events_test table should be %v but it is %v", numEvents, numRows)
+	}
+	err = deleteTestTable(persister)
+	if err != nil {
+		b.Error(err)
 	}
 }
 

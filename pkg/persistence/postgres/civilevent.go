@@ -100,7 +100,7 @@ func (c *CivilEvent) parseEventPayload(civilEvent *model.CivilEvent) error {
 	return nil
 }
 
-//EventDataToDB converts event types so they can be stored in the DB
+// EventDataToDB converts event types so they can be stored in the DB
 func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}, _abi abi.ABI) error {
 	// loop through abi, and for each val in map, have a way to convert it
 	for _, input := range _abi.Events["_"+c.EventType].Inputs {
@@ -161,16 +161,16 @@ func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 		}
 	}
 
-	logPayload := c.DBToLog()
-	ContractAddress := common.HexToAddress(c.ContractAddress)
-	civilEvent, err = model.NewCivilEvent(c.EventType, c.ContractName, ContractAddress, c.Timestamp, eventPayload,
+	logPayload := c.DBToEventLogData()
+	contractAddress := common.HexToAddress(c.ContractAddress)
+	civilEvent, err = model.NewCivilEvent(c.EventType, c.ContractName, contractAddress, c.Timestamp, eventPayload,
 		logPayload)
 
 	return civilEvent, err
 
 }
 
-// EventLogDataToDB converts the "Raw"
+// EventLogDataToDB converts the raw log data to Postgresql types
 func (c *CivilEvent) EventLogDataToDB(payload *types.Log) {
 	c.LogPayload["Address"] = payload.Address.Hex()
 
@@ -190,8 +190,8 @@ func (c *CivilEvent) EventLogDataToDB(payload *types.Log) {
 
 }
 
-// DBToLog converts the DB payload back to "Raw"
-func (c *CivilEvent) DBToLog() *types.Log {
+// DBToEventLogData converts the DB raw log payload back to types.Log
+func (c *CivilEvent) DBToEventLogData() *types.Log {
 	log := &types.Log{}
 	log.Address = common.HexToAddress(c.LogPayload["Address"].(string))
 
