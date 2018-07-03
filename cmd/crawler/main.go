@@ -69,7 +69,11 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 		os.Exit(1)
 	}
 	// Attempts to create all the necessary tables here
-	persister.CreateTables()
+	err = persister.CreateTables()
+	if err != nil {
+		log.Errorf("Error creating tables, stopping...; err: %v", err)
+		os.Exit(1)
+	}
 	return persister
 }
 
