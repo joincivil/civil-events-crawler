@@ -15,18 +15,16 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
-var (
-	handlerToTemplate = map[string]TemplateData{
-		"watcher": {
-			tmplName: "watcher.tmpl",
-			tmplVar:  watcherTmpl,
-		},
-		"filterer": {
-			tmplName: "filterer.tmpl",
-			tmplVar:  filtererTmpl,
-		},
-	}
-)
+var handlerToTemplate = map[string]TemplateData{
+	"watcher": {
+		tmplName: "watcher.tmpl",
+		tmplVar:  watcherTmpl,
+	},
+	"filterer": {
+		tmplName: "filterer.tmpl",
+		tmplVar:  filtererTmpl,
+	},
+}
 
 // TemplateData is a struct to store template information
 type TemplateData struct {
@@ -98,7 +96,6 @@ func generateEventHandlersFromABI(writer io.Writer, _abiStr string, packageName 
 	if err != nil {
 		return err
 	}
-
 	eventsIndex := 0
 	eventHandlers := make([]*EventHandlerTmplData, len(_abi.Events))
 	additionalImports := []string{}

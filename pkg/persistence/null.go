@@ -1,5 +1,5 @@
 // Package persistence are implementations of the model/persisttypes interfaces
-package persistence
+package persistence // import "github.com/joincivil/civil-events-crawler/pkg/persistence"
 
 import (
 	"github.com/ethereum/go-ethereum/common"
@@ -31,8 +31,7 @@ func (n *NullPersister) UpdateLastBlockData(events []model.CivilEvent) error {
 	// Only log this if INFO log level -v=2
 	if log.V(2) {
 		for _, event := range events {
-			rawVal, _ := event.Payload().Value("Raw")
-			eventLog, _ := rawVal.Log()
+			eventLog := event.LogPayload()
 			log.Infof(
 				"NullPersister: UpdatedLastBlockData: event: type: %v, addr: %v, blknum: %v, removed: %v\n",
 				event.EventType(),
@@ -50,8 +49,7 @@ func (n *NullPersister) SaveEvents(events []model.CivilEvent) error {
 	// Only log this if INFO log level -v=2
 	if log.V(2) {
 		for _, event := range events {
-			rawVal, _ := event.Payload().Value("Raw")
-			eventLog, _ := rawVal.Log()
+			eventLog := event.LogPayload()
 			log.Infof(
 				"NullPersister: SaveEvents: event: type: %v, addr: %v, blknum: %v, removed: %v\n",
 				event.EventType(),

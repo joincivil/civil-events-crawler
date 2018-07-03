@@ -66,8 +66,7 @@ func (n *testPersister) UpdateLastBlockData(events []model.CivilEvent) error {
 	event := events[0]
 	n.lastBlock.eventType = event.EventType()
 	n.lastBlock.contractAddress = event.ContractAddress().Hex()
-	rawPayload, _ := event.Payload().Value("Raw")
-	rawLog, _ := rawPayload.Log()
+	rawLog := event.LogPayload()
 	n.lastBlock.lastBlockNumber = rawLog.BlockNumber
 	return n.updateLastBlockError
 }

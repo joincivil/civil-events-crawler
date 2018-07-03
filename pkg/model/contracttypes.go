@@ -43,7 +43,7 @@ var (
 		},
 	}
 
-	// NameToContractTypes is the map from a readable name to ContractType
+	// NameToContractTypes is the map from a simple name to ContractType
 	// To be kept up to date with supported contracts
 	NameToContractTypes = CTypes{}
 )
@@ -112,10 +112,11 @@ type ContractType int
 // CTypes is a struct that contains a map of readable name to a
 // ContractType enum value
 type CTypes struct {
-	types map[string]ContractType
+	types            map[string]ContractType
+	simpleNameToName map[string]string
 }
 
-// Get returns the contract type for a given contract name
+// Get returns the contract type for a given contract simple name
 func (c *CTypes) Get(name string) (ContractType, bool) {
 	if c.types == nil || len(c.types) == 0 {
 		c.build()
@@ -136,6 +137,27 @@ func (c *CTypes) Names() []string {
 		keyIndex++
 	}
 	return keys
+}
+
+// GetFromContractName returns the contract type for a given contract name
+func (c *CTypes) GetFromContractName(name string) (ContractType, bool) {
+	if c.types == nil || len(c.types) == 0 {
+		c.build()
+	}
+	if c.simpleNameToName == nil || len(c.simpleNameToName) == 0 {
+		c.buildSimpleNameToName()
+	}
+
+	simpleName := c.simpleNameToName[name]
+	_type, ok := c.types[simpleName]
+	return _type, ok
+}
+
+func (c *CTypes) buildSimpleNameToName() {
+	c.simpleNameToName = make(map[string]string, len(ContractTypeToSpecs.specs))
+	for _, spec := range ContractTypeToSpecs.specs {
+		c.simpleNameToName[spec.name] = spec.simpleName
+	}
 }
 
 func (c *CTypes) build() {

@@ -2,7 +2,6 @@
 package retriever_test
 
 import (
-	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
@@ -10,6 +9,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 	"math/big"
 	"testing"
 )
@@ -72,8 +72,10 @@ func TestSorting(t *testing.T) {
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
 	retrieve := retriever.NewCivilEventRetriever(client, filterers)
-	model1, _ := model.NewCivilEvent("ApplicationWhitelisted", common.HexToAddress(testTCRAddress), testEvent1)
-	model2, _ := model.NewCivilEvent("Application", common.HexToAddress(testTCRAddress), testEvent2)
+	model1, _ := model.NewCivilEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(testTCRAddress),
+		testEvent1, utils.CurrentEpochSecsInInt())
+	model2, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(testTCRAddress), testEvent2,
+		utils.CurrentEpochSecsInInt())
 	if err != nil {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
@@ -94,7 +96,6 @@ func TestLastEvents(t *testing.T) {
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
 	retrieve := retriever.NewCivilEventRetriever(client, filterers)
-	fmt.Println()
 	if len(filterers[0].LastEvents()) != 0 {
 		t.Error("LastEvents should be empty")
 	}

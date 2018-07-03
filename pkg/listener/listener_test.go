@@ -18,6 +18,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 func TestCivilListener(t *testing.T) {
@@ -148,7 +149,8 @@ func TestCivilListenerEventChan(t *testing.T) {
 			BlockNumber: 8888888,
 		},
 	}
-	newEvent, _ := model.NewCivilEvent("_Application", contracts.CivilTcrAddr, tempPayload)
+	newEvent, _ := model.NewCivilEventFromContractEvent("_Application", "CivilTCRContract", contracts.CivilTcrAddr, tempPayload,
+		utils.CurrentEpochSecsInInt())
 	listener.EventRecvChan <- *newEvent
 
 	select {

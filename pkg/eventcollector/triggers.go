@@ -33,16 +33,9 @@ func (n *AddNewsroomWatchersTrigger) Run(collector *CivilEventCollector,
 	if !n.ShouldRun(collector, event) {
 		return errors.New("AddNewsroomWatchersTrigger should not run")
 	}
-	addrValue, ok := event.Payload().Value("ListingAddress")
-	if !ok {
-		return errors.New("No newsroom address found")
-	}
-	newsroomAddr, ok := addrValue.Address()
-	if !ok {
-		return errors.New("Invalid address value")
-	}
+	newsroomAddr := event.LogPayload().Address
 	err := collector.AddWatchers(
-		watcher.NewNewsroomContractWatchers(*newsroomAddr),
+		watcher.NewNewsroomContractWatchers(newsroomAddr),
 	)
 	if err != nil {
 		return err
@@ -72,16 +65,9 @@ func (n *RemoveNewsroomWatchersTrigger) Run(collector *CivilEventCollector,
 	if !n.ShouldRun(collector, event) {
 		return errors.New("RemoveNewsroomWatchersTriggershould not run")
 	}
-	addrValue, ok := event.Payload().Value("ListingAddress")
-	if !ok {
-		return errors.New("No newsroom address found")
-	}
-	newsroomAddr, ok := addrValue.Address()
-	if !ok {
-		return errors.New("Invalid address value")
-	}
+	newsroomAddr := event.LogPayload().Address
 	err := collector.RemoveWatchers(
-		watcher.NewNewsroomContractWatchers(*newsroomAddr),
+		watcher.NewNewsroomContractWatchers(newsroomAddr),
 	)
 	if err != nil {
 		return err
