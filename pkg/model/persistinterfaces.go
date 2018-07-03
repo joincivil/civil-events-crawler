@@ -43,5 +43,5 @@ type EventDataPersister interface {
 	// RetrieveEvents retrieves the CivilEvents from the persistence layer based
 	// on date in which it was received
 	// TODO: We will not query the events table for this, still to implement
-	RetrieveEvents(offset uint, count uint, reverse bool) ([]*CivilEvent, error)
+	// RetrieveEvents(offset uint, count uint, reverse bool) ([]*CivilEvent, error)
 }

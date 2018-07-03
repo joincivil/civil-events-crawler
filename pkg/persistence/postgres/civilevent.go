@@ -13,14 +13,33 @@ import (
 	"strings"
 )
 
-// eventPayloadMap is the jsonb payload
-type eventPayloadMap map[string]interface{}
+// EventsTableSchema returns the schema to create this table
+func EventsTableSchema() string {
+	schema := `
+		CREATE TABLE IF NOT EXISTS events(
+			id SERIAL PRIMARY KEY,
+			event_type TEXT,
+			hash TEXT UNIQUE,
+			contract_address TEXT,
+			contract_name TEXT,
+			timestamp INT,
+			payload JSONB,
+			log_payload JSONB
+		);
+	`
+	return schema
+}
 
-func (ep *eventPayloadMap) Value() (driver.Value, error) {
+// EventPayloadMap is the jsonb payload
+type EventPayloadMap map[string]interface{}
+
+// Value is the value interface implemented for the sql driver
+func (ep EventPayloadMap) Value() (driver.Value, error) {
 	return json.Marshal(ep)
 }
 
-func (ep *eventPayloadMap) Scan(src interface{}) error {
+// Scan is the scan interface implemented for the sql driver
+func (ep *EventPayloadMap) Scan(src interface{}) error {
 	source, ok := src.([]byte)
 	if !ok {
 		return errors.New("type assertion .([]byte) failed")
@@ -40,27 +59,26 @@ func (ep *eventPayloadMap) Scan(src interface{}) error {
 }
 
 // CivilEvent is the model for events table in DB
-// TODO(IS): struct tag giving errors
 type CivilEvent struct {
-	eventType       string          // `db: "event_type"`
-	eventHash       string          // `db: "hash"`
-	contractAddress string          // `db: "contract_address"`
-	contractName    string          // `db: "contract_name"`
-	timestamp       int             // `db: "int"`
-	eventPayload    eventPayloadMap // `db: "payload`
-	logPayload      eventPayloadMap // `db: "log_payload"`
+	EventType       string          `db:"event_type"`
+	EventHash       string          `db:"hash"`
+	ContractAddress string          `db:"contract_address"`
+	ContractName    string          `db:"contract_name"`
+	Timestamp       int             `db:"timestamp"`
+	EventPayload    EventPayloadMap `db:"payload"`
+	LogPayload      EventPayloadMap `db:"log_payload"`
 }
 
 // NewCivilEvent constructs a civil event for DB from a model.civilevent
 func NewCivilEvent(civilEvent *model.CivilEvent) (*CivilEvent, error) {
 	dbCivilEvent := &CivilEvent{}
-	dbCivilEvent.eventType = civilEvent.EventType()
-	dbCivilEvent.eventHash = civilEvent.Hash()
-	dbCivilEvent.contractName = civilEvent.ContractName()
-	dbCivilEvent.contractAddress = civilEvent.ContractAddress().Hex()
-	dbCivilEvent.timestamp = civilEvent.Timestamp()
-	dbCivilEvent.eventPayload = make(map[string]interface{})
-	dbCivilEvent.logPayload = make(map[string]interface{})
+	dbCivilEvent.EventType = civilEvent.EventType()
+	dbCivilEvent.EventHash = civilEvent.Hash()
+	dbCivilEvent.ContractName = civilEvent.ContractName()
+	dbCivilEvent.ContractAddress = civilEvent.ContractAddress().Hex()
+	dbCivilEvent.Timestamp = civilEvent.Timestamp()
+	dbCivilEvent.EventPayload = make(map[string]interface{})
+	dbCivilEvent.LogPayload = make(map[string]interface{})
 	err := dbCivilEvent.parseEventPayload(civilEvent)
 	if err != nil {
 		return nil, err
@@ -70,7 +88,7 @@ func NewCivilEvent(civilEvent *model.CivilEvent) (*CivilEvent, error) {
 
 // parseEventPayload() parses and converts payloads from civilevent to store in DB:
 func (c *CivilEvent) parseEventPayload(civilEvent *model.CivilEvent) error {
-	_abi, err := model.AbiJSON(c.contractName)
+	_abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
 		return err
 	}
@@ -85,17 +103,17 @@ func (c *CivilEvent) parseEventPayload(civilEvent *model.CivilEvent) error {
 //EventDataToDB converts event types so they can be stored in the DB
 func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}, _abi abi.ABI) error {
 	// loop through abi, and for each val in map, have a way to convert it
-	for _, input := range _abi.Events["_"+c.eventType].Inputs {
+	for _, input := range _abi.Events["_"+c.EventType].Inputs {
 		eventFieldName := strings.Title(input.Name)
 		eventField := civilEvent[eventFieldName]
 		switch input.Type.String() {
 		case "address":
-			c.eventPayload[eventFieldName] = eventField.(common.Address).Hex()
+			c.EventPayload[eventFieldName] = eventField.(common.Address).Hex()
 		case "uint256":
 			// NOTE: converting all *big.Int to int64. assuming for now that numbers will fall into int64 range.
-			c.eventPayload[eventFieldName] = eventField.(*big.Int).Int64()
+			c.EventPayload[eventFieldName] = eventField.(*big.Int).Int64()
 		case "string":
-			c.eventPayload[eventFieldName] = eventField.(string)
+			c.EventPayload[eventFieldName] = eventField.(string)
 		case "default":
 			return fmt.Errorf("unsupported type")
 
@@ -107,15 +125,15 @@ func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}, _abi abi.A
 // DBToEventData converts the db event model to a model.CivilEvent
 func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 	civilEvent := &model.CivilEvent{}
-	_abi, err := model.AbiJSON(c.contractName)
+	_abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
 		return civilEvent, err
 	}
 	eventPayload := make(map[string]interface{})
 
-	for _, input := range _abi.Events["_"+c.eventType].Inputs {
+	for _, input := range _abi.Events["_"+c.EventType].Inputs {
 		eventFieldName := strings.Title(input.Name)
-		eventField, ok := c.eventPayload[eventFieldName]
+		eventField, ok := c.EventPayload[eventFieldName]
 		if !ok {
 			return civilEvent, fmt.Errorf("Cannot get %v field of DB CivilEvent", eventFieldName)
 		}
@@ -139,13 +157,13 @@ func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 			}
 			eventPayload[eventFieldName] = str
 		default:
-			return civilEvent, fmt.Errorf("unsupported type in %v field encountered in %v event", eventFieldName, c.eventHash)
+			return civilEvent, fmt.Errorf("unsupported type in %v field encountered in %v event", eventFieldName, c.EventHash)
 		}
 	}
 
 	logPayload := c.DBToLog()
-	contractAddress := common.HexToAddress(c.contractAddress)
-	civilEvent, err = model.NewCivilEvent(c.eventType, c.contractName, contractAddress, c.timestamp, eventPayload,
+	ContractAddress := common.HexToAddress(c.ContractAddress)
+	civilEvent, err = model.NewCivilEvent(c.EventType, c.ContractName, ContractAddress, c.Timestamp, eventPayload,
 		logPayload)
 
 	return civilEvent, err
@@ -154,78 +172,43 @@ func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 
 // EventLogDataToDB converts the "Raw"
 func (c *CivilEvent) EventLogDataToDB(payload *types.Log) {
-	c.logPayload["Address"] = payload.Address.Hex()
+	c.LogPayload["Address"] = payload.Address.Hex()
 
 	topics := make([]string, len(payload.Topics))
 	for _, topic := range payload.Topics {
 		topics = append(topics, topic.Hex())
 	}
-	c.logPayload["Topics"] = topics
+	c.LogPayload["Topics"] = topics
 
-	c.logPayload["Data"] = payload.Data //common.BytesToHash(payload.Data).Hex()
-	c.logPayload["BlockNumber"] = payload.BlockNumber
-	c.logPayload["TxHash"] = payload.TxHash.Hex()
-	c.logPayload["TxIndex"] = payload.TxIndex
-	c.logPayload["BlockHash"] = payload.BlockHash.Hex()
-	c.logPayload["Index"] = payload.Index
-	c.logPayload["Removed"] = payload.Removed
+	c.LogPayload["Data"] = payload.Data //common.BytesToHash(payload.Data).Hex()
+	c.LogPayload["BlockNumber"] = payload.BlockNumber
+	c.LogPayload["TxHash"] = payload.TxHash.Hex()
+	c.LogPayload["TxIndex"] = payload.TxIndex
+	c.LogPayload["BlockHash"] = payload.BlockHash.Hex()
+	c.LogPayload["Index"] = payload.Index
+	c.LogPayload["Removed"] = payload.Removed
 
 }
 
 // DBToLog converts the DB payload back to "Raw"
 func (c *CivilEvent) DBToLog() *types.Log {
 	log := &types.Log{}
-	log.Address = common.HexToAddress(c.logPayload["Address"].(string))
+	log.Address = common.HexToAddress(c.LogPayload["Address"].(string))
 
-	logTopics := c.logPayload["Topics"].([]string)
+	logTopics := c.LogPayload["Topics"].([]string)
 	topics := make([]common.Hash, len(logTopics))
 	for _, topic := range logTopics {
 		topics = append(topics, common.HexToHash(topic))
 	}
 	log.Topics = topics
 
-	log.Data = c.logPayload["Data"].([]byte) // common.HexToHash(c.logPayload["Data"].(string)).Bytes()
+	log.Data = c.LogPayload["Data"].([]byte) // common.HexToHash(c.logPayload["Data"].(string)).Bytes()
 
-	log.BlockNumber = c.logPayload["BlockNumber"].(uint64)
-	log.TxHash = common.HexToHash(c.logPayload["TxHash"].(string))
-	log.TxIndex = c.logPayload["TxIndex"].(uint)
-	log.BlockHash = common.HexToHash(c.logPayload["BlockHash"].(string))
-	log.Index = c.logPayload["Index"].(uint)
-	log.Removed = c.logPayload["Removed"].(bool)
+	log.BlockNumber = c.LogPayload["BlockNumber"].(uint64)
+	log.TxHash = common.HexToHash(c.LogPayload["TxHash"].(string))
+	log.TxIndex = c.LogPayload["TxIndex"].(uint)
+	log.BlockHash = common.HexToHash(c.LogPayload["BlockHash"].(string))
+	log.Index = c.LogPayload["Index"].(uint)
+	log.Removed = c.LogPayload["Removed"].(bool)
 	return log
-}
-
-// EventType returns the event type of the Postgres CivilEvent
-func (c *CivilEvent) EventType() string {
-	return c.eventType
-}
-
-// EventHash returns the event hash of the Postgres CivilEvent
-func (c *CivilEvent) EventHash() string {
-	return c.eventHash
-}
-
-// ContractAddress returns the contract address of the Postgres CivilEvent
-func (c *CivilEvent) ContractAddress() string {
-	return c.contractAddress
-}
-
-// ContractName returns the contract name of the Postgres CivilEvent
-func (c *CivilEvent) ContractName() string {
-	return c.contractName
-}
-
-// Timestamp returns the timestamp of the Postgres CivilEvent
-func (c *CivilEvent) Timestamp() int {
-	return c.timestamp
-}
-
-// EventPayload returns the event payload of the Postgres CivilEvent
-func (c *CivilEvent) EventPayload() map[string]interface{} {
-	return c.eventPayload
-}
-
-// LogPayload returns the event payload of the Postgres CivilEvent
-func (c *CivilEvent) LogPayload() map[string]interface{} {
-	return c.logPayload
 }

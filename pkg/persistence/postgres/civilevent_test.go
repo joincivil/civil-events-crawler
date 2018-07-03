@@ -13,9 +13,6 @@ import (
 	"testing"
 )
 
-//create sample CivilEvent from postgres
-
-//create sample CivilEvent from model
 var (
 	contractAddress = "0x77e5aaBddb760FBa989A1C4B2CDd4aA8Fa3d311d"
 	testAddress     = "0xDFe273082089bB7f70Ee36Eebcde64832FE97E55"
@@ -68,35 +65,27 @@ func TestDBCivilEventSetup(t *testing.T) {
 	if dbEvent == nil {
 		t.Error("postgres CivilEvent should not be nil")
 	}
-	if dbEvent.EventType() != "Application" {
-		t.Errorf("EventType wasn't set correctly: %v", dbEvent.EventType())
+	if dbEvent.EventType != "Application" {
+		t.Errorf("EventType wasn't set correctly: %v", dbEvent.EventType)
 	}
-	if len(dbEvent.EventHash()) == 0 {
-		t.Errorf("EventHash wasn't set correctly: %v", dbEvent.EventHash())
+	if len(dbEvent.EventHash) == 0 {
+		t.Errorf("EventHash wasn't set correctly: %v", dbEvent.EventHash)
 	}
-	if contractAddress != dbEvent.ContractAddress() {
-		t.Errorf("ContractAddress wasn't set correctly: %v", dbEvent.ContractAddress())
+	if contractAddress != dbEvent.ContractAddress {
+		t.Errorf("ContractAddress wasn't set correctly: %v", dbEvent.ContractAddress)
 	}
-	if "CivilTCRContract" != dbEvent.ContractName() {
-		t.Errorf("ContractName wasn't set correctly: %v", dbEvent.ContractName())
+	if "CivilTCRContract" != dbEvent.ContractName {
+		t.Errorf("ContractName wasn't set correctly: %v", dbEvent.ContractName)
 	}
-	if dbEvent.Timestamp() <= 0 {
-		t.Errorf("Timestamp was not init correctly: %v", dbEvent.Timestamp())
+	if dbEvent.Timestamp <= 0 {
+		t.Errorf("Timestamp was not init correctly: %v", dbEvent.Timestamp)
 	}
-	if len(dbEvent.EventPayload()) != 5 {
-		t.Errorf("EventPayload was not init correctly: %v", dbEvent.EventPayload())
+	if len(dbEvent.EventPayload) != 5 {
+		t.Errorf("EventPayload was not init correctly: %v", dbEvent.EventPayload)
 	}
-	if len(dbEvent.LogPayload()) != 9 {
-		t.Errorf("EventPayload was not init correctly: %v", dbEvent.EventPayload())
+	if len(dbEvent.LogPayload) != 9 {
+		t.Errorf("EventPayload was not init correctly: %v", dbEvent.EventPayload)
 	}
-
-}
-
-func TestDBEventPayload(t *testing.T) {
-
-}
-
-func TestDBLogPayload(t *testing.T) {
 
 }
 

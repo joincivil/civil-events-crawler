@@ -2,6 +2,8 @@ POSTGRES_DATA_DIR=postgresdata
 POSTGRES_DOCKER_IMAGE=circleci/postgres:9.4.12-alpine
 POSTGRES_PORT=5432
 POSTGRES_DB_NAME=civil_crawler
+POSTGRES_USER=docker
+POSTGRES_PSWD=docker
 
 GOCMD=go
 GOGEN=$(GOCMD) generate
@@ -75,11 +77,13 @@ setup: check-go-env install-dep install-linter install-cover install-abigen ## S
 .PHONY: postgres-setup-launch
 postgres-setup-launch:
 ifeq ("$(wildcard $(POSTGRES_DATA_DIR))", "")
-	@mkdir -p $(POSTGRES_DATA_DIR)
-	@docker run -v $$PWD/$(POSTGRES_DATA_DIR):/tmp/$(POSTGRES_DATA_DIR) -i -t $(POSTGRES_DOCKER_IMAGE) \
+	mkdir -p $(POSTGRES_DATA_DIR)
+	docker run \
+		-v $$PWD/$(POSTGRES_DATA_DIR):/tmp/$(POSTGRES_DATA_DIR) -i -t $(POSTGRES_DOCKER_IMAGE) \
 		/bin/bash -c "cp -rp /var/lib/postgresql /tmp/$(POSTGRES_DATA_DIR)"
 endif
-	@docker run -v $$PWD/$(POSTGRES_DATA_DIR)/postgresql:/var/lib/postgresql -d -p $(POSTGRES_PORT):$(POSTGRES_PORT) \
+	docker run -e "POSTGRES_USER="$(POSTGRES_USER) -e "POSTGRES_PASSWORD"=$(POSTGRES_PSWD) -e "POSTGRES_DB"=$(POSTGRES_DB_NAME) \
+	    -v $$PWD/$(POSTGRES_DATA_DIR)/postgresql:/var/lib/postgresql -d -p $(POSTGRES_PORT):$(POSTGRES_PORT) \
 		$(POSTGRES_DOCKER_IMAGE);
 
 .PHONY: postgres-check-available
