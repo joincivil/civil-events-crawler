@@ -66,6 +66,8 @@ type CrawlerConfig struct {
 	PersisterPostgresAddress string        `split_words:"true" desc:"If persister type is Postgresql, sets the address"`
 	PersisterPostgresPort    int           `split_words:"true" desc:"If persister type is Postgresql, sets the port"`
 	PersisterPostgresDbname  string        `split_words:"true" desc:"If persister type is Postgresql, sets the database name"`
+	PersisterPostgresUser    string        `split_words:"true" desc:"If persister type is Postgresql, sets the database user"`
+	PersisterPostgresPw      string        `split_words:"true" desc:"If persister type is Postgresql, sets the database password"`
 }
 
 // OutputUsage prints the usage string to os.Stdout

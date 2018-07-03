@@ -27,7 +27,7 @@ func (n *NullPersister) LastBlockHash(eventType string, contractAddress common.A
 }
 
 // UpdateLastBlockData should update the last block data from the CivilEvent(s)
-func (n *NullPersister) UpdateLastBlockData(events []model.CivilEvent) error {
+func (n *NullPersister) UpdateLastBlockData(events []*model.CivilEvent) error {
 	// Only log this if INFO log level -v=2
 	if log.V(2) {
 		for _, event := range events {
@@ -45,7 +45,7 @@ func (n *NullPersister) UpdateLastBlockData(events []model.CivilEvent) error {
 }
 
 // SaveEvents stores a list of CivilEvent(s)
-func (n *NullPersister) SaveEvents(events []model.CivilEvent) error {
+func (n *NullPersister) SaveEvents(events []*model.CivilEvent) error {
 	// Only log this if INFO log level -v=2
 	if log.V(2) {
 		for _, event := range events {

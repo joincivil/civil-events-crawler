@@ -49,12 +49,28 @@ func eventDataPersister(config *utils.CrawlerConfig) model.EventDataPersister {
 }
 
 func persister(config *utils.CrawlerConfig) interface{} {
-	// TODO(PN): When postgres persister is ready, replace NullPersister here.
 	if config.PersisterType == utils.PersisterTypePostgresql {
-		return &persistence.NullPersister{}
+		return postgresPersister(config)
 	}
 	// Default to the NullPersister
 	return &persistence.NullPersister{}
+}
+
+func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersister {
+	persister, err := persistence.NewPostgresPersister(
+		config.PersisterPostgresAddress,
+		config.PersisterPostgresPort,
+		config.PersisterPostgresUser,
+		config.PersisterPostgresPw,
+		config.PersisterPostgresDbname,
+	)
+	if err != nil {
+		log.Errorf("Error connecting to Postgresql, stopping...; err: %v", err)
+		os.Exit(1)
+	}
+	// Attempts to create all the necessary tables here
+	persister.CreateTables()
+	return persister
 }
 
 func setupKillNotify(eventCol *eventcollector.CivilEventCollector) {

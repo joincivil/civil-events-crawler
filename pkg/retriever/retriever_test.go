@@ -79,7 +79,7 @@ func TestSorting(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}
-	retrieve.PastEvents = append(retrieve.PastEvents, *model1, *model2)
+	retrieve.PastEvents = append(retrieve.PastEvents, model1, model2)
 	err = retrieve.SortEventsByBlock()
 	if err != nil {
 		t.Error("Sorting didn't happen")
