@@ -20,7 +20,7 @@ const (
 // of the contract to listen to.
 func NewCivilEventListener(client bind.ContractBackend, watchers []model.ContractWatchers) *CivilEventListener {
 	listener := &CivilEventListener{
-		EventRecvChan: make(chan model.CivilEvent, eventRecvChanBufferSize),
+		EventRecvChan: make(chan *model.CivilEvent, eventRecvChanBufferSize),
 		client:        client,
 		watchers:      watchers,
 		active:        false,
@@ -35,7 +35,7 @@ type CivilEventListener struct {
 	client bind.ContractBackend
 
 	// EventRecvChan is the channel to send and receive CivilEvents
-	EventRecvChan chan model.CivilEvent
+	EventRecvChan chan *model.CivilEvent
 
 	watchers []model.ContractWatchers
 

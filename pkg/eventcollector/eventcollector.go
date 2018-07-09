@@ -103,19 +103,19 @@ func (c *CivilEventCollector) StartCollection() error {
 					)
 				}
 				// Save event to persister
-				err = c.eventDataPersister.SaveEvents([]model.CivilEvent{event})
+				err = c.eventDataPersister.SaveEvents([]*model.CivilEvent{event})
 				if err != nil {
 					errors <- err
 					return
 				}
 				// Update last block in persistence in case of error
-				err = c.listenerPersister.UpdateLastBlockData([]model.CivilEvent{event})
+				err = c.listenerPersister.UpdateLastBlockData([]*model.CivilEvent{event})
 				if err != nil {
 					errors <- err
 					return
 				}
 				// Call event triggers
-				err = c.callTriggers(&event)
+				err = c.callTriggers(event)
 				if err != nil {
 					log.Errorf("Error calling triggers: err: %v", err)
 				}

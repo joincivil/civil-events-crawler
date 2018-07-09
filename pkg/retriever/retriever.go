@@ -13,7 +13,7 @@ import (
 func NewCivilEventRetriever(client bind.ContractBackend, filterers []model.ContractFilterers) *CivilEventRetriever {
 	retriever := &CivilEventRetriever{
 		client:     client,
-		PastEvents: make([]model.CivilEvent, 0),
+		PastEvents: make([]*model.CivilEvent, 0),
 		filterers:  filterers,
 	}
 	return retriever
@@ -26,7 +26,7 @@ type CivilEventRetriever struct {
 	client bind.ContractBackend
 
 	// PastEvents is a slice that holds all past CivilEvents requested
-	PastEvents []model.CivilEvent
+	PastEvents []*model.CivilEvent
 
 	// filterers contains a list of ContractFilterers
 	filterers []model.ContractFilterers
