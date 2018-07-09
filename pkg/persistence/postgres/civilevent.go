@@ -19,7 +19,7 @@ func EventsTableSchema() string {
 		CREATE TABLE IF NOT EXISTS events(
 			id SERIAL PRIMARY KEY,
 			event_type TEXT,
-			hash TEXT UNIQUE,
+			hash TEXT,
 			contract_address TEXT,
 			contract_name TEXT,
 			timestamp INT,
@@ -70,6 +70,7 @@ type CivilEvent struct {
 }
 
 // NewCivilEvent constructs a civil event for DB from a model.civilevent
+// Rename this to NewDBEventFromCivilEvent
 func NewCivilEvent(civilEvent *model.CivilEvent) (*CivilEvent, error) {
 	dbCivilEvent := &CivilEvent{}
 	dbCivilEvent.EventType = civilEvent.EventType()
@@ -145,11 +146,11 @@ func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 			}
 			eventPayload[eventFieldName] = common.HexToAddress(address)
 		case "uint256":
-			num, numOk := eventField.(int64)
+			num, numOk := eventField.(float64)
 			if !numOk {
-				return civilEvent, errors.New("Cannot cast DB int to int64")
+				return civilEvent, errors.New("Cannot cast DB int to float64")
 			}
-			eventPayload[eventFieldName] = big.NewInt(num)
+			eventPayload[eventFieldName] = big.NewInt(int64(num))
 		case "string":
 			str, stringOk := eventField.(string)
 			if !stringOk {
@@ -181,6 +182,7 @@ func (c *CivilEvent) EventLogDataToDB(payload *types.Log) {
 	c.LogPayload["Topics"] = topics
 
 	c.LogPayload["Data"] = payload.Data //common.BytesToHash(payload.Data).Hex()
+
 	c.LogPayload["BlockNumber"] = payload.BlockNumber
 	c.LogPayload["TxHash"] = payload.TxHash.Hex()
 	c.LogPayload["TxIndex"] = payload.TxIndex
@@ -195,20 +197,30 @@ func (c *CivilEvent) DBToEventLogData() *types.Log {
 	log := &types.Log{}
 	log.Address = common.HexToAddress(c.LogPayload["Address"].(string))
 
-	logTopics := c.LogPayload["Topics"].([]string)
-	topics := make([]common.Hash, len(logTopics))
-	for _, topic := range logTopics {
-		topics = append(topics, common.HexToHash(topic))
+	topics := c.LogPayload["Topics"].([]interface{})
+	newTopics := make([]common.Hash, len(topics))
+	for i, topic := range topics {
+		topicString := topic.(string)
+		newTopics[i] = common.HexToHash(topicString)
 	}
-	log.Topics = topics
+	log.Topics = newTopics
 
-	log.Data = c.LogPayload["Data"].([]byte) // common.HexToHash(c.logPayload["Data"].(string)).Bytes()
+	// NOTE: Data is stored in DB as a string
+	log.Data = []byte(c.LogPayload["Data"].(string))
 
-	log.BlockNumber = c.LogPayload["BlockNumber"].(uint64)
+	// NOTE: BlockNumber is stored in DB as float64
+	log.BlockNumber = uint64(c.LogPayload["BlockNumber"].(float64))
+
 	log.TxHash = common.HexToHash(c.LogPayload["TxHash"].(string))
-	log.TxIndex = c.LogPayload["TxIndex"].(uint)
+
+	// NOTE: TxIndex is stored in DB as float64
+	log.TxIndex = uint(c.LogPayload["TxIndex"].(float64))
+
 	log.BlockHash = common.HexToHash(c.LogPayload["BlockHash"].(string))
-	log.Index = c.LogPayload["Index"].(uint)
+
+	// NOTE: Index is stored in DB as float64
+	log.Index = uint(c.LogPayload["Index"].(float64))
+
 	log.Removed = c.LogPayload["Removed"].(bool)
 	return log
 }
