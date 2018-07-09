@@ -75,7 +75,7 @@ func (p *PostgresPersister) getInsertEventQueryString(tableName string) string {
 // NOTE: this function gets all events from table for now.
 func (p *PostgresPersister) GetEvents(tableName string) ([]postgres.CivilEvent, error) {
 	civilEventDB := []postgres.CivilEvent{}
-	err := p.db.Select(&civilEventDB, "SELECT event_type, hash, contract_address, contract_name, timestamp, payload, log_payload FROM events_test;")
+	err := p.db.Select(&civilEventDB, "SELECT event_type, hash, contract_address, contract_name, timestamp, payload, log_payload FROM events;")
 	return civilEventDB, err
 }
 

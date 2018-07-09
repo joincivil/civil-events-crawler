@@ -17,7 +17,7 @@ type ListenerMetaDataPersister interface {
 	LastBlockHash(eventType string, contractAddress common.Address) common.Hash
 
 	// UpdateLastBlockData should update the last block data from the CivilEvent(s)
-	UpdateLastBlockData(events []CivilEvent) error
+	UpdateLastBlockData(events []*CivilEvent) error
 }
 
 // RetrieverMetaDataPersister handles storing any metadata related to running
@@ -32,13 +32,13 @@ type RetrieverMetaDataPersister interface {
 	LastBlockHash(eventType string, contractAddress common.Address) common.Hash
 
 	// UpdateLastBlockData should update the last block Number from the CivilEvent(s)
-	UpdateLastBlockData(events []CivilEvent) error
+	UpdateLastBlockData(events []*CivilEvent) error
 }
 
 // EventDataPersister handles storing the received CivilEvent data.
 type EventDataPersister interface {
 	// SaveEvents stores a list of CivilEvent(s)
-	SaveEvents(events []CivilEvent) error
+	SaveEvents(events []*CivilEvent) error
 
 	// RetrieveEvents retrieves the CivilEvents from the persistence layer based
 	// on date in which it was received

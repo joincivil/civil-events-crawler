@@ -68,7 +68,7 @@ func (t *testErrorWatcher) StopWatchers() error {
 }
 
 func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
+	eventRecvChan chan *model.CivilEvent) ([]event.Subscription, error) {
 	return nil, errors.New("This is an error starting watchers")
 }
 
@@ -151,7 +151,7 @@ func TestCivilListenerEventChan(t *testing.T) {
 	}
 	newEvent, _ := model.NewCivilEventFromContractEvent("_Application", "CivilTCRContract", contracts.CivilTcrAddr, tempPayload,
 		utils.CurrentEpochSecsInInt())
-	listener.EventRecvChan <- *newEvent
+	listener.EventRecvChan <- newEvent
 
 	select {
 	case <-eventRecv:

@@ -45,7 +45,7 @@ type lastBlockData struct {
 
 type testPersister struct {
 	lastBlock            lastBlockData
-	events               []model.CivilEvent
+	events               []*model.CivilEvent
 	m                    sync.Mutex
 	updateLastBlockError error
 	saveEventsError      error
@@ -59,7 +59,7 @@ func (n *testPersister) LastBlockHash(eventType string, contractAddress common.A
 	return common.Hash{}
 }
 
-func (n *testPersister) UpdateLastBlockData(events []model.CivilEvent) error {
+func (n *testPersister) UpdateLastBlockData(events []*model.CivilEvent) error {
 	if len(events) == 0 {
 		return n.updateLastBlockError
 	}
@@ -71,11 +71,11 @@ func (n *testPersister) UpdateLastBlockData(events []model.CivilEvent) error {
 	return n.updateLastBlockError
 }
 
-func (n *testPersister) SaveEvents(events []model.CivilEvent) error {
+func (n *testPersister) SaveEvents(events []*model.CivilEvent) error {
 	n.m.Lock()
 	defer n.m.Unlock()
 	if n.events == nil {
-		n.events = []model.CivilEvent{}
+		n.events = []*model.CivilEvent{}
 	}
 	n.events = append(n.events, events...)
 	return n.saveEventsError
@@ -87,7 +87,7 @@ func (n *testPersister) RetrieveEvents(offset uint, count uint, reverse bool) ([
 
 	events := []*model.CivilEvent{}
 	for index := range n.events {
-		events = append(events, &n.events[index])
+		events = append(events, n.events[index])
 	}
 	return events, nil
 }
@@ -107,7 +107,7 @@ func (t *testErrorWatcher) StopWatchers() error {
 }
 
 func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan model.CivilEvent) ([]event.Subscription, error) {
+	eventRecvChan chan *model.CivilEvent) ([]event.Subscription, error) {
 	return nil, errors.New("This is an error starting watchers")
 }
 
