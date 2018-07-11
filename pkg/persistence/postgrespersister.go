@@ -21,11 +21,6 @@ func NewPostgresPersister(host string, port int, user string, password string, d
 	}
 	pgPersister.db = db
 	pgPersister.eventToLastBlockNumber = make(map[common.Address]map[string]PersisterBlockData)
-	// Batch query here for latest block numbers to fill persistence
-	err = pgPersister.fillPersistence("events")
-	if err != nil {
-		return pgPersister, fmt.Errorf("Error with filling persistence from DB: %v", err)
-	}
 	return pgPersister, nil
 }
 
@@ -86,8 +81,8 @@ func (p *PostgresPersister) GetEvents(tableName string) ([]postgres.CivilEvent, 
 	return civilEventDB, err
 }
 
-// fillPersistence will fill the persistence with data from the DB.
-func (p *PostgresPersister) fillPersistence(tableName string) error {
+// PopulateBlockDataFromDB will fill the persistence with data from the DB.
+func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
 	events, err := p.getLatestEvents(tableName)
 	if err != nil {
 		return err
@@ -120,7 +115,7 @@ func (p *PostgresPersister) retrieveLatestEventsQueryString(tableName string) st
 	// Query for the latest timestamp.
 	return fmt.Sprintf("SELECT e.event_type, e.log_payload, e.payload, e.hash, e.contract_address, e.contract_name, max_e.timestamp "+
 		"FROM (SELECT event_type, contract_address, MAX(timestamp) AS timestamp FROM %s GROUP BY event_type, contract_address) max_e "+
-		"JOIN %s e ON e.event_type = max_e.event_type AND e.timestamp = max_e.timestamp;", tableName, tableName)
+		"JOIN %s e ON e.event_type = max_e.event_type AND e.timestamp = max_e.timestamp AND e.contract_address = max_e.contract_address;", tableName, tableName)
 }
 
 // LastBlockNumber returns the last block number seen by the persister

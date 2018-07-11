@@ -6,6 +6,8 @@
 package persistence
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -53,20 +55,42 @@ var (
 			Address:     common.HexToAddress(testAddress),
 			Topics:      []common.Hash{},
 			Data:        []byte{},
-			BlockNumber: 8888889,
-			Index:       1,
+			BlockNumber: 8888888,
+			TxHash:      common.Hash{},
+			TxIndex:     2,
+			BlockHash:   common.Hash{},
+			Index:       2,
+			Removed:     false,
 		},
 	}
 )
 
-func setupCivilEvent() (*model.CivilEvent, error) {
+// Sets up an Application event and generates a random hash for address so that the hash in DB is unique.
+func setupCivilEvent(rand bool) (*model.CivilEvent, error) {
+	if rand {
+		randString, _ := randomHex(32)
+		testEvent.Raw.TxHash = common.HexToHash(randString)
+	}
 	return model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent, utils.CurrentEpochSecsInInt())
 }
 
-func setupCivilEvent2() (*model.CivilEvent, error) {
+// Sets up an ApplicationWhitelisted event and generates a random hash for address so that the hash in DB is unique.
+func setupCivilEvent2(rand bool) (*model.CivilEvent, error) {
+	if rand {
+		randString, _ := randomHex(32)
+		testEvent2.Raw.TxHash = common.HexToHash(randString)
+	}
 	return model.NewCivilEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochSecsInInt())
+		testEvent2, utils.CurrentEpochSecsInInt())
+}
+
+func randomHex(n int) (string, error) {
+	bytes := make([]byte, n)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 func setupDBConnection() (*PostgresPersister, error) {
@@ -83,7 +107,7 @@ func setupTestTable() (*PostgresPersister, error) {
 		CREATE TABLE IF NOT EXISTS events_test(
 			id SERIAL PRIMARY KEY,
 			event_type TEXT,
-			hash TEXT,
+			hash TEXT UNIQUE,
 			contract_address TEXT,
 			contract_name TEXT,
 			timestamp INT,
@@ -154,7 +178,7 @@ func TestSaveToEventsTestTable(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
-	event, err := setupCivilEvent()
+	event, err := setupCivilEvent(true)
 	if err != nil {
 		t.Errorf("Couldn't setup civilEvent from contract %v", err)
 	}
@@ -178,20 +202,22 @@ func TestSaveToEventsTestTable(t *testing.T) {
 	}
 }
 
+// TODO (IS): fix this test. this isn't true benchmark of saving events bc of the hashing function on creation
+// of each event
 func BenchmarkSavingManyEventsToEventsTestTable(b *testing.B) {
 	persister, err := setupTestTable()
 	if err != nil {
 		b.Error(err)
 	}
 	defer deleteTestTable(persister)
-	event, err := setupCivilEvent()
-	if err != nil {
-		b.Errorf("Couldn't setup civilEvent from contract %v", err)
-	}
 
 	numEvents := 100
 	civilEventsFromContract := make([]*model.CivilEvent, 0)
 	for i := 1; i <= numEvents; i++ {
+		event, err := setupCivilEvent(true)
+		if err != nil {
+			b.Errorf("Couldn't setup civilEvent from contract %v", err)
+		}
 		civilEventsFromContract = append(civilEventsFromContract, event)
 	}
 
@@ -211,13 +237,13 @@ func BenchmarkSavingManyEventsToEventsTestTable(b *testing.B) {
 	}
 }
 
-func TestPersistence(t *testing.T) {
+func TestPersistenceUpdate(t *testing.T) {
 	//Check that persistence is being updated
 	persister, err := setupDBConnection()
 	if err != nil {
 		t.Errorf("Error connecting to DB: %v", err)
 	}
-	event, err := setupCivilEvent()
+	event, err := setupCivilEvent(true)
 	if err != nil {
 		t.Errorf("Couldn't setup civilEvent from contract %v", err)
 	}
@@ -245,11 +271,11 @@ func TestLatestEventsQuery(t *testing.T) {
 	numEvents := 3
 	civilEventsFromContract := make([]*model.CivilEvent, 0)
 	for i := 1; i <= numEvents; i++ {
-		event, err := setupCivilEvent()
+		event, err := setupCivilEvent(true)
 		if err != nil {
 			t.Errorf("Couldn't setup Application civilEvent from contract %v", err)
 		}
-		event2, err := setupCivilEvent2()
+		event2, err := setupCivilEvent2(true)
 		if err != nil {
 			t.Errorf("Couldn't setup ApplicationWhitelisted civilEvent from contract %v", err)
 		}
@@ -281,7 +307,7 @@ func TestLatestEventsQuery(t *testing.T) {
 
 }
 
-func TestPersistenceFillingFromDB(t *testing.T) {
+func TestPersistenceUpdateFromDB(t *testing.T) {
 	persister, err := setupTestTable()
 	if err != nil {
 		t.Error(err)
@@ -290,7 +316,7 @@ func TestPersistenceFillingFromDB(t *testing.T) {
 	numEvents := 3
 	civilEventsFromContract := make([]*model.CivilEvent, 0)
 	for i := 1; i <= numEvents; i++ {
-		event, err := setupCivilEvent()
+		event, err := setupCivilEvent(true)
 		if err != nil {
 			t.Errorf("Couldn't setup civilEvent from contract %v", err)
 		}
@@ -302,7 +328,7 @@ func TestPersistenceFillingFromDB(t *testing.T) {
 	if err != nil {
 		t.Errorf("Cannot save event to events_test table: %v", err)
 	}
-	err = persister.fillPersistence("events_test")
+	err = persister.PopulateBlockDataFromDB("events_test")
 	if err != nil {
 		t.Errorf("Cannot fill persistence, %v", err)
 	}
@@ -323,7 +349,7 @@ func TestPersistenceFillingFromDB(t *testing.T) {
 
 // This conversion needs to be here, bc we need the actual event after being saved in DB.
 func TestDBToCivilEvent(t *testing.T) {
-	civilEvent, err := setupCivilEvent()
+	civilEvent, err := setupCivilEvent(true)
 	if err != nil {
 		t.Errorf("setupCivilEvent should have succeeded: err: %v", err)
 	}

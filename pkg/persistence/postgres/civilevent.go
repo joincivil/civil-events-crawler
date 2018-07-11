@@ -19,7 +19,7 @@ func EventsTableSchema() string {
 		CREATE TABLE IF NOT EXISTS events(
 			id SERIAL PRIMARY KEY,
 			event_type TEXT,
-			hash TEXT,
+			hash TEXT UNIQUE,
 			contract_address TEXT,
 			contract_name TEXT,
 			timestamp INT,
