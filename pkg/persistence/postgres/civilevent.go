@@ -78,8 +78,8 @@ func NewCivilEvent(civilEvent *model.CivilEvent) (*CivilEvent, error) {
 	dbCivilEvent.ContractName = civilEvent.ContractName()
 	dbCivilEvent.ContractAddress = civilEvent.ContractAddress().Hex()
 	dbCivilEvent.Timestamp = civilEvent.Timestamp()
-	dbCivilEvent.EventPayload = make(map[string]interface{})
-	dbCivilEvent.LogPayload = make(map[string]interface{})
+	dbCivilEvent.EventPayload = make(EventPayloadMap)
+	dbCivilEvent.LogPayload = make(EventPayloadMap)
 	err := dbCivilEvent.parseEventPayload(civilEvent)
 	if err != nil {
 		return nil, err
@@ -124,6 +124,7 @@ func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}, _abi abi.A
 }
 
 // DBToEventData converts the db event model to a model.CivilEvent
+// NOTE: because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
 func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 	civilEvent := &model.CivilEvent{}
 	_abi, err := model.AbiJSON(c.ContractName)
@@ -146,6 +147,7 @@ func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 			}
 			eventPayload[eventFieldName] = common.HexToAddress(address)
 		case "uint256":
+			// NOTE: Ints are stored in DB as float64
 			num, numOk := eventField.(float64)
 			if !numOk {
 				return civilEvent, errors.New("Cannot cast DB int to float64")
@@ -181,7 +183,7 @@ func (c *CivilEvent) EventLogDataToDB(payload *types.Log) {
 	}
 	c.LogPayload["Topics"] = topics
 
-	c.LogPayload["Data"] = payload.Data //common.BytesToHash(payload.Data).Hex()
+	c.LogPayload["Data"] = payload.Data
 
 	c.LogPayload["BlockNumber"] = payload.BlockNumber
 	c.LogPayload["TxHash"] = payload.TxHash.Hex()
@@ -193,6 +195,7 @@ func (c *CivilEvent) EventLogDataToDB(payload *types.Log) {
 }
 
 // DBToEventLogData converts the DB raw log payload back to types.Log
+// NOTE: because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
 func (c *CivilEvent) DBToEventLogData() *types.Log {
 	log := &types.Log{}
 	log.Address = common.HexToAddress(c.LogPayload["Address"].(string))
