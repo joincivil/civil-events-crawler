@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-// EventsTableSchema returns the schema to create this table
+// EventsTableSchema returns the query to create this table
 func EventsTableSchema() string {
 	schema := `
 		CREATE TABLE IF NOT EXISTS events(
@@ -28,6 +28,16 @@ func EventsTableSchema() string {
 		);
 	`
 	return schema
+}
+
+// EventsTableIndices returns the query to create indices for this table
+func EventsTableIndices() string {
+	indexCreationQuery := `
+		CREATE INDEX IF NOT EXISTS events_event_type_idx ON events (event_type);
+		CREATE INDEX IF NOT EXISTS events_contract_address_idx ON events (contract_address);
+		CREATE INDEX IF NOT EXISTS events_timestamp_idx ON events (timestamp);
+	`
+	return indexCreationQuery
 }
 
 // EventPayloadMap is the jsonb payload

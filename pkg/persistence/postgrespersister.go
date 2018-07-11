@@ -39,6 +39,13 @@ func (p *PostgresPersister) CreateTables() error {
 	return err
 }
 
+// CreateIndices creates the indices for DB if they don't exist
+func (p *PostgresPersister) CreateIndices() error {
+	indexQuery := postgres.EventsTableIndices()
+	_, err := p.db.Exec(indexQuery)
+	return err
+}
+
 // SaveEvents saves events to events table in DB
 func (p *PostgresPersister) SaveEvents(events []*model.CivilEvent) error {
 	return p.saveEventsToTable(events, "events")

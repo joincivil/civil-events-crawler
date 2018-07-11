@@ -85,6 +85,7 @@ func setupCivilEvent2(rand bool) (*model.CivilEvent, error) {
 		testEvent2, utils.CurrentEpochSecsInInt())
 }
 
+// random hex string generation
 func randomHex(n int) (string, error) {
 	bytes := make([]byte, n)
 	if _, err := rand.Read(bytes); err != nil {
@@ -116,10 +117,10 @@ func setupTestTable() (*PostgresPersister, error) {
 		);
 	`
 	_, err = persister.db.Query(createTableQuery)
-	// _, err = persister.db.Query("CREATE TABLE events_test AS SELECT * FROM events WHERE 1=2;")
 	if err != nil {
 		return persister, fmt.Errorf("Couldn't create test table %v", err)
 	}
+
 	return persister, nil
 }
 
@@ -168,6 +169,45 @@ func TestTableSetup(t *testing.T) {
 	}
 	if !exists {
 		t.Errorf("events table does not exist")
+	}
+
+}
+
+func TestIndexCreation(t *testing.T) {
+	persister, err := setupDBConnection()
+	if err != nil {
+		t.Errorf("Error connecting to DB: %v", err)
+	}
+	err = persister.CreateTables()
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+	err = persister.CreateIndices()
+	if err != nil {
+		t.Errorf("Error creating indices: %v", err)
+	}
+}
+
+func TestIndexCreationTestTable(t *testing.T) {
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTable(persister)
+
+	indexCreationQuery := `
+		CREATE INDEX IF NOT EXISTS events_event_type_idx ON events_test (event_type);
+		CREATE INDEX IF NOT EXISTS events_contract_address_idx ON events_test (contract_address);
+		CREATE INDEX IF NOT EXISTS events_timestamp_idx ON events_test (timestamp);
+	`
+	_, err = persister.db.Query(indexCreationQuery)
+	if err != nil {
+		t.Errorf("Error creating indices in test table: %v", err)
+	}
+	// run query twice to ensure indices won't throw an error
+	_, err = persister.db.Query(indexCreationQuery)
+	if err != nil {
+		t.Errorf("Error creating indices in test table: %v", err)
 	}
 
 }
