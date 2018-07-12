@@ -1,5 +1,5 @@
 POSTGRES_DATA_DIR=postgresdata
-POSTGRES_DOCKER_IMAGE=circleci/postgres:9.4.12-alpine
+POSTGRES_DOCKER_IMAGE=circleci/postgres:10.4-alpine
 POSTGRES_PORT=5432
 POSTGRES_DB_NAME=civil_crawler
 POSTGRES_USER=docker
