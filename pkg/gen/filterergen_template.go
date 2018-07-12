@@ -27,6 +27,7 @@ import (
 {{- end}}
 )
 
+// TODO(PN): Need to move this to a central place, use it outside the package
 {{if .EventHandlers -}}
 var eventTypes{{.ContractTypeName}} = []string{
     {{- range .EventHandlers}}
@@ -34,6 +35,13 @@ var eventTypes{{.ContractTypeName}} = []string{
     {{- end}}
 }
 {{- end}}
+
+// TODO(PN): Need to move this to a central place, use it outside the package
+func EventTypes{{.ContractTypeName}}() []string {
+	tmp := make([]string, len(eventTypes{{.ContractTypeName}}))
+	copy(tmp, eventTypes{{.ContractTypeName}})
+	return tmp
+}
 
 func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.ContractTypeName}}Filterers {
     contractFilterers := &{{.ContractTypeName}}Filterers{
