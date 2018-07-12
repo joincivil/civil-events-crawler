@@ -20,6 +20,17 @@ const (
 	testTCRAddress = "0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d"
 )
 
+func TestFilterersEventList(t *testing.T) {
+	tcrFilterers := filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress))
+	internalEvents := tcrFilterers.EventTypes()
+	events := filterer.EventTypesCivilTCRContract()
+	for index, event := range events {
+		if event != internalEvents[index] {
+			t.Error("Internal events list should match external events list")
+		}
+	}
+}
+
 // TestEventCollection tests that events are being collected,
 func TestEventCollection(t *testing.T) {
 	client, err := cutils.SetupRinkebyClient()
