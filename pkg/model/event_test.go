@@ -42,6 +42,23 @@ var (
 			Index:       1,
 		},
 	}
+	testEvent3 = &contract.NewsroomContractRevisionUpdated{
+		Editor:     common.HexToAddress(contractAddress),
+		ContentId:  big.NewInt(1),
+		RevisionId: big.NewInt(0),
+		Uri:        "http://joincivil.com/1",
+		Raw: types.Log{
+			Address:     common.HexToAddress(testAddress),
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 888889,
+			TxHash:      common.Hash{},
+			TxIndex:     3,
+			BlockHash:   common.Hash{},
+			Index:       4,
+			Removed:     false,
+		},
+	}
 )
 
 func setupCivilEvent() (*model.CivilEvent, error) {
@@ -175,6 +192,33 @@ func TestCivilEventLogPayloadValues(t *testing.T) {
 	valueBlockNumber := payload.BlockNumber
 	if valueBlockNumber != 8888888 {
 		t.Errorf("BlockNumber is not correctly assigned in LogPayload %v", valueBlockNumber)
+	}
+}
+
+func TestCivilEventExtractFieldUnderscore(t *testing.T) {
+	event, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+		testEvent, utils.CurrentEpochSecsInInt())
+	payload := event.EventPayload()
+	if len(payload) == 0 {
+		t.Error("Should have properly parsed the payload into the EventPayload mapping")
+	}
+	event, _ = model.NewCivilEventFromContractEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+		testEvent, utils.CurrentEpochSecsInInt())
+	payload = event.EventPayload()
+	if len(payload) == 0 {
+		t.Error("Should have properly parsed the payload into the EventPayload mapping")
+	}
+	event, _ = model.NewCivilEventFromContractEvent("RevisionUpdated", "NewsroomContract", common.HexToAddress(contractAddress),
+		testEvent3, utils.CurrentEpochSecsInInt())
+	payload = event.EventPayload()
+	if len(payload) == 0 {
+		t.Error("Should have properly parsed the payload into the EventPayload mapping")
+	}
+	event, _ = model.NewCivilEventFromContractEvent("_RevisionUpdated", "NewsroomContract", common.HexToAddress(contractAddress),
+		testEvent3, utils.CurrentEpochSecsInInt())
+	payload = event.EventPayload()
+	if len(payload) == 0 {
+		t.Error("Should have properly parsed the payload into the EventPayload mapping")
 	}
 }
 
