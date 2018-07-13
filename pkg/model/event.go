@@ -79,14 +79,27 @@ type CivilEvent struct {
 }
 
 func extractFieldsFromEvent(payload *CivilEventPayload, eventData interface{}, eventType string, contractName string) (map[string]interface{}, error) {
-
 	eventPayload := make(map[string]interface{}, len(payload.data.Fields()))
 
 	_abi, err := AbiJSON(contractName)
 	if err != nil {
 		return eventPayload, err
 	}
-	for _, input := range _abi.Events["_"+eventType].Inputs {
+
+	// Trim the eventType clean
+	eventType = strings.Trim(eventType, " _")
+
+	// Some contracts have an underscore prefix on their events. Handle both
+	// non-underscore/underscore cases here.
+	events, ok := _abi.Events[eventType]
+	if !ok {
+		events, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
+		if !ok {
+			return eventPayload, fmt.Errorf("No event type %v in contract %v", eventType, contractName)
+		}
+	}
+
+	for _, input := range events.Inputs {
 		eventFieldName := strings.Title(input.Name)
 		eventField, ok := payload.Value(eventFieldName)
 		if !ok {
