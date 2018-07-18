@@ -13,8 +13,14 @@ func CurrentEpochSecsInFloat() float64 {
 	return ts
 }
 
+// CurrentEpochSecsInInt64 returns the current time as a timestamp
+// from epoch as type int64 in seconds.
+func CurrentEpochSecsInInt64() int64 {
+	return time.Now().Unix()
+}
+
 // CurrentEpochSecsInInt returns the current time as a timestamp
-// from epoch as type float64 in seconds.
+// from epoch as type int in seconds.
 func CurrentEpochSecsInInt() int {
-	return int(CurrentEpochSecsInFloat())
+	return int(CurrentEpochSecsInInt64())
 }
