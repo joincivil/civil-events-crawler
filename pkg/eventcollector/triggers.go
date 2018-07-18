@@ -3,6 +3,7 @@ package eventcollector // import "github.com/joincivil/civil-events-crawler/pkg/
 
 import (
 	"errors"
+	"fmt"
 
 	log "github.com/golang/glog"
 
@@ -22,14 +23,14 @@ func (n *AddNewsroomWatchersTrigger) Description() string {
 }
 
 // ShouldRun returns true or false on whether this trigger should be run
-func (n *AddNewsroomWatchersTrigger) ShouldRun(collector *CivilEventCollector,
-	event *model.CivilEvent) bool {
+func (n *AddNewsroomWatchersTrigger) ShouldRun(collector *EventCollector,
+	event *model.Event) bool {
 	return event.EventType() == "_ApplicationWhiteListed"
 }
 
 // Run returns the triggered code
-func (n *AddNewsroomWatchersTrigger) Run(collector *CivilEventCollector,
-	event *model.CivilEvent) error {
+func (n *AddNewsroomWatchersTrigger) Run(collector *EventCollector,
+	event *model.Event) error {
 	if !n.ShouldRun(collector, event) {
 		return errors.New("AddNewsroomWatchersTrigger should not run")
 	}
@@ -38,7 +39,7 @@ func (n *AddNewsroomWatchersTrigger) Run(collector *CivilEventCollector,
 		watcher.NewNewsroomContractWatchers(newsroomAddr),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error adding watchers: err: %v", err)
 	}
 	log.Infof("Adding watchers for newsroom at address: %v", newsroomAddr)
 	return nil
@@ -54,14 +55,14 @@ func (n *RemoveNewsroomWatchersTrigger) Description() string {
 }
 
 // ShouldRun returns true or false on whether this trigger should be run
-func (n *RemoveNewsroomWatchersTrigger) ShouldRun(collector *CivilEventCollector,
-	event *model.CivilEvent) bool {
+func (n *RemoveNewsroomWatchersTrigger) ShouldRun(collector *EventCollector,
+	event *model.Event) bool {
 	return event.EventType() == "_ListingRemoved"
 }
 
 // Run returns the triggered code
-func (n *RemoveNewsroomWatchersTrigger) Run(collector *CivilEventCollector,
-	event *model.CivilEvent) error {
+func (n *RemoveNewsroomWatchersTrigger) Run(collector *EventCollector,
+	event *model.Event) error {
 	if !n.ShouldRun(collector, event) {
 		return errors.New("RemoveNewsroomWatchersTriggershould not run")
 	}
@@ -70,7 +71,7 @@ func (n *RemoveNewsroomWatchersTrigger) Run(collector *CivilEventCollector,
 		watcher.NewNewsroomContractWatchers(newsroomAddr),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error removing watchers: err: %v", err)
 	}
 	log.Infof("Removing watchers for newsroom at address: %v", newsroomAddr)
 	return nil

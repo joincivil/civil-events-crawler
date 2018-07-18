@@ -57,13 +57,13 @@ func (w *{{.ContractTypeName}}Watchers) StopWatchers() error {
 }
 
 func (w *{{.ContractTypeName}}Watchers) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.CivilEvent) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
 	return w.Start{{.ContractTypeName}}Watchers(client, eventRecvChan)
 }
 
 // Start{{.ContractTypeName}}Watchers starts up the event watchers for {{.ContractTypeName}}
 func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(client bind.ContractBackend,
-	eventRecvChan chan *model.CivilEvent) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
     contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(w.contractAddress, client)
 	if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
@@ -92,7 +92,7 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan *model.CivilEvent) (event.Subscription, error) {
+func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
 		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *{{$.ContractTypePackage}}.{{.EventType}}, error) {
@@ -133,13 +133,13 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 		for {
 			select {
 			case event := <-recvChan:
-				civilEvent, err := model.NewCivilEventFromContractEvent("{{.EventName}}", w.ContractName(), w.contractAddress, event, utils.CurrentEpochSecsInInt())
+				modelEvent, err := model.NewEventFromContractEvent("{{.EventName}}", w.ContractName(), w.contractAddress, event, utils.CurrentEpochSecsInInt())
 				if err != nil {
-					log.Errorf("Error creating new civil event: event: %v, err: %v", event, err)
+					log.Errorf("Error creating new event: event: %v, err: %v", event, err)
 					continue
 				}
 				select {
-				case eventRecvChan <- civilEvent:
+				case eventRecvChan <- modelEvent:
 				case err := <-sub.Err():
 					sub.Unsubscribe()
 					sub, recvChan, err = startupFn()

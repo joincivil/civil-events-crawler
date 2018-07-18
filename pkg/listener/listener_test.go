@@ -21,7 +21,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
-func TestCivilListener(t *testing.T) {
+func TestListener(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
@@ -34,7 +34,7 @@ func TestCivilListener(t *testing.T) {
 	defer listener.Stop()
 }
 
-func TestCivilListenerStop(t *testing.T) {
+func TestListenerStop(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
@@ -68,11 +68,11 @@ func (t *testErrorWatcher) StopWatchers() error {
 }
 
 func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.CivilEvent) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
 	return nil, errors.New("This is an error starting watchers")
 }
 
-func TestCivilListenerEmptyWatchers(t *testing.T) {
+func TestListenerEmptyWatchers(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
@@ -80,7 +80,7 @@ func TestCivilListenerEmptyWatchers(t *testing.T) {
 	watchers := []model.ContractWatchers{
 		&testErrorWatcher{},
 	}
-	listener := listener.NewCivilEventListener(contracts.Client, watchers)
+	listener := listener.NewEventListener(contracts.Client, watchers)
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}
@@ -90,13 +90,13 @@ func TestCivilListenerEmptyWatchers(t *testing.T) {
 	}
 }
 
-func TestCivilListenerErrorStartWatchers(t *testing.T) {
+func TestListenerErrorStartWatchers(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
 	}
 	watchers := []model.ContractWatchers{}
-	listener := listener.NewCivilEventListener(contracts.Client, watchers)
+	listener := listener.NewEventListener(contracts.Client, watchers)
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}
@@ -106,9 +106,9 @@ func TestCivilListenerErrorStartWatchers(t *testing.T) {
 	}
 }
 
-// TestCivilListenerEventChan mainly tests the EventRecvChan to ensure it can
-// pass along a CivilEvent object
-func TestCivilListenerEventChan(t *testing.T) {
+// TestListenerEventChan mainly tests the EventRecvChan to ensure it can
+// pass along a Event object
+func TestListenerEventChan(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: err: %v", err)
@@ -149,7 +149,7 @@ func TestCivilListenerEventChan(t *testing.T) {
 			BlockNumber: 8888888,
 		},
 	}
-	newEvent, _ := model.NewCivilEventFromContractEvent("_Application", "CivilTCRContract", contracts.CivilTcrAddr, tempPayload,
+	newEvent, _ := model.NewEventFromContractEvent("_Application", "CivilTCRContract", contracts.CivilTcrAddr, tempPayload,
 		utils.CurrentEpochSecsInInt())
 	listener.EventRecvChan <- newEvent
 
@@ -162,10 +162,10 @@ func TestCivilListenerEventChan(t *testing.T) {
 	}
 }
 
-// TestCivilListenerContractEvents tests event fired from a call to Apply()
+// TestListenerContractEvents tests event fired from a call to Apply()
 // on a simulated TCR on a simulated backend. Tests two events so ensure
 // we are handling two different events on the same channel.
-func TestCivilListenerContractEvents(t *testing.T) {
+func TestListenerContractEvents(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: err: %v", err)
@@ -180,7 +180,7 @@ func TestCivilListenerContractEvents(t *testing.T) {
 	fireContractEventsSequence(t, contracts, listener)
 }
 
-func TestCivilListenerAddWatchers(t *testing.T) {
+func TestListenerAddWatchers(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: err: %v", err)
@@ -197,7 +197,7 @@ func TestCivilListenerAddWatchers(t *testing.T) {
 	fireContractEventsSequence(t, contracts, listener)
 }
 
-func TestCivilListenerRemoveWatchersNoMoreWatchers(t *testing.T) {
+func TestListenerRemoveWatchersNoMoreWatchers(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: err: %v", err)
@@ -221,7 +221,7 @@ func TestCivilListenerRemoveWatchersNoMoreWatchers(t *testing.T) {
 	checkNotRecvEvents(t, quitChan, eventRecv, expectedNumEvents)
 }
 
-func TestCivilListenerRemoveWatchers(t *testing.T) {
+func TestListenerRemoveWatchers(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: err: %v", err)
@@ -240,7 +240,7 @@ func TestCivilListenerRemoveWatchers(t *testing.T) {
 }
 
 func fireContractEventsSequence(t *testing.T, contracts *cutils.AllTestContracts,
-	listener *listener.CivilEventListener) {
+	listener *listener.EventListener) {
 	quitChan := make(chan interface{})
 	eventRecv := make(chan bool)
 
@@ -249,7 +249,7 @@ func fireContractEventsSequence(t *testing.T, contracts *cutils.AllTestContracts
 	checkRecvEvents(t, quitChan, eventRecv, expectedNumEvents)
 }
 
-func setupEventRecvLoop(t *testing.T, listener *listener.CivilEventListener,
+func setupEventRecvLoop(t *testing.T, listener *listener.EventListener,
 	quitChan chan interface{}, eventRecv chan bool) {
 	go func(quit <-chan interface{}, recv chan<- bool) {
 		for {
@@ -330,8 +330,8 @@ Loop:
 	}
 }
 
-func setupListener(t *testing.T, client bind.ContractBackend, watchers []model.ContractWatchers) *listener.CivilEventListener {
-	listener := listener.NewCivilEventListener(client, watchers)
+func setupListener(t *testing.T, client bind.ContractBackend, watchers []model.ContractWatchers) *listener.EventListener {
+	listener := listener.NewEventListener(client, watchers)
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}

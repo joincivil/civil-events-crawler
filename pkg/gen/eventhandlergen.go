@@ -34,7 +34,6 @@ type TemplateData struct {
 
 // GenerateEventHandlers will code gen the contract event handlers for a given
 // ContractType. It will output the generated code to the given io.Writer.
-// Currently supports only the CivilTCR and Newsroom ContractTypes.
 func GenerateEventHandlers(writer io.Writer, contractType model.ContractType, packageName string,
 	handlerName string) error {
 
@@ -61,14 +60,14 @@ func GenerateEventHandlersFromTemplate(writer io.Writer, tmplData *EventHandlerC
 }
 
 // EventHandlerMethodParam represents a value to be passed into the
-// method for starting up event handlers in a Civil smart contract.
+// method for starting up event handlers in a smart contract.
 // Maps to actions in the event handler templates.
 type EventHandlerMethodParam struct {
 	Type string
 }
 
 // EventHandlerTmplData represents data for an individual contract event method in a
-// Civil smart contract.
+// smart contract.
 // Maps to actions in the event handler templates.
 type EventHandlerTmplData struct {
 	EventMethod string

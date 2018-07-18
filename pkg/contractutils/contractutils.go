@@ -2,6 +2,8 @@
 // and testing smart contracts
 package contractutils
 
+// NOTE: very specific to Civil's smart contract implementation
+
 import (
 	"math/big"
 

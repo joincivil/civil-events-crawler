@@ -1,4 +1,4 @@
-// Package model contains the general data models and interfaces for the Civil crawler.
+// Package model contains the general data models and interfaces.
 package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
@@ -16,8 +16,8 @@ type ListenerMetaDataPersister interface {
 	// event type and contract address
 	LastBlockHash(eventType string, contractAddress common.Address) common.Hash
 
-	// UpdateLastBlockData should update the last block data from the CivilEvent(s)
-	UpdateLastBlockData(events []*CivilEvent) error
+	// UpdateLastBlockData should update the last block data from the Event(s)
+	UpdateLastBlockData(events []*Event) error
 }
 
 // RetrieverMetaDataPersister handles storing any metadata related to running
@@ -31,17 +31,17 @@ type RetrieverMetaDataPersister interface {
 	// type and contract address
 	LastBlockHash(eventType string, contractAddress common.Address) common.Hash
 
-	// UpdateLastBlockData should update the last block Number from the CivilEvent(s)
-	UpdateLastBlockData(events []*CivilEvent) error
+	// UpdateLastBlockData should update the last block Number from the Event(s)
+	UpdateLastBlockData(events []*Event) error
 }
 
-// EventDataPersister handles storing the received CivilEvent data.
+// EventDataPersister handles storing the received Event data.
 type EventDataPersister interface {
-	// SaveEvents stores a list of CivilEvent(s)
-	SaveEvents(events []*CivilEvent) error
+	// SaveEvents stores a list of Event(s)
+	SaveEvents(events []*Event) error
 
-	// RetrieveEvents retrieves the CivilEvents from the persistence layer based
+	// RetrieveEvents retrieves the Events from the persistence layer based
 	// on date in which it was received
 	// TODO: We will not query the events table for this, still to implement
-	// RetrieveEvents(offset uint, count uint, reverse bool) ([]*CivilEvent, error)
+	// RetrieveEvents(offset uint, count uint, reverse bool) ([]*Event, error)
 }

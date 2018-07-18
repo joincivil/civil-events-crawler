@@ -82,7 +82,7 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 	return persister
 }
 
-func setupKillNotify(eventCol *eventcollector.CivilEventCollector) {
+func setupKillNotify(eventCol *eventcollector.EventCollector) {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -111,7 +111,7 @@ func startUp(config *utils.CrawlerConfig) error {
 	}
 
 	log.Info("Setting up event collector")
-	eventCol := eventcollector.NewCivilEventCollector(
+	eventCol := eventcollector.NewEventCollector(
 		client,
 		contractFilterers(config),
 		contractWatchers(config),

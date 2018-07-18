@@ -12,8 +12,8 @@ type Trigger interface {
 	Description() string
 
 	// ShouldRun returns true or false on whether this trigger should be run
-	ShouldRun(collector *CivilEventCollector, event *model.CivilEvent) bool
+	ShouldRun(collector *EventCollector, event *model.Event) bool
 
 	// Run returns the triggered code
-	Run(collector *CivilEventCollector, event *model.CivilEvent) error
+	Run(collector *EventCollector, event *model.Event) error
 }
