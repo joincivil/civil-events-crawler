@@ -34,21 +34,21 @@ type PostgresPersister struct {
 func (p *PostgresPersister) CreateTables() error {
 	// TODO(IS): per PN's advice have some logic to determine which models need to be part
 	// of this DB to run create for those set of models.
-	schema := postgres.EventsTableSchema()
+	schema := postgres.EventTableSchema()
 	_, err := p.db.Exec(schema)
 	return err
 }
 
 // CreateIndices creates the indices for DB if they don't exist
 func (p *PostgresPersister) CreateIndices() error {
-	indexQuery := postgres.EventsTableIndices()
+	indexQuery := postgres.EventTableIndices()
 	_, err := p.db.Exec(indexQuery)
 	return err
 }
 
 // SaveEvents saves events to events table in DB
 func (p *PostgresPersister) SaveEvents(events []*model.Event) error {
-	return p.saveEventsToTable(events, "events")
+	return p.saveEventsToTable(events, "event")
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {
@@ -74,7 +74,7 @@ func (p *PostgresPersister) saveEvent(dbEvent *postgres.Event, query string) err
 
 func (p *PostgresPersister) getInsertEventQueryString(tableName string) string {
 	return fmt.Sprintf("INSERT INTO %s (event_type, hash, contract_address, contract_name, timestamp, payload, log_payload)"+
-		" VALUES (:event_type, :hash, :contract_address, :contract_name, :timestamp, :payload, :log_payload)",
+		" VALUES (:event_type, :hash, :contract_address, :contract_name, :timestamp, :payload, :log_payload);",
 		tableName)
 }
 
