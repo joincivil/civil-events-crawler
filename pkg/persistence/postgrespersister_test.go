@@ -105,7 +105,7 @@ func setupTestTable() (*PostgresPersister, error) {
 		return persister, fmt.Errorf("Error connecting to DB: %v", err)
 	}
 	createTableQuery := `
-		CREATE TABLE IF NOT EXISTS events_test(
+		CREATE TABLE IF NOT EXISTS event_test(
 			id SERIAL PRIMARY KEY,
 			event_type TEXT,
 			hash TEXT UNIQUE,
@@ -125,7 +125,7 @@ func setupTestTable() (*PostgresPersister, error) {
 }
 
 func deleteTestTable(persister *PostgresPersister) error {
-	_, err := persister.db.Query("DROP TABLE events_test;")
+	_, err := persister.db.Query("DROP TABLE event_test;")
 	if err != nil {
 		return fmt.Errorf("Couldn't delete test table %v", err)
 	}
@@ -162,13 +162,13 @@ func TestTableSetup(t *testing.T) {
 	err = persister.db.QueryRow(`SELECT EXISTS ( SELECT 1
                                         FROM   information_schema.tables 
                                         WHERE  table_schema = 'public'
-                                        AND    table_name = 'events'
+                                        AND    table_name = 'event'
                                         );`).Scan(&exists)
 	if err != nil {
 		t.Errorf("Couldn't get table")
 	}
 	if !exists {
-		t.Errorf("events table does not exist")
+		t.Errorf("event table does not exist")
 	}
 
 }
@@ -196,9 +196,9 @@ func TestIndexCreationTestTable(t *testing.T) {
 	defer deleteTestTable(persister)
 
 	indexCreationQuery := `
-		CREATE INDEX IF NOT EXISTS events_event_type_idx ON events_test (event_type);
-		CREATE INDEX IF NOT EXISTS events_contract_address_idx ON events_test (contract_address);
-		CREATE INDEX IF NOT EXISTS events_timestamp_idx ON events_test (timestamp);
+		CREATE INDEX IF NOT EXISTS event_event_type_idx ON event_test (event_type);
+		CREATE INDEX IF NOT EXISTS event_contract_address_idx ON event_test (contract_address);
+		CREATE INDEX IF NOT EXISTS event_timestamp_idx ON event_test (timestamp);
 	`
 	_, err = persister.db.Query(indexCreationQuery)
 	if err != nil {
@@ -212,7 +212,7 @@ func TestIndexCreationTestTable(t *testing.T) {
 
 }
 
-func TestSaveToEventsTestTable(t *testing.T) {
+func TestSaveToEventTestTable(t *testing.T) {
 	persister, err := setupTestTable()
 	if err != nil {
 		t.Error(err)
@@ -224,12 +224,12 @@ func TestSaveToEventsTestTable(t *testing.T) {
 	}
 
 	civilEventsFromContract := []*model.CivilEvent{event}
-	err = persister.saveEventsToTable(civilEventsFromContract, "events_test")
+	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
 	if err != nil {
 		t.Errorf("Cannot save event to events_test table: %v", err)
 	}
 
-	civilEventDB, err := persister.GetEvents("events_test")
+	civilEventDB, err := persister.GetEvents("event_test")
 	if err != nil {
 		t.Errorf("error querying event from events_test table: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestSaveToEventsTestTable(t *testing.T) {
 
 // TODO (IS): fix this test. this isn't true benchmark of saving events bc of the hashing function on creation
 // of each event
-func BenchmarkSavingManyEventsToEventsTestTable(b *testing.B) {
+func BenchmarkSavingManyEventsToEventTestTable(b *testing.B) {
 	persister, err := setupTestTable()
 	if err != nil {
 		b.Error(err)
@@ -261,15 +261,15 @@ func BenchmarkSavingManyEventsToEventsTestTable(b *testing.B) {
 		civilEventsFromContract = append(civilEventsFromContract, event)
 	}
 
-	err = persister.saveEventsToTable(civilEventsFromContract, "events_test")
+	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
 	if err != nil {
-		b.Errorf("Cannot save event to events_test table: %v", err)
+		b.Errorf("Cannot save event to event_test table: %v", err)
 	}
 	var numRows int
 	err = persister.db.QueryRow(`SELECT COUNT(*) FROM
-                                        events_test`).Scan(&numRows)
+                                        event_test`).Scan(&numRows)
 	if numRows != numEvents {
-		b.Errorf("Number of rows in events_test table should be %v but it is %v", numEvents, numRows)
+		b.Errorf("Number of rows in event_test table should be %v but it is %v", numEvents, numRows)
 	}
 	err = deleteTestTable(persister)
 	if err != nil {
@@ -324,12 +324,12 @@ func TestLatestEventsQuery(t *testing.T) {
 		time.Sleep(1 * time.Second)
 	}
 
-	err = persister.saveEventsToTable(civilEventsFromContract, "events_test")
+	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
 	if err != nil {
-		t.Errorf("Cannot save event to events_test table: %v", err)
+		t.Errorf("Cannot save event to event_test table: %v", err)
 	}
 
-	events, err := persister.getLatestEvents("events_test")
+	events, err := persister.getLatestEvents("event_test")
 	if err != nil {
 		t.Errorf("Error retrieving events: %v", err)
 	}
@@ -364,11 +364,11 @@ func TestPersistenceUpdateFromDB(t *testing.T) {
 		time.Sleep(1 * time.Second)
 	}
 
-	err = persister.saveEventsToTable(civilEventsFromContract, "events_test")
+	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
 	if err != nil {
-		t.Errorf("Cannot save event to events_test table: %v", err)
+		t.Errorf("Cannot save event to event_test table: %v", err)
 	}
-	err = persister.PopulateBlockDataFromDB("events_test")
+	err = persister.PopulateBlockDataFromDB("event_test")
 	if err != nil {
 		t.Errorf("Cannot fill persistence, %v", err)
 	}
@@ -400,12 +400,12 @@ func TestDBToCivilEvent(t *testing.T) {
 	}
 	defer deleteTestTable(persister)
 	civilEventsFromContract := []*model.CivilEvent{civilEvent}
-	err = persister.saveEventsToTable(civilEventsFromContract, "events_test")
+	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
 	if err != nil {
-		t.Errorf("Cannot save event to events_test table: %v", err)
+		t.Errorf("Cannot save event to event_test table: %v", err)
 	}
 
-	civilEventDB, err := persister.GetEvents("events_test")
+	civilEventDB, err := persister.GetEvents("event_test")
 
 	dbEvent := civilEventDB[0]
 

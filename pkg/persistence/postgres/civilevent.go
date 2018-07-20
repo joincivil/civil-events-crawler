@@ -1,11 +1,8 @@
 package postgres // import "github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 
 import (
-	"database/sql/driver"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
@@ -13,16 +10,16 @@ import (
 	"strings"
 )
 
-// EventsTableSchema returns the query to create this table
-func EventsTableSchema() string {
+// EventTableSchema returns the query to create this table
+func EventTableSchema() string {
 	schema := `
-		CREATE TABLE IF NOT EXISTS events(
+		CREATE TABLE IF NOT EXISTS event(
 			id SERIAL PRIMARY KEY,
 			event_type TEXT,
 			hash TEXT UNIQUE,
 			contract_address TEXT,
 			contract_name TEXT,
-			timestamp INT,
+			timestamp BIGINT,
 			payload JSONB,
 			log_payload JSONB
 		);
@@ -30,53 +27,25 @@ func EventsTableSchema() string {
 	return schema
 }
 
-// EventsTableIndices returns the query to create indices for this table
-func EventsTableIndices() string {
+// EventTableIndices returns the query to create indices for this table
+func EventTableIndices() string {
 	indexCreationQuery := `
-		CREATE INDEX IF NOT EXISTS events_event_type_idx ON events (event_type);
-		CREATE INDEX IF NOT EXISTS events_contract_address_idx ON events (contract_address);
-		CREATE INDEX IF NOT EXISTS events_timestamp_idx ON events (timestamp);
+		CREATE INDEX IF NOT EXISTS event_event_type_idx ON event (event_type);
+		CREATE INDEX IF NOT EXISTS event_contract_address_idx ON event (contract_address);
+		CREATE INDEX IF NOT EXISTS event_timestamp_idx ON event (timestamp);
 	`
 	return indexCreationQuery
 }
 
-// EventPayloadMap is the jsonb payload
-type EventPayloadMap map[string]interface{}
-
-// Value is the value interface implemented for the sql driver
-func (ep EventPayloadMap) Value() (driver.Value, error) {
-	return json.Marshal(ep)
-}
-
-// Scan is the scan interface implemented for the sql driver
-func (ep *EventPayloadMap) Scan(src interface{}) error {
-	source, ok := src.([]byte)
-	if !ok {
-		return errors.New("type assertion .([]byte) failed")
-	}
-	var i interface{}
-	err := json.Unmarshal(source, &i)
-	if err != nil {
-		return err
-	}
-
-	*ep, ok = i.(map[string]interface{})
-	if !ok {
-		return errors.New("type assertion .(map[string]interface{}) failed")
-	}
-
-	return nil
-}
-
-// CivilEvent is the model for events table in DB
+// CivilEvent is the model for event table in DB
 type CivilEvent struct {
-	EventType       string          `db:"event_type"`
-	EventHash       string          `db:"hash"`
-	ContractAddress string          `db:"contract_address"`
-	ContractName    string          `db:"contract_name"`
-	Timestamp       int             `db:"timestamp"`
-	EventPayload    EventPayloadMap `db:"payload"`
-	LogPayload      EventPayloadMap `db:"log_payload"`
+	EventType       string       `db:"event_type"`
+	EventHash       string       `db:"hash"`
+	ContractAddress string       `db:"contract_address"`
+	ContractName    string       `db:"contract_name"`
+	Timestamp       int          `db:"timestamp"`
+	EventPayload    JsonbPayload `db:"payload"`
+	LogPayload      JsonbPayload `db:"log_payload"`
 }
 
 // NewCivilEvent constructs a civil event for DB from a model.civilevent
@@ -88,8 +57,8 @@ func NewCivilEvent(civilEvent *model.CivilEvent) (*CivilEvent, error) {
 	dbCivilEvent.ContractName = civilEvent.ContractName()
 	dbCivilEvent.ContractAddress = civilEvent.ContractAddress().Hex()
 	dbCivilEvent.Timestamp = civilEvent.Timestamp()
-	dbCivilEvent.EventPayload = make(EventPayloadMap)
-	dbCivilEvent.LogPayload = make(EventPayloadMap)
+	dbCivilEvent.EventPayload = make(JsonbPayload)
+	dbCivilEvent.LogPayload = make(JsonbPayload)
 	err := dbCivilEvent.parseEventPayload(civilEvent)
 	if err != nil {
 		return nil, err
@@ -99,11 +68,7 @@ func NewCivilEvent(civilEvent *model.CivilEvent) (*CivilEvent, error) {
 
 // parseEventPayload() parses and converts payloads from civilevent to store in DB:
 func (c *CivilEvent) parseEventPayload(civilEvent *model.CivilEvent) error {
-	_abi, err := model.AbiJSON(c.ContractName)
-	if err != nil {
-		return err
-	}
-	err = c.EventDataToDB(civilEvent.EventPayload(), _abi)
+	err := c.EventDataToDB(civilEvent.EventPayload())
 	if err != nil {
 		return err
 	}
@@ -112,24 +77,34 @@ func (c *CivilEvent) parseEventPayload(civilEvent *model.CivilEvent) error {
 }
 
 // EventDataToDB converts event types so they can be stored in the DB
-func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}, _abi abi.ABI) error {
-	// loop through abi, and for each val in map, have a way to convert it
-	for _, input := range _abi.Events["_"+c.EventType].Inputs {
+func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}) error {
+	abi, err := model.AbiJSON(c.ContractName)
+	if err != nil {
+		return fmt.Errorf("Error getting abi from contract name: %v", err)
+	}
+	events, err := ReturnEventsFromABI(abi, c.EventType)
+	if err != nil {
+		return err
+	}
+	eventPayload := make(JsonbPayload)
+
+	for _, input := range events.Inputs {
 		eventFieldName := strings.Title(input.Name)
 		eventField := civilEvent[eventFieldName]
 		switch input.Type.String() {
 		case "address":
-			c.EventPayload[eventFieldName] = eventField.(common.Address).Hex()
+			eventPayload[eventFieldName] = eventField.(common.Address).Hex()
 		case "uint256":
 			// NOTE: converting all *big.Int to int64. assuming for now that numbers will fall into int64 range.
-			c.EventPayload[eventFieldName] = eventField.(*big.Int).Int64()
+			eventPayload[eventFieldName] = eventField.(*big.Int).Int64()
 		case "string":
-			c.EventPayload[eventFieldName] = eventField.(string)
+			eventPayload[eventFieldName] = eventField.(string)
 		case "default":
 			return fmt.Errorf("unsupported type")
 
 		}
 	}
+	c.EventPayload = eventPayload
 	return nil
 }
 
@@ -137,13 +112,17 @@ func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}, _abi abi.A
 // NOTE: because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
 func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 	civilEvent := &model.CivilEvent{}
-	_abi, err := model.AbiJSON(c.ContractName)
+	abi, err := model.AbiJSON(c.ContractName)
+	if err != nil {
+		return civilEvent, fmt.Errorf("Error getting abi from contract name: %v", err)
+	}
+	eventPayload := make(map[string]interface{})
+	events, err := ReturnEventsFromABI(abi, c.EventType)
 	if err != nil {
 		return civilEvent, err
 	}
-	eventPayload := make(map[string]interface{})
 
-	for _, input := range _abi.Events["_"+c.EventType].Inputs {
+	for _, input := range events.Inputs {
 		eventFieldName := strings.Title(input.Name)
 		eventField, ok := c.EventPayload[eventFieldName]
 		if !ok {
@@ -173,7 +152,6 @@ func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
 			return civilEvent, fmt.Errorf("unsupported type in %v field encountered in %v event", eventFieldName, c.EventHash)
 		}
 	}
-
 	logPayload := c.DBToEventLogData()
 	contractAddress := common.HexToAddress(c.ContractAddress)
 	civilEvent, err = model.NewCivilEvent(c.EventType, c.ContractName, contractAddress, c.Timestamp, eventPayload,

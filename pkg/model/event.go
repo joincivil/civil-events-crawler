@@ -134,7 +134,7 @@ func extractFieldsFromEvent(payload *CivilEventPayload, eventData interface{}, e
 	return eventPayload, nil
 }
 
-// AbiJSON returns parsed abi of this particular contract, maybe this can go in contracttypes.go
+// AbiJSON returns parsed abi of this particular contract.
 func AbiJSON(contractName string) (abi.ABI, error) {
 	contractType, ok := NameToContractTypes.GetFromContractName(contractName)
 	if !ok {
