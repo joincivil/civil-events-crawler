@@ -73,8 +73,8 @@ type CrawlerConfig struct {
 // OutputUsage prints the usage string to os.Stdout
 func (c *CrawlerConfig) OutputUsage() {
 	tabs := tabwriter.NewWriter(os.Stdout, 1, 0, 4, ' ', 0)
-	_ = envconfig.Usagef(envVarPrefix, c, tabs, usageListFormat)
-	_ = tabs.Flush()
+	_ = envconfig.Usagef(envVarPrefix, c, tabs, usageListFormat) // nolint: gosec
+	_ = tabs.Flush()                                             // nolint: gosec
 }
 
 // PopulateFromEnv processes the environment vars, populates CrawlerConfig
