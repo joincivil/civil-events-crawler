@@ -10,7 +10,7 @@
         "varcheck",
         "structcheck",
         "unconvert",
-        "gas",
+        "gosec",
         "errcheck",
         "staticcheck"
     ],

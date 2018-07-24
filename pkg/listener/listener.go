@@ -104,7 +104,7 @@ func (l *EventListener) RemoveWatchers(w model.ContractWatchers) error {
 			if w.ContractAddress() == ew.ContractAddress() &&
 				w.ContractName() == ew.ContractName() {
 				if l.active {
-					_ = ew.StopWatchers()
+					_ = ew.StopWatchers() // nolint: gosec
 				}
 				// Delete the item in the watchers list.
 				copy(l.watchers[index:], l.watchers[index+1:])
@@ -123,7 +123,7 @@ func (l *EventListener) Stop() error {
 	l.mutex.Lock()
 	if l.watchers != nil && len(l.watchers) > 0 {
 		for _, w := range l.watchers {
-			_ = w.StopWatchers()
+			_ = w.StopWatchers() // nolint: gosec
 		}
 	}
 	l.active = false

@@ -34,24 +34,24 @@ func newSimulatedBackendWithGasLimit(alloc core.GenesisAlloc, gasLimit uint64) *
 	genesis := core.Genesis{Config: params.AllEthashProtocolChanges, Alloc: alloc, GasLimit: gasLimit}
 	genesis.MustCommit(database)
 
-	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vm.Config{}) // nolint: gas
+	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, ethash.NewFaker(), vm.Config{}) // nolint: gosec
 	events := filters.NewEventSystem(new(event.TypeMux), &filterBackend{database, blockchain}, false)  //nolint: megacheck, staticcheck
 
 	be := reflect.ValueOf(backend)
 	field := be.Elem().FieldByName("database")
-	newVal := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gas
+	newVal := reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gosec
 	newVal.Set(reflect.ValueOf(database))
 
 	field = be.Elem().FieldByName("blockchain")
-	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gas
+	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gosec
 	newVal.Set(reflect.ValueOf(blockchain))
 
 	field = be.Elem().FieldByName("config")
-	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gas
+	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gosec
 	newVal.Set(reflect.ValueOf(genesis.Config))
 
 	field = be.Elem().FieldByName("events")
-	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gas
+	newVal = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem() //nolint: gosec
 	newVal.Set(reflect.ValueOf(events))
 
 	return backend
