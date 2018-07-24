@@ -40,7 +40,7 @@ func TestEventCollection(t *testing.T) {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, filterers)
+	retrieve := retriever.NewEventRetriever(client, filterers)
 	err = retrieve.Retrieve()
 	if err != nil {
 		t.Errorf("Error retrieving events: %v", err)
@@ -82,10 +82,10 @@ func TestSorting(t *testing.T) {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, filterers)
-	model1, _ := model.NewCivilEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(testTCRAddress),
+	retrieve := retriever.NewEventRetriever(client, filterers)
+	model1, _ := model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(testTCRAddress),
 		testEvent1, utils.CurrentEpochSecsInInt())
-	model2, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(testTCRAddress), testEvent2,
+	model2, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(testTCRAddress), testEvent2,
 		utils.CurrentEpochSecsInInt())
 	if err != nil {
 		t.Errorf("Error connecting to rinkeby: %v", err)
@@ -106,7 +106,7 @@ func TestLastEvents(t *testing.T) {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress)),
 	}
-	retrieve := retriever.NewCivilEventRetriever(client, filterers)
+	retrieve := retriever.NewEventRetriever(client, filterers)
 	if len(filterers[0].LastEvents()) != 0 {
 		t.Error("LastEvents should be empty")
 	}

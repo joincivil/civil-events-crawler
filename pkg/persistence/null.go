@@ -26,8 +26,8 @@ func (n *NullPersister) LastBlockHash(eventType string, contractAddress common.A
 	return common.Hash{}
 }
 
-// UpdateLastBlockData should update the last block data from the CivilEvent(s)
-func (n *NullPersister) UpdateLastBlockData(events []*model.CivilEvent) error {
+// UpdateLastBlockData should update the last block data from the Event(s)
+func (n *NullPersister) UpdateLastBlockData(events []*model.Event) error {
 	// Only log this if INFO log level -v=2
 	if log.V(2) {
 		for _, event := range events {
@@ -44,8 +44,8 @@ func (n *NullPersister) UpdateLastBlockData(events []*model.CivilEvent) error {
 	return nil
 }
 
-// SaveEvents stores a list of CivilEvent(s)
-func (n *NullPersister) SaveEvents(events []*model.CivilEvent) error {
+// SaveEvents stores a list of Event(s)
+func (n *NullPersister) SaveEvents(events []*model.Event) error {
 	// Only log this if INFO log level -v=2
 	if log.V(2) {
 		for _, event := range events {
@@ -62,8 +62,8 @@ func (n *NullPersister) SaveEvents(events []*model.CivilEvent) error {
 	return nil
 }
 
-// RetrieveEvents retrieves the CivilEvents from the persistence layer based
+// RetrieveEvents retrieves the Events from the persistence layer based
 // on date in which it was received
-func (n *NullPersister) RetrieveEvents(offset uint, count uint, reverse bool) ([]*model.CivilEvent, error) {
-	return []*model.CivilEvent{}, nil
+func (n *NullPersister) RetrieveEvents(offset uint, count uint, reverse bool) ([]*model.Event, error) {
+	return []*model.Event{}, nil
 }

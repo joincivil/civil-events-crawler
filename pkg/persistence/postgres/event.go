@@ -37,8 +37,8 @@ func EventTableIndices() string {
 	return indexCreationQuery
 }
 
-// CivilEvent is the model for event table in DB
-type CivilEvent struct {
+// Event is the model for events table in DB
+type Event struct {
 	EventType       string       `db:"event_type"`
 	EventHash       string       `db:"hash"`
 	ContractAddress string       `db:"contract_address"`
@@ -48,36 +48,35 @@ type CivilEvent struct {
 	LogPayload      JsonbPayload `db:"log_payload"`
 }
 
-// NewCivilEvent constructs a civil event for DB from a model.civilevent
-// Rename this to NewDBEventFromCivilEvent
-func NewCivilEvent(civilEvent *model.CivilEvent) (*CivilEvent, error) {
-	dbCivilEvent := &CivilEvent{}
-	dbCivilEvent.EventType = civilEvent.EventType()
-	dbCivilEvent.EventHash = civilEvent.Hash()
-	dbCivilEvent.ContractName = civilEvent.ContractName()
-	dbCivilEvent.ContractAddress = civilEvent.ContractAddress().Hex()
-	dbCivilEvent.Timestamp = civilEvent.Timestamp()
-	dbCivilEvent.EventPayload = make(JsonbPayload)
-	dbCivilEvent.LogPayload = make(JsonbPayload)
-	err := dbCivilEvent.parseEventPayload(civilEvent)
+// NewDbEventFromEvent constructs an event for DB from a model.event
+func NewDbEventFromEvent(event *model.Event) (*Event, error) {
+	dbEvent := &Event{}
+	dbEvent.EventType = event.EventType()
+	dbEvent.EventHash = event.Hash()
+	dbEvent.ContractName = event.ContractName()
+	dbEvent.ContractAddress = event.ContractAddress().Hex()
+	dbEvent.Timestamp = event.Timestamp()
+	dbEvent.EventPayload = make(JsonbPayload)
+	dbEvent.LogPayload = make(JsonbPayload)
+	err := dbEvent.parseEventPayload(event)
 	if err != nil {
 		return nil, err
 	}
-	return dbCivilEvent, nil
+	return dbEvent, nil
 }
 
-// parseEventPayload() parses and converts payloads from civilevent to store in DB:
-func (c *CivilEvent) parseEventPayload(civilEvent *model.CivilEvent) error {
-	err := c.EventDataToDB(civilEvent.EventPayload())
+// parseEventPayload() parses and converts payloads from event to store in DB
+func (c *Event) parseEventPayload(event *model.Event) error {
+	err := c.EventDataToDB(event.EventPayload())
 	if err != nil {
 		return err
 	}
-	c.EventLogDataToDB(civilEvent.LogPayload())
+	c.EventLogDataToDB(event.LogPayload())
 	return nil
 }
 
 // EventDataToDB converts event types so they can be stored in the DB
-func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}) error {
+func (c *Event) EventDataToDB(event map[string]interface{}) error {
 	abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
 		return fmt.Errorf("Error getting abi from contract name: %v", err)
@@ -90,7 +89,7 @@ func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}) error {
 
 	for _, input := range events.Inputs {
 		eventFieldName := strings.Title(input.Name)
-		eventField := civilEvent[eventFieldName]
+		eventField := event[eventFieldName]
 		switch input.Type.String() {
 		case "address":
 			eventPayload[eventFieldName] = eventField.(common.Address).Hex()
@@ -108,61 +107,61 @@ func (c *CivilEvent) EventDataToDB(civilEvent map[string]interface{}) error {
 	return nil
 }
 
-// DBToEventData converts the db event model to a model.CivilEvent
+// DBToEventData converts the db event model to a model.
 // NOTE: because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
-func (c *CivilEvent) DBToEventData() (*model.CivilEvent, error) {
-	civilEvent := &model.CivilEvent{}
+func (c *Event) DBToEventData() (*model.Event, error) {
+	event := &model.Event{}
 	abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
-		return civilEvent, fmt.Errorf("Error getting abi from contract name: %v", err)
+		return event, fmt.Errorf("Error getting abi from contract name: %v", err)
 	}
 	eventPayload := make(map[string]interface{})
 	events, err := ReturnEventsFromABI(abi, c.EventType)
 	if err != nil {
-		return civilEvent, err
+		return event, err
 	}
 
 	for _, input := range events.Inputs {
 		eventFieldName := strings.Title(input.Name)
 		eventField, ok := c.EventPayload[eventFieldName]
 		if !ok {
-			return civilEvent, fmt.Errorf("Cannot get %v field of DB CivilEvent", eventFieldName)
+			return event, fmt.Errorf("Cannot get %v field of DB Event", eventFieldName)
 		}
 		switch input.Type.String() {
 		case "address":
 			address, addressOk := eventField.(string)
 			if !addressOk {
-				return civilEvent, errors.New("Cannot cast DB contract address to string")
+				return event, errors.New("Cannot cast DB contract address to string")
 			}
 			eventPayload[eventFieldName] = common.HexToAddress(address)
 		case "uint256":
 			// NOTE: Ints are stored in DB as float64
 			num, numOk := eventField.(float64)
 			if !numOk {
-				return civilEvent, errors.New("Cannot cast DB int to float64")
+				return event, errors.New("Cannot cast DB int to float64")
 			}
 			eventPayload[eventFieldName] = big.NewInt(int64(num))
 		case "string":
 			str, stringOk := eventField.(string)
 			if !stringOk {
-				return civilEvent, errors.New("Cannot cast DB string val to string")
+				return event, errors.New("Cannot cast DB string val to string")
 			}
 			eventPayload[eventFieldName] = str
 		default:
-			return civilEvent, fmt.Errorf("unsupported type in %v field encountered in %v event", eventFieldName, c.EventHash)
+			return event, fmt.Errorf("unsupported type in %v field encountered in %v event", eventFieldName, c.EventHash)
 		}
 	}
 	logPayload := c.DBToEventLogData()
 	contractAddress := common.HexToAddress(c.ContractAddress)
-	civilEvent, err = model.NewCivilEvent(c.EventType, c.ContractName, contractAddress, c.Timestamp, eventPayload,
+	event, err = model.NewEvent(c.EventType, c.ContractName, contractAddress, c.Timestamp, eventPayload,
 		logPayload)
 
-	return civilEvent, err
+	return event, err
 
 }
 
 // EventLogDataToDB converts the raw log data to Postgresql types
-func (c *CivilEvent) EventLogDataToDB(payload *types.Log) {
+func (c *Event) EventLogDataToDB(payload *types.Log) {
 	c.LogPayload["Address"] = payload.Address.Hex()
 
 	topics := make([]string, len(payload.Topics))
@@ -184,7 +183,7 @@ func (c *CivilEvent) EventLogDataToDB(payload *types.Log) {
 
 // DBToEventLogData converts the DB raw log payload back to types.Log
 // NOTE: because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
-func (c *CivilEvent) DBToEventLogData() *types.Log {
+func (c *Event) DBToEventLogData() *types.Log {
 	log := &types.Log{}
 	log.Address = common.HexToAddress(c.LogPayload["Address"].(string))
 

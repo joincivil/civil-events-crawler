@@ -29,11 +29,11 @@ func (t *testTrigger) Description() string {
 	return "testtrigger"
 }
 
-func (t *testTrigger) ShouldRun(collector *eventcollector.CivilEventCollector, event *model.CivilEvent) bool {
+func (t *testTrigger) ShouldRun(collector *eventcollector.EventCollector, event *model.Event) bool {
 	return t.shouldRun
 }
 
-func (t *testTrigger) Run(collector *eventcollector.CivilEventCollector, event *model.CivilEvent) error {
+func (t *testTrigger) Run(collector *eventcollector.EventCollector, event *model.Event) error {
 	return t.runErr
 }
 
@@ -45,7 +45,7 @@ type lastBlockData struct {
 
 type testPersister struct {
 	lastBlock            lastBlockData
-	events               []*model.CivilEvent
+	events               []*model.Event
 	m                    sync.Mutex
 	updateLastBlockError error
 	saveEventsError      error
@@ -59,7 +59,7 @@ func (n *testPersister) LastBlockHash(eventType string, contractAddress common.A
 	return common.Hash{}
 }
 
-func (n *testPersister) UpdateLastBlockData(events []*model.CivilEvent) error {
+func (n *testPersister) UpdateLastBlockData(events []*model.Event) error {
 	if len(events) == 0 {
 		return n.updateLastBlockError
 	}
@@ -71,21 +71,21 @@ func (n *testPersister) UpdateLastBlockData(events []*model.CivilEvent) error {
 	return n.updateLastBlockError
 }
 
-func (n *testPersister) SaveEvents(events []*model.CivilEvent) error {
+func (n *testPersister) SaveEvents(events []*model.Event) error {
 	n.m.Lock()
 	defer n.m.Unlock()
 	if n.events == nil {
-		n.events = []*model.CivilEvent{}
+		n.events = []*model.Event{}
 	}
 	n.events = append(n.events, events...)
 	return n.saveEventsError
 }
 
-func (n *testPersister) RetrieveEvents(offset uint, count uint, reverse bool) ([]*model.CivilEvent, error) {
+func (n *testPersister) RetrieveEvents(offset uint, count uint, reverse bool) ([]*model.Event, error) {
 	n.m.Lock()
 	defer n.m.Unlock()
 
-	events := []*model.CivilEvent{}
+	events := []*model.Event{}
 	for index := range n.events {
 		events = append(events, n.events[index])
 	}
@@ -107,11 +107,11 @@ func (t *testErrorWatcher) StopWatchers() error {
 }
 
 func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.CivilEvent) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
 	return nil, errors.New("This is an error starting watchers")
 }
 
-func collectionStart(collector *eventcollector.CivilEventCollector, t *testing.T,
+func collectionStart(collector *eventcollector.EventCollector, t *testing.T,
 	errChan chan error) {
 	err := collector.StartCollection()
 	if err != nil {
@@ -120,7 +120,7 @@ func collectionStart(collector *eventcollector.CivilEventCollector, t *testing.T
 	}
 }
 
-func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.CivilEventCollector {
+func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.EventCollector {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(contracts.CivilTcrAddr),
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
@@ -136,7 +136,7 @@ func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.Civi
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
 
-	collector := eventcollector.NewCivilEventCollector(
+	collector := eventcollector.NewEventCollector(
 		contracts.Client,
 		filterers,
 		watchers,
@@ -148,7 +148,7 @@ func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.Civi
 	return collector
 }
 
-func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*eventcollector.CivilEventCollector, *testPersister) {
+func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*eventcollector.EventCollector, *testPersister) {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(contracts.CivilTcrAddr),
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
@@ -163,7 +163,7 @@ func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*event
 		&eventcollector.RemoveNewsroomWatchersTrigger{},
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
-	collector := eventcollector.NewCivilEventCollector(
+	collector := eventcollector.NewEventCollector(
 		contracts.Client,
 		filterers,
 		watchers,
@@ -175,7 +175,7 @@ func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*event
 	return collector, persister
 }
 
-func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContracts) (*eventcollector.CivilEventCollector, *testPersister) {
+func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContracts) (*eventcollector.EventCollector, *testPersister) {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(contracts.CivilTcrAddr),
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
@@ -191,7 +191,7 @@ func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContr
 		&eventcollector.RemoveNewsroomWatchersTrigger{},
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
-	collector := eventcollector.NewCivilEventCollector(
+	collector := eventcollector.NewEventCollector(
 		contracts.Client,
 		filterers,
 		watchers,
@@ -203,7 +203,7 @@ func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContr
 	return collector, badPersister
 }
 
-func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTestContracts) (*eventcollector.CivilEventCollector, *testPersister) {
+func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTestContracts) (*eventcollector.EventCollector, *testPersister) {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(contracts.CivilTcrAddr),
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
@@ -219,7 +219,7 @@ func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTest
 		&eventcollector.RemoveNewsroomWatchersTrigger{},
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
-	collector := eventcollector.NewCivilEventCollector(
+	collector := eventcollector.NewEventCollector(
 		contracts.Client,
 		filterers,
 		watchers,
@@ -231,7 +231,7 @@ func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTest
 	return collector, badPersister
 }
 
-func setupTestCollectorBadWatcher(contracts *cutils.AllTestContracts) *eventcollector.CivilEventCollector {
+func setupTestCollectorBadWatcher(contracts *cutils.AllTestContracts) *eventcollector.EventCollector {
 	filterers := []model.ContractFilterers{
 		filterer.NewCivilTCRContractFilterers(contracts.CivilTcrAddr),
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
@@ -245,7 +245,7 @@ func setupTestCollectorBadWatcher(contracts *cutils.AllTestContracts) *eventcoll
 		&eventcollector.RemoveNewsroomWatchersTrigger{},
 	}
 
-	collector := eventcollector.NewCivilEventCollector(
+	collector := eventcollector.NewEventCollector(
 		contracts.Client,
 		filterers,
 		watchers,
@@ -257,7 +257,7 @@ func setupTestCollectorBadWatcher(contracts *cutils.AllTestContracts) *eventcoll
 	return collector
 }
 
-func TestNewCivilEventCollector(t *testing.T) {
+func TestNewEventCollector(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
@@ -274,7 +274,7 @@ func TestNewCivilEventCollector(t *testing.T) {
 	}
 }
 
-func TestNewCivilEventCollectorBadWatcher(t *testing.T) {
+func TestNewEventCollectorBadWatcher(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
@@ -286,7 +286,7 @@ func TestNewCivilEventCollectorBadWatcher(t *testing.T) {
 	}
 }
 
-func TestCivilEventCollectorStopCollection(t *testing.T) {
+func TestEventCollectorStopCollection(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
@@ -302,7 +302,7 @@ func TestCivilEventCollectorStopCollection(t *testing.T) {
 	}
 }
 
-func TestCivilEventCollectorAddRemoveWatchers(t *testing.T) {
+func TestEventCollectorAddRemoveWatchers(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
@@ -329,7 +329,7 @@ func TestCivilEventCollectorAddRemoveWatchers(t *testing.T) {
 	}
 }
 
-func TestCivilEventCollectorCollection(t *testing.T) {
+func TestEventCollectorCollection(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
@@ -372,7 +372,7 @@ func TestCivilEventCollectorCollection(t *testing.T) {
 	}
 }
 
-func TestNewCivilEventCollectorBadEventSave(t *testing.T) {
+func TestNewEventCollectorBadEventSave(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
@@ -397,7 +397,7 @@ func TestNewCivilEventCollectorBadEventSave(t *testing.T) {
 	wg.Wait()
 }
 
-func TestNewCivilEventCollectorBadUpdateBlockData(t *testing.T) {
+func TestNewEventCollectorBadUpdateBlockData(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)

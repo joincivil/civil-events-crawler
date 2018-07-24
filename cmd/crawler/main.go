@@ -75,14 +75,14 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 		os.Exit(1)
 	}
 	// Populate persistence with latest block data from events table
-	err = persister.PopulateBlockDataFromDB("events")
+	err = persister.PopulateBlockDataFromDB("event")
 	if err != nil {
 		log.Errorf("Error populating persistence from Postgresql, stopping...; err: %v", err)
 	}
 	return persister
 }
 
-func setupKillNotify(eventCol *eventcollector.CivilEventCollector) {
+func setupKillNotify(eventCol *eventcollector.EventCollector) {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -111,7 +111,7 @@ func startUp(config *utils.CrawlerConfig) error {
 	}
 
 	log.Info("Setting up event collector")
-	eventCol := eventcollector.NewCivilEventCollector(
+	eventCol := eventcollector.NewEventCollector(
 		client,
 		contractFilterers(config),
 		contractWatchers(config),

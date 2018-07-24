@@ -1,4 +1,4 @@
-// Package model contains the general data models and interfaces for the Civil crawler.
+// Package model contains the general data models and interfaces.
 package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
@@ -11,7 +11,7 @@ import (
 type ContractWatchers interface {
 	ContractName() string
 	ContractAddress() common.Address
-	StartWatchers(client bind.ContractBackend, eventRecvChan chan *CivilEvent) ([]event.Subscription, error)
+	StartWatchers(client bind.ContractBackend, eventRecvChan chan *Event) ([]event.Subscription, error)
 	StopWatchers() error
 }
 
@@ -21,6 +21,6 @@ type ContractFilterers interface {
 	ContractAddress() common.Address
 	EventTypes() []string
 	UpdateStartBlock(eventType string, startBlock uint64)
-	LastEvents() []*CivilEvent
-	StartFilterers(client bind.ContractBackend, pastEvents []*CivilEvent) (error, []*CivilEvent)
+	LastEvents() []*Event
+	StartFilterers(client bind.ContractBackend, pastEvents []*Event) (error, []*Event)
 }

@@ -66,22 +66,22 @@ var (
 )
 
 // Sets up an Application event and generates a random hash for address so that the hash in DB is unique.
-func setupCivilEvent(rand bool) (*model.CivilEvent, error) {
+func setupEvent(rand bool) (*model.Event, error) {
 	if rand {
 		randString, _ := randomHex(32)
 		testEvent.Raw.TxHash = common.HexToHash(randString)
 	}
-	return model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent, utils.CurrentEpochSecsInInt())
 }
 
 // Sets up an ApplicationWhitelisted event and generates a random hash for address so that the hash in DB is unique.
-func setupCivilEvent2(rand bool) (*model.CivilEvent, error) {
+func setupEvent2(rand bool) (*model.Event, error) {
 	if rand {
 		randString, _ := randomHex(32)
 		testEvent2.Raw.TxHash = common.HexToHash(randString)
 	}
-	return model.NewCivilEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
+	return model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent2, utils.CurrentEpochSecsInInt())
 }
 
@@ -218,12 +218,12 @@ func TestSaveToEventTestTable(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
-	event, err := setupCivilEvent(true)
+	event, err := setupEvent(true)
 	if err != nil {
 		t.Errorf("Couldn't setup civilEvent from contract %v", err)
 	}
 
-	civilEventsFromContract := []*model.CivilEvent{event}
+	civilEventsFromContract := []*model.Event{event}
 	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
 	if err != nil {
 		t.Errorf("Cannot save event to events_test table: %v", err)
@@ -252,9 +252,9 @@ func BenchmarkSavingManyEventsToEventTestTable(b *testing.B) {
 	defer deleteTestTable(persister)
 
 	numEvents := 100
-	civilEventsFromContract := make([]*model.CivilEvent, 0)
+	civilEventsFromContract := make([]*model.Event, 0)
 	for i := 1; i <= numEvents; i++ {
-		event, err := setupCivilEvent(true)
+		event, err := setupEvent(true)
 		if err != nil {
 			b.Errorf("Couldn't setup civilEvent from contract %v", err)
 		}
@@ -283,11 +283,11 @@ func TestPersistenceUpdate(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error connecting to DB: %v", err)
 	}
-	event, err := setupCivilEvent(true)
+	event, err := setupEvent(true)
 	if err != nil {
 		t.Errorf("Couldn't setup civilEvent from contract %v", err)
 	}
-	civilEventsFromContract := []*model.CivilEvent{event}
+	civilEventsFromContract := []*model.Event{event}
 	err = persister.UpdateLastBlockData(civilEventsFromContract)
 	if err != nil {
 		t.Errorf("Couldn't update last block data: %v", err)
@@ -309,13 +309,13 @@ func TestLatestEventsQuery(t *testing.T) {
 	defer deleteTestTable(persister)
 	var latestTimestamp int
 	numEvents := 3
-	civilEventsFromContract := make([]*model.CivilEvent, 0)
+	civilEventsFromContract := make([]*model.Event, 0)
 	for i := 1; i <= numEvents; i++ {
-		event, err := setupCivilEvent(true)
+		event, err := setupEvent(true)
 		if err != nil {
 			t.Errorf("Couldn't setup Application civilEvent from contract %v", err)
 		}
-		event2, err := setupCivilEvent2(true)
+		event2, err := setupEvent2(true)
 		if err != nil {
 			t.Errorf("Couldn't setup ApplicationWhitelisted civilEvent from contract %v", err)
 		}
@@ -354,9 +354,9 @@ func TestPersistenceUpdateFromDB(t *testing.T) {
 	}
 	defer deleteTestTable(persister)
 	numEvents := 3
-	civilEventsFromContract := make([]*model.CivilEvent, 0)
+	civilEventsFromContract := make([]*model.Event, 0)
 	for i := 1; i <= numEvents; i++ {
-		event, err := setupCivilEvent(true)
+		event, err := setupEvent(true)
 		if err != nil {
 			t.Errorf("Couldn't setup civilEvent from contract %v", err)
 		}
@@ -388,10 +388,10 @@ func TestPersistenceUpdateFromDB(t *testing.T) {
 }
 
 // This conversion needs to be here, bc we need the actual event after being saved in DB.
-func TestDBToCivilEvent(t *testing.T) {
-	civilEvent, err := setupCivilEvent(true)
+func TestDBToEvent(t *testing.T) {
+	civilEvent, err := setupEvent(true)
 	if err != nil {
-		t.Errorf("setupCivilEvent should have succeeded: err: %v", err)
+		t.Errorf("setupEvent should have succeeded: err: %v", err)
 	}
 	// Get this event from DB
 	persister, err := setupTestTable()
@@ -399,7 +399,7 @@ func TestDBToCivilEvent(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
-	civilEventsFromContract := []*model.CivilEvent{civilEvent}
+	civilEventsFromContract := []*model.Event{civilEvent}
 	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
 	if err != nil {
 		t.Errorf("Cannot save event to event_test table: %v", err)

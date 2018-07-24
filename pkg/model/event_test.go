@@ -61,18 +61,18 @@ var (
 	}
 )
 
-func setupCivilEvent() (*model.CivilEvent, error) {
-	return model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+func setupEvent() (*model.Event, error) {
+	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent, utils.CurrentEpochSecsInInt())
 }
 
-func TestCivilEventSetup(t *testing.T) {
-	event, err := setupCivilEvent()
+func TestEventSetup(t *testing.T) {
+	event, err := setupEvent()
 	if err != nil {
-		t.Errorf("setupCivilEvent should have succeeded: err: %v", err)
+		t.Errorf("setupEvent should have succeeded: err: %v", err)
 	}
 	if event == nil {
-		t.Errorf("Civil event was not initialized correctly")
+		t.Errorf("Event was not initialized correctly")
 	}
 	if event.EventType() != "Application" {
 		t.Errorf("EventType was not init correctly: %v", event.EventType())
@@ -88,8 +88,8 @@ func TestCivilEventSetup(t *testing.T) {
 	}
 }
 
-func TestCivilEventPayload(t *testing.T) {
-	event, _ := setupCivilEvent()
+func TestEventPayload(t *testing.T) {
+	event, _ := setupEvent()
 	payload := event.EventPayload()
 	if len(payload) != 5 {
 		t.Errorf("Payload does not have all the fields: %v", payload)
@@ -100,11 +100,11 @@ type testStructNoRaw struct {
 	name string
 }
 
-func TestCivilEventPayloadNoRaw(t *testing.T) {
+func TestEventPayloadNoRaw(t *testing.T) {
 	noRawTestEvent := &testStructNoRaw{
 		name: "name",
 	}
-	_, err := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+	_, err := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		noRawTestEvent, utils.CurrentEpochSecsInInt())
 	if err == nil {
 		t.Errorf("Event creation should have failed with no raw event to create hash: err: %v", err)
@@ -116,20 +116,20 @@ type testStructNotLog struct {
 	Raw  string
 }
 
-func TestCivilEventPayloadNotLog(t *testing.T) {
+func TestEventPayloadNotLog(t *testing.T) {
 	notLogTestEvent := &testStructNotLog{
 		name: "name",
 		Raw:  "name",
 	}
-	_, err := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+	_, err := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		notLogTestEvent, utils.CurrentEpochSecsInInt())
 	if err == nil {
 		t.Errorf("Event creation should have failed with no Log found: err: %v", err)
 	}
 }
 
-func TestCivilEventPayloadValues(t *testing.T) {
-	event, _ := setupCivilEvent()
+func TestEventPayloadValues(t *testing.T) {
+	event, _ := setupEvent()
 	payload := event.EventPayload()
 	if len(payload) != 5 {
 		t.Errorf("Wrong number of fields in eventPayload field %v", payload)
@@ -161,8 +161,8 @@ func TestCivilEventPayloadValues(t *testing.T) {
 	}
 }
 
-func TestCivilEventLogPayloadValues(t *testing.T) {
-	event, _ := setupCivilEvent()
+func TestEventLogPayloadValues(t *testing.T) {
+	event, _ := setupEvent()
 	payload := *event.LogPayload()
 
 	if !reflect.DeepEqual(payload, testEvent.Raw) {
@@ -195,26 +195,26 @@ func TestCivilEventLogPayloadValues(t *testing.T) {
 	}
 }
 
-func TestCivilEventExtractFieldUnderscore(t *testing.T) {
-	event, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+func TestEventExtractFieldUnderscore(t *testing.T) {
+	event, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent, utils.CurrentEpochSecsInInt())
 	payload := event.EventPayload()
 	if len(payload) == 0 {
 		t.Error("Should have properly parsed the payload into the EventPayload mapping")
 	}
-	event, _ = model.NewCivilEventFromContractEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+	event, _ = model.NewEventFromContractEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent, utils.CurrentEpochSecsInInt())
 	payload = event.EventPayload()
 	if len(payload) == 0 {
 		t.Error("Should have properly parsed the payload into the EventPayload mapping")
 	}
-	event, _ = model.NewCivilEventFromContractEvent("RevisionUpdated", "NewsroomContract", common.HexToAddress(contractAddress),
+	event, _ = model.NewEventFromContractEvent("RevisionUpdated", "NewsroomContract", common.HexToAddress(contractAddress),
 		testEvent3, utils.CurrentEpochSecsInInt())
 	payload = event.EventPayload()
 	if len(payload) == 0 {
 		t.Error("Should have properly parsed the payload into the EventPayload mapping")
 	}
-	event, _ = model.NewCivilEventFromContractEvent("_RevisionUpdated", "NewsroomContract", common.HexToAddress(contractAddress),
+	event, _ = model.NewEventFromContractEvent("_RevisionUpdated", "NewsroomContract", common.HexToAddress(contractAddress),
 		testEvent3, utils.CurrentEpochSecsInInt())
 	payload = event.EventPayload()
 	if len(payload) == 0 {
@@ -223,10 +223,10 @@ func TestCivilEventExtractFieldUnderscore(t *testing.T) {
 }
 
 // Test that these 2 event hashes are not equal
-func TestCivilEventHashDifferent(t *testing.T) {
-	civilEvent1, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
+func TestEventHashDifferent(t *testing.T) {
+	civilEvent1, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
 		utils.CurrentEpochSecsInInt())
-	civilEvent2, _ := model.NewCivilEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
+	civilEvent2, _ := model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent2, utils.CurrentEpochSecsInInt())
 	if civilEvent2.Hash() == civilEvent1.Hash() {
 		t.Error("These events should have different hashes")
@@ -234,19 +234,19 @@ func TestCivilEventHashDifferent(t *testing.T) {
 }
 
 // Test that hash created on the same event are the same
-func TestCivilEventHashSame(t *testing.T) {
+func TestEventHashSame(t *testing.T) {
 	timestamp := utils.CurrentEpochSecsInInt()
-	civilEvent, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
+	civilEvent, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
 		timestamp)
-	civilEventDup, _ := model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+	civilEventDup, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent, timestamp)
 	if civilEvent.Hash() != civilEventDup.Hash() {
 		t.Error("These events should have the same hashes")
 	}
 }
 
-func TestCivilEventPayloadStructValues(t *testing.T) {
-	payload := model.NewCivilEventPayload(testEvent)
+func TestEventPayloadStructValues(t *testing.T) {
+	payload := model.NewEventPayload(testEvent)
 
 	_, ok := payload.Value("NonexistentKey")
 	if ok {

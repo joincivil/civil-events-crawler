@@ -29,6 +29,7 @@ GENERATED_WATCHER_DIR=$(GENERATED_DIR)/watcher
 GENERATED_FILTERER_DIR=$(GENERATED_DIR)/filterer
 GENERATED_HANDLER_LIST_DIR=$(GENERATED_DIR)/handlerlist
 
+## Civil specific commands
 EVENTHANDLER_GEN_MAIN=cmd/eventhandlergen/main.go
 HANDLERLIST_GEN_MAIN=cmd/handlerlistgen/main.go
 
@@ -109,28 +110,28 @@ postgres-stop: check-docker-env ## Stops the development PostgreSQL server
 lint: ## Runs linting.
 	@gometalinter ./...
 
-.PHONY: generate
-generate: generate-contracts generate-watchers generate-filterers generate-handler-lists ## Runs all the code generation
+.PHONY: generate-civil
+generate: generate-contracts generate-civil-watchers generate-civil-filterers generate-civil-handler-lists ## Runs all the civil code generation
 
-.PHONY: generate-watchers
-generate-watchers: ## Runs watchergen to generate contract Watch* wrapper code.
+.PHONY: generate-civil-watchers
+generate-civil-watchers: ## Runs watchergen to generate contract Watch* wrapper code for Civil.
 	@mkdir -p $(GENERATED_WATCHER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr watcher watcher > ./$(GENERATED_WATCHER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom watcher watcher > ./$(GENERATED_WATCHER_DIR)/newsroom.go
 
-.PHONY: generate-filterers
-generate-filterers: ## Runs filterergen to generate contract Filter* wrapper code.
+.PHONY: generate-civil-filterers
+generate-civil-filterers: ## Runs filterergen to generate contract Filter* wrapper code for Civil.
 	@mkdir -p $(GENERATED_FILTERER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr filterer filterer > ./$(GENERATED_FILTERER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroom.go
 
-.PHONY: generate-handler-lists
-generate-handler-lists: ## Runs handlerlistgen to generate handler list wrapper code.
+.PHONY: generate-civil-handler-lists
+generate-civil-handler-lists: ## Runs handlerlistgen to generate handler list wrapper code for Civil.
 	@mkdir -p $(GENERATED_HANDLER_LIST_DIR)
 	@$(GORUN) $(HANDLERLIST_GEN_MAIN) handlerlist > ./$(GENERATED_HANDLER_LIST_DIR)/handlerlist.go
 
-.PHONY: generate-contracts
-generate-contracts: ## Builds the contract wrapper code from the ABIs in /abi.
+.PHONY: generate-civil-contracts
+generate-civil-contracts: ## Builds the contract wrapper code from the ABIs in /abi for Civil.
 ifneq ("$(wildcard $(ABI_DIR)/*.abi)", "")
 	@mkdir -p $(GENERATED_CONTRACT_DIR)
 	@$(ABIGEN) -abi ./$(ABI_DIR)/CivilTCR.abi -bin ./$(ABI_DIR)/CivilTCR.bin -type CivilTCRContract -out ./$(GENERATED_CONTRACT_DIR)/CivilTCRContract.go -pkg contract

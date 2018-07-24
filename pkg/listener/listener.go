@@ -16,11 +16,11 @@ const (
 	eventRecvChanBufferSize = 1
 )
 
-// NewCivilEventListener creates a new CivilEventListener given the address
+// NewEventListener creates a new EventListener given the address
 // of the contract to listen to.
-func NewCivilEventListener(client bind.ContractBackend, watchers []model.ContractWatchers) *CivilEventListener {
-	listener := &CivilEventListener{
-		EventRecvChan: make(chan *model.CivilEvent, eventRecvChanBufferSize),
+func NewEventListener(client bind.ContractBackend, watchers []model.ContractWatchers) *EventListener {
+	listener := &EventListener{
+		EventRecvChan: make(chan *model.Event, eventRecvChanBufferSize),
 		client:        client,
 		watchers:      watchers,
 		active:        false,
@@ -28,14 +28,14 @@ func NewCivilEventListener(client bind.ContractBackend, watchers []model.Contrac
 	return listener
 }
 
-// CivilEventListener handles the listener stream for Civil-specific events
-type CivilEventListener struct {
+// EventListener handles the listener stream for events
+type EventListener struct {
 
 	// client is a ethereum backend from go-ethereum
 	client bind.ContractBackend
 
-	// EventRecvChan is the channel to send and receive CivilEvents
-	EventRecvChan chan *model.CivilEvent
+	// EventRecvChan is the channel to send and receive Events
+	EventRecvChan chan *model.Event
 
 	watchers []model.ContractWatchers
 
@@ -45,7 +45,7 @@ type CivilEventListener struct {
 }
 
 // Start starts up the event listener and watchers
-func (l *CivilEventListener) Start() error {
+func (l *EventListener) Start() error {
 	defer l.mutex.Unlock()
 	l.mutex.Lock()
 	hasSubs := false
@@ -75,7 +75,7 @@ func (l *CivilEventListener) Start() error {
 // started, add to the list of watchers, start up with the watcher, and add it
 // to the list of subscriptions in the listener.
 // If the listener is not already started, will just be added to the list of watchers.
-func (l *CivilEventListener) AddWatchers(w model.ContractWatchers) error {
+func (l *EventListener) AddWatchers(w model.ContractWatchers) error {
 	defer l.mutex.Unlock()
 	l.mutex.Lock()
 	l.watchers = append(l.watchers, w)
@@ -96,7 +96,7 @@ func (l *CivilEventListener) AddWatchers(w model.ContractWatchers) error {
 // RemoveWatchers will remove given watcher from the listener. If the listener is already
 // started, stop the watcher, removes the subscription, and removes from watcher list.
 // If the listener is not already started, will just be removed from the list of watchers.
-func (l *CivilEventListener) RemoveWatchers(w model.ContractWatchers) error {
+func (l *EventListener) RemoveWatchers(w model.ContractWatchers) error {
 	defer l.mutex.Unlock()
 	l.mutex.Lock()
 	if l.watchers != nil && len(l.watchers) > 0 {
@@ -118,7 +118,7 @@ func (l *CivilEventListener) RemoveWatchers(w model.ContractWatchers) error {
 }
 
 // Stop shuts down the event listener and performs clean up
-func (l *CivilEventListener) Stop() error {
+func (l *EventListener) Stop() error {
 	defer l.mutex.Unlock()
 	l.mutex.Lock()
 	if l.watchers != nil && len(l.watchers) > 0 {

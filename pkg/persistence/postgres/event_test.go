@@ -35,34 +35,34 @@ var (
 	}
 )
 
-func setupDBEventFromCivilEvent(civilEvent *model.CivilEvent) (*postgres.CivilEvent, error) {
-	return postgres.NewCivilEvent(civilEvent)
+func setupDBEventFromEvent(civilEvent *model.Event) (*postgres.Event, error) {
+	return postgres.NewDbEventFromEvent(civilEvent)
 }
 
-func setupCivilEvent() (*model.CivilEvent, error) {
-	return model.NewCivilEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+func setupEvent() (*model.Event, error) {
+	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
 		testEvent, utils.CurrentEpochSecsInInt())
 }
 
-func setupDBEvent() (*postgres.CivilEvent, error) {
-	civilEvent, err := setupCivilEvent()
+func setupDBEvent() (*postgres.Event, error) {
+	civilEvent, err := setupEvent()
 	if err != nil {
-		return &postgres.CivilEvent{}, fmt.Errorf("setupCivilEvent should have succeeded: err: %v", err)
+		return &postgres.Event{}, fmt.Errorf("setupEvent should have succeeded: err: %v", err)
 	}
-	dbEvent, err := setupDBEventFromCivilEvent(civilEvent)
+	dbEvent, err := setupDBEventFromEvent(civilEvent)
 	if err != nil {
-		return dbEvent, fmt.Errorf("setupDBEventFromCivilEvent should have succeeded: err: %v", err)
+		return dbEvent, fmt.Errorf("setupDBEventFromEvent should have succeeded: err: %v", err)
 	}
 	return dbEvent, nil
 }
 
-func TestDBCivilEventSetup(t *testing.T) {
+func TestDBEventSetup(t *testing.T) {
 	dbEvent, err := setupDBEvent()
 	if err != nil {
 		t.Errorf("%v", err)
 	}
 	if dbEvent == nil {
-		t.Error("postgres CivilEvent should not be nil")
+		t.Error("postgres Event should not be nil")
 	}
 	if dbEvent.EventType != "Application" {
 		t.Errorf("EventType wasn't set correctly: %v", dbEvent.EventType)

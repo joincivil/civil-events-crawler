@@ -37,7 +37,7 @@ var (
 const (
 	envVarPrefix = "crawl"
 
-	usageListFormat = `The Civil crawler is configured via environment vars only. The following environment variables can be used:
+	usageListFormat = `The crawler is configured via environment vars only. The following environment variables can be used:
 {{range .}}
 {{usage_key .}}
   description: {{usage_description .}}

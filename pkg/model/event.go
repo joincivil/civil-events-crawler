@@ -1,4 +1,4 @@
-// Package model contains the general data models and interfaces for the Civil crawler.
+// Package model contains the general data models and interfaces for the  crawler.
 package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
@@ -17,12 +17,12 @@ import (
 	"github.com/fatih/structs"
 )
 
-// NewCivilEventFromContractEvent creates a new civil event after converting eventData to interface{}
-func NewCivilEventFromContractEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
-	timestamp int) (*CivilEvent, error) {
-	event := &CivilEvent{}
+// NewEventFromContractEvent creates a new event after converting eventData to interface{}
+func NewEventFromContractEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
+	timestamp int) (*Event, error) {
+	event := &Event{}
 
-	payload := NewCivilEventPayload(eventData)
+	payload := NewEventPayload(eventData)
 
 	logPayload, err := extractRawFieldFromEvent(payload)
 	if err != nil {
@@ -33,14 +33,14 @@ func NewCivilEventFromContractEvent(eventType string, contractName string, contr
 	if err != nil {
 		return event, err
 	}
-	event, err = NewCivilEvent(eventType, contractName, contractAddress, timestamp, eventPayload, logPayload)
+	event, err = NewEvent(eventType, contractName, contractAddress, timestamp, eventPayload, logPayload)
 	return event, err
 }
 
-// NewCivilEvent is a convenience function to create a new CivilEvent
-func NewCivilEvent(eventType string, contractName string, contractAddress common.Address, timestamp int,
-	eventPayload map[string]interface{}, logPayload *types.Log) (*CivilEvent, error) {
-	event := &CivilEvent{}
+// NewEvent is a convenience function to create a new Event
+func NewEvent(eventType string, contractName string, contractAddress common.Address, timestamp int,
+	eventPayload map[string]interface{}, logPayload *types.Log) (*Event, error) {
+	event := &Event{}
 	event.eventType = eventType
 	event.contractName = contractName
 	event.contractAddress = contractAddress
@@ -51,10 +51,10 @@ func NewCivilEvent(eventType string, contractName string, contractAddress common
 	return event, nil
 }
 
-// CivilEvent represents a single Civil smart contract event log item.
+// Event represents a single smart contract event log item.
 // Represents any event type from the sol/abi generated code and creates
 // a single type to handle in the listener/retriever.
-type CivilEvent struct {
+type Event struct {
 
 	// eventHash is the hash of event
 	eventHash string
@@ -78,7 +78,7 @@ type CivilEvent struct {
 	logPayload *types.Log
 }
 
-func extractFieldsFromEvent(payload *CivilEventPayload, eventData interface{}, eventType string, contractName string) (map[string]interface{}, error) {
+func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventType string, contractName string) (map[string]interface{}, error) {
 	eventPayload := make(map[string]interface{}, len(payload.data.Fields()))
 
 	_abi, err := AbiJSON(contractName)
@@ -103,7 +103,7 @@ func extractFieldsFromEvent(payload *CivilEventPayload, eventData interface{}, e
 		eventFieldName := strings.Title(input.Name)
 		eventField, ok := payload.Value(eventFieldName)
 		if !ok {
-			return eventPayload, errors.New("Can't get event name in civil event")
+			return eventPayload, errors.New("Can't get event name in event")
 		}
 		switch input.Type.String() {
 		case "address":
@@ -151,7 +151,7 @@ func AbiJSON(contractName string) (abi.ABI, error) {
 	return _abi, nil
 }
 
-func extractRawFieldFromEvent(payload *CivilEventPayload) (*types.Log, error) {
+func extractRawFieldFromEvent(payload *EventPayload) (*types.Log, error) {
 	rawPayload, ok := payload.Value("Raw")
 	if !ok {
 		return &types.Log{}, errors.New("Can't get raw value for event")
@@ -165,7 +165,7 @@ func extractRawFieldFromEvent(payload *CivilEventPayload) (*types.Log, error) {
 
 // hashEvent returns a hash for event using contractAddress, eventType, and log index
 // NOTE: Should we hash more parameters here?
-func (e *CivilEvent) hashEvent() string {
+func (e *Event) hashEvent() string {
 	logIndex := int(e.logPayload.Index)
 	txHash := e.logPayload.TxHash.Hex()
 	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType, // nolint: gas
@@ -174,53 +174,53 @@ func (e *CivilEvent) hashEvent() string {
 	return h.Hex()
 }
 
-// Hash returns the hash of the CivilEvent
-func (e *CivilEvent) Hash() string {
+// Hash returns the hash of the Event
+func (e *Event) Hash() string {
 	return e.eventHash
 }
 
-// EventType returns the eventType for the CivilEvent
-func (e *CivilEvent) EventType() string {
+// EventType returns the eventType for the Event
+func (e *Event) EventType() string {
 	return e.eventType
 }
 
-// ContractAddress returns the contractAddress for the CivilEvent
-func (e *CivilEvent) ContractAddress() common.Address {
+// ContractAddress returns the contractAddress for the Event
+func (e *Event) ContractAddress() common.Address {
 	return e.contractAddress
 }
 
-// Timestamp returns the timestamp for the CivilEvent
-func (e *CivilEvent) Timestamp() int {
+// Timestamp returns the timestamp for the Event
+func (e *Event) Timestamp() int {
 	return e.timestamp
 }
 
-// EventPayload returns the event payload for the CivilEvent
-func (e *CivilEvent) EventPayload() map[string]interface{} {
+// EventPayload returns the event payload for the Event
+func (e *Event) EventPayload() map[string]interface{} {
 	return e.eventPayload
 }
 
 // ContractName returns the contract name
-func (e *CivilEvent) ContractName() string {
+func (e *Event) ContractName() string {
 	return e.contractName
 }
 
-// LogPayload returns "Raw" types.log field of civil event
-func (e *CivilEvent) LogPayload() *types.Log {
+// LogPayload returns "Raw" types.log field of event
+func (e *Event) LogPayload() *types.Log {
 	return e.logPayload
 }
 
-// BlockNumber gets the block number from the CivilEvent Payload
-func (e *CivilEvent) BlockNumber() uint64 {
+// BlockNumber gets the block number from the Event Payload
+func (e *Event) BlockNumber() uint64 {
 	return e.logPayload.BlockNumber
 }
 
-// BlockHash gets the block hash from the CivilEvent Payload
-func (e *CivilEvent) BlockHash() common.Hash {
+// BlockHash gets the block hash from the Event Payload
+func (e *Event) BlockHash() common.Hash {
 	return e.logPayload.BlockHash
 }
 
 // LogPayloadToString is a string representation of some fields of log
-func (e *CivilEvent) LogPayloadToString() string {
+func (e *Event) LogPayloadToString() string {
 	log := e.logPayload
 	return fmt.Sprintf(
 		"log: addr: %v, blknum: %v, ind: %v, rem: %v",
@@ -231,24 +231,24 @@ func (e *CivilEvent) LogPayloadToString() string {
 	)
 }
 
-// CivilEventPayload represents the data from a Civil contract event
-type CivilEventPayload struct {
+// EventPayload represents the data from a  contract event
+type EventPayload struct {
 
 	// data is a Struct from the structs package. Just makes it easier
 	// to handle access for any kind of event struct.
 	data *structs.Struct
 }
 
-// NewCivilEventPayload creates a new civil event payload
-func NewCivilEventPayload(eventData interface{}) *CivilEventPayload {
-	payload := &CivilEventPayload{
+// NewEventPayload creates a new event payload
+func NewEventPayload(eventData interface{}) *EventPayload {
+	payload := &EventPayload{
 		data: structs.New(eventData),
 	}
 	return payload
 }
 
 // Keys retrieves all the available key names in the event payload
-func (p *CivilEventPayload) Keys() []string {
+func (p *EventPayload) Keys() []string {
 	keyFields := p.data.Fields()
 	keys := make([]string, len(keyFields))
 	for ind, field := range keyFields {
@@ -257,17 +257,17 @@ func (p *CivilEventPayload) Keys() []string {
 	return keys
 }
 
-// Value returns the CivilEventPayloadValue of the given key
-func (p *CivilEventPayload) Value(key string) (*CivilEventPayloadValue, bool) {
+// Value returns the EventPayloadValue of the given key
+func (p *EventPayload) Value(key string) (*EventPayloadValue, bool) {
 	field, ok := p.data.FieldOk(key)
 	if !ok {
 		return nil, ok
 	}
-	return &CivilEventPayloadValue{value: field}, ok
+	return &EventPayloadValue{value: field}, ok
 }
 
 // ToString returns a string representation for the payload
-func (p *CivilEventPayload) ToString() string {
+func (p *EventPayload) ToString() string {
 	strs := []string{}
 	for _, key := range p.Keys() {
 		var str string
@@ -295,31 +295,31 @@ func (p *CivilEventPayload) ToString() string {
 	return strings.Join(strs, "\n")
 }
 
-// CivilEventPayloadValue represents a single value for a key in the payload
-type CivilEventPayloadValue struct {
+// EventPayloadValue represents a single value for a key in the payload
+type EventPayloadValue struct {
 	value *structs.Field
 }
 
 // Kind returns the value's basic type as described with reflect.Kind
-func (v *CivilEventPayloadValue) Kind() reflect.Kind {
+func (v *EventPayloadValue) Kind() reflect.Kind {
 	return v.value.Kind()
 }
 
 // Val returns the value as an unknown type interface{}
-func (v *CivilEventPayloadValue) Val() interface{} {
+func (v *EventPayloadValue) Val() interface{} {
 	return v.value.Value()
 }
 
 // String returns the value as a string
 // Returns bool as false if unable to assert value as type string
-func (v *CivilEventPayloadValue) String() (string, bool) {
+func (v *EventPayloadValue) String() (string, bool) {
 	val, ok := v.value.Value().(string)
 	return val, ok
 }
 
 // Int64 returns the value as a int64.
 // Returns bool as false if unable to assert value as type int64
-func (v *CivilEventPayloadValue) Int64() (int64, bool) {
+func (v *EventPayloadValue) Int64() (int64, bool) {
 	val, ok := v.BigInt()
 	if !ok {
 		return 0, ok
@@ -329,21 +329,21 @@ func (v *CivilEventPayloadValue) Int64() (int64, bool) {
 
 // BigInt returns the value as a big.Int
 // Returns bool as false if unable to assert value as type big.Int
-func (v *CivilEventPayloadValue) BigInt() (*big.Int, bool) {
+func (v *EventPayloadValue) BigInt() (*big.Int, bool) {
 	val, ok := v.value.Value().(*big.Int)
 	return val, ok
 }
 
 // Address returns the value as common.Address
 // Returns bool as false if unable to assert value as type common.Address
-func (v *CivilEventPayloadValue) Address() (common.Address, bool) {
+func (v *EventPayloadValue) Address() (common.Address, bool) {
 	val, ok := v.value.Value().(common.Address)
 	return val, ok
 }
 
 // Log returns the value as types.Log
 // Returns bool as false if unable to assert value as type types.Log
-func (v *CivilEventPayloadValue) Log() (*types.Log, bool) {
+func (v *EventPayloadValue) Log() (*types.Log, bool) {
 	val, ok := v.value.Value().(types.Log)
 	return &val, ok
 }
