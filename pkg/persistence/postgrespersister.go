@@ -160,7 +160,7 @@ func (p *PostgresPersister) retrieveDbEvents(tableName string, criteria *model.R
 	}
 	if criteria.EventType != "" {
 		p.addWhereAnd(queryBuf)
-		queryBuf.WriteString(" event_type = ':eventtype'") // nolint: gosec
+		queryBuf.WriteString(" event_type = :eventtype") // nolint: gosec
 	}
 	if criteria.Reverse {
 		queryBuf.WriteString(" ORDER BY timestamp DESC") // nolint: gosec
