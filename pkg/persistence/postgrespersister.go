@@ -2,13 +2,18 @@
 package persistence // import "github.com/joincivil/civil-events-crawler/pkg/persistence"
 
 import (
+	"bytes"
 	"fmt"
+	log "github.com/golang/glog"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/jmoiron/sqlx"
-	"github.com/joincivil/civil-events-crawler/pkg/model"
-	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 	// driver for postgresql
 	_ "github.com/lib/pq"
+
+	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 )
 
 // NewPostgresPersister creates a new postgres persister
@@ -30,6 +35,44 @@ type PostgresPersister struct {
 	db                     *sqlx.DB
 }
 
+// LastBlockNumber returns the last block number seen by the persister
+func (p *PostgresPersister) LastBlockNumber(eventType string, contractAddress common.Address) uint64 {
+	if p.eventToLastBlockNumber[contractAddress] == nil {
+		p.eventToLastBlockNumber[contractAddress] = make(map[string]PersisterBlockData)
+	}
+	return p.eventToLastBlockNumber[contractAddress][eventType].BlockNumber
+}
+
+// LastBlockHash returns the last block hash seen by the persister
+func (p *PostgresPersister) LastBlockHash(eventType string, contractAddress common.Address) common.Hash {
+	if p.eventToLastBlockNumber[contractAddress] == nil {
+		p.eventToLastBlockNumber[contractAddress] = make(map[string]PersisterBlockData)
+	}
+	return p.eventToLastBlockNumber[contractAddress][eventType].BlockHash
+}
+
+// UpdateLastBlockData updates the last block number seen by the persister
+func (p *PostgresPersister) UpdateLastBlockData(events []*model.Event) error {
+	for _, event := range events {
+		err := p.parseEventToPersist(event)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SaveEvents saves events to events table in DB
+func (p *PostgresPersister) SaveEvents(events []*model.Event) error {
+	return p.saveEventsToTable(events, "event")
+}
+
+// RetrieveEvents retrieves the Events given an offset, count, and asc/dec bool
+func (p *PostgresPersister) RetrieveEvents(criteria *model.RetrieveEventsCriteria) (
+	[]*model.Event, error) {
+	return p.retrieveEvents("event", criteria)
+}
+
 // CreateTables creates tables in DB if they don't exist
 func (p *PostgresPersister) CreateTables() error {
 	// TODO(IS): per PN's advice have some logic to determine which models need to be part
@@ -44,11 +87,6 @@ func (p *PostgresPersister) CreateIndices() error {
 	indexQuery := postgres.EventTableIndices()
 	_, err := p.db.Exec(indexQuery)
 	return err
-}
-
-// SaveEvents saves events to events table in DB
-func (p *PostgresPersister) SaveEvents(events []*model.Event) error {
-	return p.saveEventsToTable(events, "event")
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {
@@ -78,13 +116,68 @@ func (p *PostgresPersister) getInsertEventQueryString(tableName string) string {
 		tableName)
 }
 
-// GetEvents gets all events from table
-// NOTE: this function gets all events from table for now.
-func (p *PostgresPersister) GetEvents(tableName string) ([]postgres.Event, error) {
+// GetAllEvents gets all events from table
+func (p *PostgresPersister) GetAllEvents(tableName string) ([]postgres.Event, error) {
 	dbEvent := []postgres.Event{}
 	queryString := fmt.Sprintf("SELECT event_type, hash, contract_address, contract_name, timestamp, payload, log_payload "+
 		"FROM %s;", tableName)
 	err := p.db.Select(&dbEvent, queryString)
+	return dbEvent, err
+}
+
+func (p *PostgresPersister) retrieveEvents(tableName string, criteria *model.RetrieveEventsCriteria) (
+	[]*model.Event, error) {
+	dbEvents, err := p.retrieveDbEvents(tableName, criteria)
+	if err != nil {
+		return nil, err
+	}
+	events := make([]*model.Event, len(dbEvents))
+	for index, dbEvent := range dbEvents {
+		modelEvent, err := dbEvent.DBToEventData()
+		if err != nil {
+			log.Errorf("Error converting db to event data: err: %v", err)
+			continue
+		}
+		events[index] = modelEvent
+	}
+	return events, nil
+}
+
+func (p *PostgresPersister) retrieveDbEvents(tableName string, criteria *model.RetrieveEventsCriteria) (
+	[]postgres.Event, error) {
+	queryBuf := bytes.NewBufferString("SELECT")
+	queryBuf.WriteString(
+		" event_type, hash, contract_address, contract_name, timestamp, payload, log_payload",
+	) // nolint: gosec
+	queryBuf.WriteString(fmt.Sprintf(" FROM %v", tableName)) // nolint: gosec
+
+	if criteria.FromTs > 0 {
+		queryBuf.WriteString(" WHERE timestamp > :fromts") // nolint: gosec
+	}
+	if criteria.BeforeTs > 0 {
+		p.addWhereAnd(queryBuf)
+		queryBuf.WriteString(" timestamp < :beforets") // nolint: gosec
+	}
+	if criteria.EventType != "" {
+		p.addWhereAnd(queryBuf)
+		queryBuf.WriteString(" event_type = ':eventtype'") // nolint: gosec
+	}
+	if criteria.Reverse {
+		queryBuf.WriteString(" ORDER BY timestamp DESC") // nolint: gosec
+	}
+	if criteria.Offset > 0 {
+		queryBuf.WriteString(" OFFSET :offset") // nolint: gosec
+	}
+	if criteria.Count > 0 {
+		queryBuf.WriteString(" LIMIT :count") // nolint: gosec
+	}
+
+	dbEvent := []postgres.Event{}
+	nstmt, err := p.db.PrepareNamed(queryBuf.String())
+	if err != nil {
+		return nil, err
+	}
+	err = nstmt.Select(&dbEvent, criteria)
 	return dbEvent, err
 }
 
@@ -125,33 +218,6 @@ func (p *PostgresPersister) retrieveLatestEventsQueryString(tableName string) st
 		"JOIN %s e ON e.event_type = max_e.event_type AND e.timestamp = max_e.timestamp AND e.contract_address = max_e.contract_address;", tableName, tableName)
 }
 
-// LastBlockNumber returns the last block number seen by the persister
-func (p *PostgresPersister) LastBlockNumber(eventType string, contractAddress common.Address) uint64 {
-	if p.eventToLastBlockNumber[contractAddress] == nil {
-		p.eventToLastBlockNumber[contractAddress] = make(map[string]PersisterBlockData)
-	}
-	return p.eventToLastBlockNumber[contractAddress][eventType].BlockNumber
-}
-
-// LastBlockHash returns the last block hash seen by the persister
-func (p *PostgresPersister) LastBlockHash(eventType string, contractAddress common.Address) common.Hash {
-	if p.eventToLastBlockNumber[contractAddress] == nil {
-		p.eventToLastBlockNumber[contractAddress] = make(map[string]PersisterBlockData)
-	}
-	return p.eventToLastBlockNumber[contractAddress][eventType].BlockHash
-}
-
-// UpdateLastBlockData updates the last block number seen by the persister
-func (p *PostgresPersister) UpdateLastBlockData(events []*model.Event) error {
-	for _, event := range events {
-		err := p.parseEventToPersist(event)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (p *PostgresPersister) parseEventToPersist(event *model.Event) error {
 	eventType := event.EventType()
 	contractAddress := event.ContractAddress()
@@ -162,6 +228,14 @@ func (p *PostgresPersister) parseEventToPersist(event *model.Event) error {
 	}
 	p.eventToLastBlockNumber[contractAddress][eventType] = PersisterBlockData{blockNumber, blockHash}
 	return nil
+}
+
+func (p *PostgresPersister) addWhereAnd(buf *bytes.Buffer) {
+	if !strings.Contains(buf.String(), "WHERE") {
+		buf.WriteString(" WHERE") // nolint: gosec
+	} else {
+		buf.WriteString(" AND") // nolint: gosec
+	}
 }
 
 // PersisterBlockData is the data about block stored for persistence

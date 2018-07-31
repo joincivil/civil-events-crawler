@@ -81,7 +81,7 @@ func (n *testPersister) SaveEvents(events []*model.Event) error {
 	return n.saveEventsError
 }
 
-func (n *testPersister) RetrieveEvents(offset uint, count uint, reverse bool) ([]*model.Event, error) {
+func (n *testPersister) RetrieveEvents(params *model.RetrieveEventsCriteria) ([]*model.Event, error) {
 	n.m.Lock()
 	defer n.m.Unlock()
 
@@ -362,7 +362,11 @@ func TestEventCollectorCollection(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	events, _ := persister.RetrieveEvents(0, 10, false)
+	events, _ := persister.RetrieveEvents(&model.RetrieveEventsCriteria{
+		Offset:  0,
+		Count:   10,
+		Reverse: false,
+	})
 
 	if len(events) == 0 {
 		t.Error("Should have seen some events in the persister")

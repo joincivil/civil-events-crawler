@@ -63,6 +63,30 @@ var (
 			Removed:     false,
 		},
 	}
+	ChallengeID   *big.Int
+	Data          string
+	CommitEndDate *big.Int
+	RevealEndDate *big.Int
+	Challenger    common.Address
+	testEvent3    = &contract.CivilTCRContractChallenge{
+		ListingAddress: common.HexToAddress(testAddress),
+		ChallengeID:    big.NewInt(8),
+		Data:           "DATA",
+		CommitEndDate:  big.NewInt(1653860896),
+		RevealEndDate:  big.NewInt(1653860896),
+		Challenger:     common.HexToAddress(testAddress),
+		Raw: types.Log{
+			Address:     common.HexToAddress(testAddress),
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8888888,
+			TxHash:      common.Hash{},
+			TxIndex:     2,
+			BlockHash:   common.Hash{},
+			Index:       2,
+			Removed:     false,
+		},
+	}
 )
 
 // Sets up an Application event and generates a random hash for address so that the hash in DB is unique.
@@ -72,7 +96,7 @@ func setupEvent(rand bool) (*model.Event, error) {
 		testEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochSecsInInt())
+		testEvent, utils.CurrentEpochSecsInInt()-(60*60*3))
 }
 
 // Sets up an ApplicationWhitelisted event and generates a random hash for address so that the hash in DB is unique.
@@ -82,7 +106,17 @@ func setupEvent2(rand bool) (*model.Event, error) {
 		testEvent2.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent2, utils.CurrentEpochSecsInInt())
+		testEvent2, utils.CurrentEpochSecsInInt()-(60*60*2))
+}
+
+// Sets up an Challenge event and generates a random hash for address so that the hash in DB is unique.
+func setupEvent3(rand bool) (*model.Event, error) {
+	if rand {
+		randString, _ := randomHex(32)
+		testEvent2.Raw.TxHash = common.HexToHash(randString)
+	}
+	return model.NewEventFromContractEvent("Challenge", "CivilTCRContract", common.HexToAddress(contractAddress),
+		testEvent3, utils.CurrentEpochSecsInInt()-(60*60))
 }
 
 // random hex string generation
@@ -229,7 +263,7 @@ func TestSaveToEventTestTable(t *testing.T) {
 		t.Errorf("Cannot save event to events_test table: %v", err)
 	}
 
-	civilEventDB, err := persister.GetEvents("event_test")
+	civilEventDB, err := persister.GetAllEvents("event_test")
 	if err != nil {
 		t.Errorf("error querying event from events_test table: %v", err)
 	}
@@ -308,21 +342,17 @@ func TestLatestEventsQuery(t *testing.T) {
 	}
 	defer deleteTestTable(persister)
 	var latestTimestamp int
-	numEvents := 3
 	civilEventsFromContract := make([]*model.Event, 0)
-	for i := 1; i <= numEvents; i++ {
-		event, err := setupEvent(true)
-		if err != nil {
-			t.Errorf("Couldn't setup Application civilEvent from contract %v", err)
-		}
-		event2, err := setupEvent2(true)
-		if err != nil {
-			t.Errorf("Couldn't setup ApplicationWhitelisted civilEvent from contract %v", err)
-		}
-		latestTimestamp = event.Timestamp()
-		civilEventsFromContract = append(civilEventsFromContract, event, event2)
-		time.Sleep(1 * time.Second)
+
+	event, err := setupEvent(true)
+	if err != nil {
+		t.Errorf("Couldn't setup Application civilEvent from contract %v", err)
 	}
+	event2, err := setupEvent2(true)
+	if err != nil {
+		t.Errorf("Couldn't setup ApplicationWhitelisted civilEvent from contract %v", err)
+	}
+	civilEventsFromContract = append(civilEventsFromContract, event, event2)
 
 	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
 	if err != nil {
@@ -336,10 +366,14 @@ func TestLatestEventsQuery(t *testing.T) {
 	if len(events) != 2 {
 		t.Errorf("Query should have only returned 2 events but there are %v", len(events))
 	}
+
+	latestTimestamp = event.Timestamp()
 	queryTimestamp := events[0].Timestamp
 	if queryTimestamp != latestTimestamp {
 		t.Errorf("Query didn't pull the latest event for contract and event type for %v", events[0].EventType)
 	}
+
+	latestTimestamp = event2.Timestamp()
 	queryTimestamp2 := events[1].Timestamp
 	if queryTimestamp2 != latestTimestamp {
 		t.Errorf("Query didn't pull the latest event for contract and event type %v", events[1].EventType)
@@ -405,7 +439,7 @@ func TestDBToEvent(t *testing.T) {
 		t.Errorf("Cannot save event to event_test table: %v", err)
 	}
 
-	civilEventDB, err := persister.GetEvents("event_test")
+	civilEventDB, err := persister.GetAllEvents("event_test")
 
 	dbEvent := civilEventDB[0]
 
@@ -468,4 +502,142 @@ func TestDBToEvent(t *testing.T) {
 		t.Errorf("Removed in Log not equal: %v %v", civilLogPayload.Removed, civilLogFromDBPayload.Removed)
 	}
 
+}
+
+func TestRetrieveEvents(t *testing.T) {
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTable(persister)
+	civilEventsFromContract := []*model.Event{}
+	event, err := setupEvent(true)
+	if err != nil {
+		t.Errorf("Should not have received error from setting up event from contract %v", err)
+	}
+	event2, err := setupEvent2(true)
+	if err != nil {
+		t.Errorf("Should not have received error from setting up event from contract %v", err)
+	}
+	event3, err := setupEvent3(true)
+	if err != nil {
+		t.Errorf("Should not have received error from setting up event from contract %v", err)
+	}
+	civilEventsFromContract = append(civilEventsFromContract, event, event2, event3)
+
+	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
+	if err != nil {
+		t.Errorf("Should not have seen error when saving events to table: %v", err)
+	}
+
+	events, err := persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+		Offset:  0,
+		Count:   1,
+		Reverse: false,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 1 {
+		t.Errorf("Should have seen only 1 event: %v", len(events))
+	}
+	if events[0].EventType() != event.EventType() {
+		t.Errorf("Should have seen the type of the oldest event: err: %v", err)
+	}
+
+	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+		Offset:  0,
+		Count:   3,
+		Reverse: false,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 3 {
+		t.Errorf("Should have seen only 3 event: %v", len(events))
+	}
+
+	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+		Offset:  0,
+		Count:   5,
+		Reverse: false,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 3 {
+		t.Errorf("Should have seen only 3 events: %v", len(events))
+	}
+
+	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+		Offset:  1,
+		Count:   5,
+		Reverse: false,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 2 {
+		t.Errorf("Should have seen only 2 events: %v", len(events))
+	}
+
+	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+		Offset:  0,
+		Count:   3,
+		Reverse: true,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 3 {
+		t.Errorf("Should have seen only 2 event: %v", len(events))
+	}
+	if events[0].EventType() != event3.EventType() {
+		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
+	}
+
+	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+		Offset:    0,
+		Count:     10,
+		EventType: "Application",
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 1 {
+		t.Errorf("Should have seen only 1 event: %v", len(events))
+	}
+	if events[0].EventType() != "Application" {
+		t.Errorf("Should have seen the type application")
+	}
+
+	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+		Offset: 0,
+		Count:  10,
+		FromTs: event2.Timestamp(),
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 1 {
+		t.Errorf("Should have seen only 1 event: %v", len(events))
+	}
+	if events[0].EventType() != "Challenge" {
+		t.Errorf("Should have seen the type challenge")
+	}
+
+	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+		Offset:   0,
+		Count:    10,
+		BeforeTs: event2.Timestamp(),
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 1 {
+		t.Errorf("Should have seen only 1 event: %v", len(events))
+	}
+	if events[0].EventType() != "Application" {
+		t.Errorf("Should have seen the type application")
+	}
 }

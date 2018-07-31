@@ -35,6 +35,17 @@ type RetrieverMetaDataPersister interface {
 	UpdateLastBlockData(events []*Event) error
 }
 
+// RetrieveEventsCriteria contains the retrieval criteria for a RetrieveEvents
+// query.
+type RetrieveEventsCriteria struct {
+	Offset    int    `db:"offset"`
+	Count     int    `db:"count"`
+	Reverse   bool   `db:"reverse"`
+	FromTs    int    `db:"fromts"`
+	BeforeTs  int    `db:"beforets"`
+	EventType string `db:"eventtype"`
+}
+
 // EventDataPersister handles storing the received Event data.
 type EventDataPersister interface {
 	// SaveEvents stores a list of Event(s)
@@ -42,6 +53,5 @@ type EventDataPersister interface {
 
 	// RetrieveEvents retrieves the Events from the persistence layer based
 	// on date in which it was received
-	// TODO: We will not query the events table for this, still to implement
-	// RetrieveEvents(offset uint, count uint, reverse bool) ([]*Event, error)
+	RetrieveEvents(criteria *RetrieveEventsCriteria) ([]*Event, error)
 }
