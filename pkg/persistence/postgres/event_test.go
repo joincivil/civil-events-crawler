@@ -41,7 +41,7 @@ func setupDBEventFromEvent(civilEvent *model.Event) (*postgres.Event, error) {
 
 func setupEvent() (*model.Event, error) {
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochSecsInInt())
+		testEvent, utils.CurrentEpochNanoSecsInInt64())
 }
 
 func setupDBEvent() (*postgres.Event, error) {

@@ -10,31 +10,45 @@ import (
 	"strings"
 )
 
-// EventTableSchema returns the query to create this table
-func EventTableSchema() string {
-	schema := `
-		CREATE TABLE IF NOT EXISTS event(
-			id SERIAL PRIMARY KEY,
-			event_type TEXT,
-			hash TEXT UNIQUE,
-			contract_address TEXT,
-			contract_name TEXT,
-			timestamp BIGINT,
-			payload JSONB,
-			log_payload JSONB
-		);
-	`
-	return schema
+const (
+	eventTableName = "event"
+)
+
+// CreateEventTableQuery returns the query to create the event table
+func CreateEventTableQuery() string {
+	return CreateEventTableQueryString(eventTableName)
+}
+
+// CreateEventTableQueryString returns the query to create this table
+func CreateEventTableQueryString(tableName string) string {
+	queryString := fmt.Sprintf(`
+        CREATE TABLE IF NOT EXISTS %s(
+            id SERIAL PRIMARY KEY,
+            event_type TEXT,
+            hash TEXT UNIQUE,
+            contract_address TEXT,
+            contract_name TEXT,
+            timestamp BIGINT,
+            payload JSONB,
+            log_payload JSONB
+        );
+    `, tableName)
+	return queryString
 }
 
 // EventTableIndices returns the query to create indices for this table
 func EventTableIndices() string {
-	indexCreationQuery := `
-		CREATE INDEX IF NOT EXISTS event_event_type_idx ON event (event_type);
-		CREATE INDEX IF NOT EXISTS event_contract_address_idx ON event (contract_address);
-		CREATE INDEX IF NOT EXISTS event_timestamp_idx ON event (timestamp);
-	`
-	return indexCreationQuery
+	return CreateEventTableIndicesString(eventTableName)
+}
+
+// CreateEventTableIndicesString returns the query to create this table
+func CreateEventTableIndicesString(tableName string) string {
+	queryString := fmt.Sprintf(`
+		CREATE INDEX IF NOT EXISTS event_event_type_idx ON %s (event_type);
+		CREATE INDEX IF NOT EXISTS event_contract_address_idx ON %s (contract_address);
+		CREATE INDEX IF NOT EXISTS event_timestamp_idx ON %s (timestamp);
+	`, tableName, tableName, tableName)
+	return queryString
 }
 
 // Event is the model for events table in DB
@@ -43,7 +57,7 @@ type Event struct {
 	EventHash       string       `db:"hash"`
 	ContractAddress string       `db:"contract_address"`
 	ContractName    string       `db:"contract_name"`
-	Timestamp       int          `db:"timestamp"`
+	Timestamp       int64        `db:"timestamp"`
 	EventPayload    JsonbPayload `db:"payload"`
 	LogPayload      JsonbPayload `db:"log_payload"`
 }
@@ -94,7 +108,7 @@ func (c *Event) EventDataToDB(event map[string]interface{}) error {
 		case "address":
 			eventPayload[eventFieldName] = eventField.(common.Address).Hex()
 		case "uint256":
-			// NOTE: converting all *big.Int to int64. assuming for now that numbers will fall into int64 range.
+			// NOTE(IS): converting all *big.Int to int64. assuming for now that numbers will fall into int64 range.
 			eventPayload[eventFieldName] = eventField.(*big.Int).Int64()
 		case "string":
 			eventPayload[eventFieldName] = eventField.(string)
@@ -108,7 +122,7 @@ func (c *Event) EventDataToDB(event map[string]interface{}) error {
 }
 
 // DBToEventData converts the db event model to a model.
-// NOTE: because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
+// NOTE(IS): because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
 func (c *Event) DBToEventData() (*model.Event, error) {
 	event := &model.Event{}
 	abi, err := model.AbiJSON(c.ContractName)
@@ -182,7 +196,7 @@ func (c *Event) EventLogDataToDB(payload *types.Log) {
 }
 
 // DBToEventLogData converts the DB raw log payload back to types.Log
-// NOTE: because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
+// NOTE(IS): because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
 func (c *Event) DBToEventLogData() *types.Log {
 	log := &types.Log{}
 	log.Address = common.HexToAddress(c.LogPayload["Address"].(string))

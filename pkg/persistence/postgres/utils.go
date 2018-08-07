@@ -1,12 +1,13 @@
 package postgres // import "github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 
 import (
+	"bytes"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"strings"
+	"reflect"
 )
 
 // JsonbPayload is the jsonb payload
@@ -41,7 +42,7 @@ func (jp *JsonbPayload) Scan(src interface{}) error {
 func ReturnEventsFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
 	// Trim the eventType clean
 	events := abi.Event{}
-	eventType = strings.Trim(eventType, " _")
+	// eventType = strings.Trim(eventType, " _")
 	ok := false
 	// Some contracts have an underscore prefix on their events. Handle both
 	// non-underscore/underscore cases here.
@@ -53,4 +54,35 @@ func ReturnEventsFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
 		}
 	}
 	return events, nil
+}
+
+// StructFieldsForQuery is a generic Insert statement for any table
+// TODO(IS): gosec linting errors for bytes.buffer use here. is it inefficient?
+func StructFieldsForQuery(exampleStruct interface{}, colon bool) (string, string) {
+	var fields bytes.Buffer
+	var fieldsWithColon bytes.Buffer
+	valStruct := reflect.ValueOf(exampleStruct)
+	typeOf := valStruct.Type()
+	for i := 0; i < valStruct.NumField(); i++ {
+		dbFieldName := typeOf.Field(i).Tag.Get("db")
+		fields.WriteString(dbFieldName) // nolint: gosec
+		if colon {
+			fieldsWithColon.WriteString(":")         // nolint: gosec
+			fieldsWithColon.WriteString(dbFieldName) // nolint: gosec
+		}
+		if i+1 < valStruct.NumField() {
+			fields.WriteString(", ") // nolint: gosec
+			if colon {
+				fieldsWithColon.WriteString(", ") // nolint: gosec
+			}
+		}
+	}
+	return fields.String(), fieldsWithColon.String()
+}
+
+// InsertIntoDBQueryString creates the query to insert a given struct into a given table
+func InsertIntoDBQueryString(tableName string, dbModelStruct interface{}) string {
+	fieldNames, fieldNamesColon := StructFieldsForQuery(dbModelStruct, true)
+	queryString := fmt.Sprintf("INSERT INTO %s (%s) VALUES(%s);", tableName, fieldNames, fieldNamesColon) // nolint: gosec
+	return queryString
 }
