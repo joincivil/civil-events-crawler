@@ -133,7 +133,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 		for {
 			select {
 			case event := <-recvChan:
-				modelEvent, err := model.NewEventFromContractEvent("{{.EventName}}", w.ContractName(), w.contractAddress, event, utils.CurrentEpochSecsInInt())
+				modelEvent, err := model.NewEventFromContractEvent("{{.EventName}}", w.ContractName(), w.contractAddress, event, utils.CurrentEpochNanoSecsInInt64())
 				if err != nil {
 					log.Errorf("Error creating new event: event: %v, err: %v", event, err)
 					continue

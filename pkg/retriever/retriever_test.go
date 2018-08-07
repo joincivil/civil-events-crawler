@@ -86,9 +86,9 @@ func TestSorting(t *testing.T) {
 	}
 	retrieve := retriever.NewEventRetriever(client, filterers)
 	model1, _ := model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(testTCRAddress),
-		testEvent1, utils.CurrentEpochSecsInInt())
+		testEvent1, utils.CurrentEpochNanoSecsInInt64())
 	model2, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(testTCRAddress), testEvent2,
-		utils.CurrentEpochSecsInInt())
+		utils.CurrentEpochNanoSecsInInt64())
 	if err != nil {
 		t.Errorf("Error connecting to rinkeby: %v", err)
 	}

@@ -27,7 +27,7 @@ import (
 {{- end}}
 )
 
-// TODO(PN): Need to move this to a central place, use it outside the package
+// TODO(IS): Need to move this to a central place, use it outside the package
 {{if .EventHandlers -}}
 var eventTypes{{.ContractTypeName}} = []string{
     {{- range .EventHandlers}}
@@ -36,7 +36,7 @@ var eventTypes{{.ContractTypeName}} = []string{
 }
 {{- end}}
 
-// TODO(PN): Need to move this to a central place, use it outside the package
+// TODO(IS): Need to move this to a central place, use it outside the package
 func EventTypes{{.ContractTypeName}}() []string {
 	tmp := make([]string, len(eventTypes{{.ContractTypeName}}))
 	copy(tmp, eventTypes{{.ContractTypeName}})
@@ -143,7 +143,7 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
     }
     nextEvent := itr.Next()
     for nextEvent {
-        modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", f.ContractName(), f.contractAddress, itr.Event, utils.CurrentEpochSecsInInt())
+        modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", f.ContractName(), f.contractAddress, itr.Event, utils.CurrentEpochNanoSecsInInt64())
         if err != nil {
             log.Errorf("Error creating new event: event: %v, err: %v", itr.Event, err)
             continue

@@ -19,7 +19,7 @@ import (
 
 // NewEventFromContractEvent creates a new event after converting eventData to interface{}
 func NewEventFromContractEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
-	timestamp int) (*Event, error) {
+	timestamp int64) (*Event, error) {
 	event := &Event{}
 
 	payload := NewEventPayload(eventData)
@@ -38,7 +38,7 @@ func NewEventFromContractEvent(eventType string, contractName string, contractAd
 }
 
 // NewEvent is a convenience function to create a new Event
-func NewEvent(eventType string, contractName string, contractAddress common.Address, timestamp int,
+func NewEvent(eventType string, contractName string, contractAddress common.Address, timestamp int64,
 	eventPayload map[string]interface{}, logPayload *types.Log) (*Event, error) {
 	event := &Event{}
 	event.eventType = eventType
@@ -59,7 +59,7 @@ type Event struct {
 	// eventHash is the hash of event
 	eventHash string
 
-	// eventType is the type of event. i.e. _Challenge, _Appeal, _Application.
+	// eventType is the type of event. i.e. Challenge, Appeal, Application.
 	eventType string
 
 	// contractAddress of the contract emitting the event
@@ -68,8 +68,8 @@ type Event struct {
 	// contractName is the name of the contract
 	contractName string
 
-	// timestamp is the time this event was created.
-	timestamp int
+	// timestamp is the time in nanoseconds this event was created.
+	timestamp int64
 
 	// event payload that doesn't include the "Raw" field
 	eventPayload map[string]interface{}
@@ -86,9 +86,11 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 		return eventPayload, err
 	}
 
+	// NOTE(IS): We don't need to trim the eventType passed in here. look at L118 in gen/eventhandlergen.go
 	// Trim the eventType clean
-	eventType = strings.Trim(eventType, " _")
+	// eventType = strings.Trim(eventType, " _")
 
+	// NOTE(IS): We do need to keep this though
 	// Some contracts have an underscore prefix on their events. Handle both
 	// non-underscore/underscore cases here.
 	events, ok := _abi.Events[eventType]
@@ -163,7 +165,7 @@ func extractRawFieldFromEvent(payload *EventPayload) (*types.Log, error) {
 	return logPayload, nil
 }
 
-// hashEvent returns a hash for event using contractAddress, eventType, and log index
+// hashEvent returns a hash for event using contractAddress, eventType, log index, and transaction hash
 // NOTE: Should we hash more parameters here?
 func (e *Event) hashEvent() string {
 	logIndex := int(e.logPayload.Index)
@@ -190,7 +192,7 @@ func (e *Event) ContractAddress() common.Address {
 }
 
 // Timestamp returns the timestamp for the Event
-func (e *Event) Timestamp() int {
+func (e *Event) Timestamp() int64 {
 	return e.timestamp
 }
 
@@ -205,6 +207,7 @@ func (e *Event) ContractName() string {
 }
 
 // LogPayload returns "Raw" types.log field of event
+// NOTE(IS): by returning this, we are allowing the possibility of mutating the fields in this
 func (e *Event) LogPayload() *types.Log {
 	return e.logPayload
 }
@@ -220,6 +223,7 @@ func (e *Event) BlockHash() common.Hash {
 }
 
 // LogPayloadToString is a string representation of some fields of log
+// TODO(IS): use go-ethereum function for this.
 func (e *Event) LogPayloadToString() string {
 	log := e.logPayload
 	return fmt.Sprintf(

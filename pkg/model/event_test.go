@@ -63,7 +63,7 @@ var (
 
 func setupEvent() (*model.Event, error) {
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochSecsInInt())
+		testEvent, utils.CurrentEpochNanoSecsInInt64())
 }
 
 func TestEventSetup(t *testing.T) {
@@ -105,7 +105,7 @@ func TestEventPayloadNoRaw(t *testing.T) {
 		name: "name",
 	}
 	_, err := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		noRawTestEvent, utils.CurrentEpochSecsInInt())
+		noRawTestEvent, utils.CurrentEpochNanoSecsInInt64())
 	if err == nil {
 		t.Errorf("Event creation should have failed with no raw event to create hash: err: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestEventPayloadNotLog(t *testing.T) {
 		Raw:  "name",
 	}
 	_, err := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		notLogTestEvent, utils.CurrentEpochSecsInInt())
+		notLogTestEvent, utils.CurrentEpochNanoSecsInInt64())
 	if err == nil {
 		t.Errorf("Event creation should have failed with no Log found: err: %v", err)
 	}
@@ -197,25 +197,25 @@ func TestEventLogPayloadValues(t *testing.T) {
 
 func TestEventExtractFieldUnderscore(t *testing.T) {
 	event, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochSecsInInt())
+		testEvent, utils.CurrentEpochNanoSecsInInt64())
 	payload := event.EventPayload()
 	if len(payload) == 0 {
 		t.Error("Should have properly parsed the payload into the EventPayload mapping")
 	}
 	event, _ = model.NewEventFromContractEvent("_Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochSecsInInt())
+		testEvent, utils.CurrentEpochNanoSecsInInt64())
 	payload = event.EventPayload()
 	if len(payload) == 0 {
 		t.Error("Should have properly parsed the payload into the EventPayload mapping")
 	}
 	event, _ = model.NewEventFromContractEvent("RevisionUpdated", "NewsroomContract", common.HexToAddress(contractAddress),
-		testEvent3, utils.CurrentEpochSecsInInt())
+		testEvent3, utils.CurrentEpochNanoSecsInInt64())
 	payload = event.EventPayload()
 	if len(payload) == 0 {
 		t.Error("Should have properly parsed the payload into the EventPayload mapping")
 	}
 	event, _ = model.NewEventFromContractEvent("_RevisionUpdated", "NewsroomContract", common.HexToAddress(contractAddress),
-		testEvent3, utils.CurrentEpochSecsInInt())
+		testEvent3, utils.CurrentEpochNanoSecsInInt64())
 	payload = event.EventPayload()
 	if len(payload) == 0 {
 		t.Error("Should have properly parsed the payload into the EventPayload mapping")
@@ -225,9 +225,9 @@ func TestEventExtractFieldUnderscore(t *testing.T) {
 // Test that these 2 event hashes are not equal
 func TestEventHashDifferent(t *testing.T) {
 	civilEvent1, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
-		utils.CurrentEpochSecsInInt())
+		utils.CurrentEpochNanoSecsInInt64())
 	civilEvent2, _ := model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent2, utils.CurrentEpochSecsInInt())
+		testEvent2, utils.CurrentEpochNanoSecsInInt64())
 	if civilEvent2.Hash() == civilEvent1.Hash() {
 		t.Error("These events should have different hashes")
 	}
@@ -235,7 +235,7 @@ func TestEventHashDifferent(t *testing.T) {
 
 // Test that hash created on the same event are the same
 func TestEventHashSame(t *testing.T) {
-	timestamp := utils.CurrentEpochSecsInInt()
+	timestamp := utils.CurrentEpochNanoSecsInInt64()
 	civilEvent, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
 		timestamp)
 	civilEventDup, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),

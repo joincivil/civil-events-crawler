@@ -150,7 +150,7 @@ func TestListenerEventChan(t *testing.T) {
 		},
 	}
 	newEvent, _ := model.NewEventFromContractEvent("_Application", "CivilTCRContract", contracts.CivilTcrAddr, tempPayload,
-		utils.CurrentEpochSecsInInt())
+		utils.CurrentEpochNanoSecsInInt64())
 	listener.EventRecvChan <- newEvent
 
 	select {

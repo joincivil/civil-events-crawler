@@ -24,3 +24,9 @@ func CurrentEpochSecsInInt64() int64 {
 func CurrentEpochSecsInInt() int {
 	return int(CurrentEpochSecsInInt64())
 }
+
+// CurrentEpochNanoSecsInInt64 returns the current time as a timestamp
+// from epoch as type int64 in nanoseconds.
+func CurrentEpochNanoSecsInInt64() int64 {
+	return time.Now().UnixNano()
+}
