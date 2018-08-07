@@ -64,6 +64,6 @@ func (n *NullPersister) SaveEvents(events []*model.Event) error {
 
 // RetrieveEvents retrieves the Events from the persistence layer based
 // on date in which it was received
-func (n *NullPersister) RetrieveEvents(params *model.RetrieveEventsCriteria) ([]*model.Event, error) {
+func (n *NullPersister) RetrieveEvents(criteria *model.RetrieveEventsCriteria) ([]*model.Event, error) {
 	return []*model.Event{}, nil
 }
