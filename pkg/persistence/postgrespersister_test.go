@@ -338,6 +338,32 @@ func TestDuplicateEvents(t *testing.T) {
 	}
 }
 
+// Test saving the same list of events twice to ensure that start block for filterers is being updated w persistence
+func TestStartBlockUpdate(t *testing.T) {
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTable(persister)
+	events, err := setupEvents(false)
+	if err != nil {
+		t.Errorf("Couldn't setup civilEvent from contract %v", err)
+	}
+	err = persister.saveEventsToTable(events, eventTestTableName)
+	if err != nil {
+		fmt.Errorf("Error saving events to table, %v", err)
+	}
+	err = persister.saveEventsToTable(events, eventTestTableName)
+	if err != nil {
+		fmt.Errorf("Error saving same events to table, %v", err)
+	}
+
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 /*
 event table tests
 */
@@ -525,7 +551,6 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 			changeBlockData(blockNo, event)
 			contractAddress := event.ContractAddress()
 			eventType := event.EventType()
-			fmt.Println("1", contractAddress, event.Hash())
 
 			blockData := PersisterBlockData{event.LogPayload().BlockNumber, event.LogPayload().BlockHash}
 			if correctEventToBlockData[contractAddress] == nil {
@@ -549,8 +574,6 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 			changeBlockData(blockNo, event)
 			contractAddress := event.ContractAddress()
 			eventType := event.EventType()
-			// fmt.Println(event)
-			fmt.Println("2", contractAddress, event.Hash())
 			blockData := PersisterBlockData{event.LogPayload().BlockNumber, event.LogPayload().BlockHash}
 			if correctEventToBlockData[contractAddress] == nil {
 				correctEventToBlockData[contractAddress] = make(map[string]PersisterBlockData)

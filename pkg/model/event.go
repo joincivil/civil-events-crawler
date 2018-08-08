@@ -54,6 +54,7 @@ func NewEvent(eventType string, contractName string, contractAddress common.Addr
 // Event represents a single smart contract event log item.
 // Represents any event type from the sol/abi generated code and creates
 // a single type to handle in the listener/retriever.
+//TODO(IS): I think we should add a field here "retrievalMethod", it would help understand for debug purposes and understand what the timestamp is referring to.
 type Event struct {
 
 	// eventHash is the hash of event
@@ -68,7 +69,7 @@ type Event struct {
 	// contractName is the name of the contract
 	contractName string
 
-	// timestamp is the time in nanoseconds this event was created.
+	// timestamp is the time in nanoseconds this event was retrieved.
 	timestamp int64
 
 	// event payload that doesn't include the "Raw" field
