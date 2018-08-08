@@ -41,7 +41,7 @@ func setupDBEventFromEvent(civilEvent *model.Event) (*postgres.Event, error) {
 
 func setupEvent() (*model.Event, error) {
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochNanoSecsInInt64())
+		testEvent, utils.CurrentEpochNanoSecsInInt64(), model.Filterer)
 }
 
 func setupDBEvent() (*postgres.Event, error) {
@@ -78,6 +78,9 @@ func TestDBEventSetup(t *testing.T) {
 	}
 	if dbEvent.Timestamp <= 0 {
 		t.Errorf("Timestamp was not init correctly: %v", dbEvent.Timestamp)
+	}
+	if dbEvent.RetrievalMethod != 0 {
+		t.Errorf("Retrieval method should be 0 for filterer but it is %v", dbEvent.RetrievalMethod)
 	}
 	if len(dbEvent.EventPayload) != 5 {
 		t.Errorf("EventPayload was not init correctly: %v", dbEvent.EventPayload)

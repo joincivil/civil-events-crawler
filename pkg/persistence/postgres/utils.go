@@ -42,7 +42,6 @@ func (jp *JsonbPayload) Scan(src interface{}) error {
 func ReturnEventsFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
 	// Trim the eventType clean
 	events := abi.Event{}
-	// eventType = strings.Trim(eventType, " _")
 	ok := false
 	// Some contracts have an underscore prefix on their events. Handle both
 	// non-underscore/underscore cases here.

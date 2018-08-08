@@ -114,7 +114,7 @@ func setupApplicationEvent(rand bool) (*model.Event, error) {
 		testApplicationEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testApplicationEvent, utils.CurrentEpochNanoSecsInInt64())
+		testApplicationEvent, utils.CurrentEpochNanoSecsInInt64(), model.Filterer)
 }
 
 // Sets up an ApplicationWhitelisted event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
@@ -124,7 +124,7 @@ func setupApplicationWhitelistedEvent(rand bool) (*model.Event, error) {
 		testApplicationWhitelistedEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testApplicationWhitelistedEvent, utils.CurrentEpochNanoSecsInInt64())
+		testApplicationWhitelistedEvent, utils.CurrentEpochNanoSecsInInt64(), model.Watcher)
 }
 
 // Sets up an Challenge event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
@@ -134,7 +134,7 @@ func setupChallengeEvent(rand bool) (*model.Event, error) {
 		testChallengeEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("Challenge", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testChallengeEvent, utils.CurrentEpochNanoSecsInInt64())
+		testChallengeEvent, utils.CurrentEpochNanoSecsInInt64(), model.Filterer)
 }
 
 // Sets up a Newsroom Name Changed event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
@@ -144,7 +144,7 @@ func setupNewsroomNameChanged(rand bool) (*model.Event, error) {
 		testNwsrmNameChangedEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("NameChanged", "NewsroomContract", common.HexToAddress(contractAddress),
-		testNwsrmNameChangedEvent, utils.CurrentEpochNanoSecsInInt64())
+		testNwsrmNameChangedEvent, utils.CurrentEpochNanoSecsInInt64(), model.Watcher)
 }
 
 // specify fields for testing purposes
@@ -154,7 +154,7 @@ func setupApplicationEventWithParams(rand bool, contractAddress string, timestam
 		testApplicationEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testApplicationEvent, timestamp)
+		testApplicationEvent, timestamp, model.Filterer)
 }
 
 // Sets up all the above events and returns a list of test events

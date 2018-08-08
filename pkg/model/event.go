@@ -17,9 +17,19 @@ import (
 	"github.com/fatih/structs"
 )
 
+const (
+	// Filterer is the enum value for a retrieval method of type "filterer"
+	Filterer RetrievalMethod = iota
+	// Watcher is the enum value for a retrieval method of type "watcher"
+	Watcher
+)
+
+// RetrievalMethod is the enum for the type of retrieval method
+type RetrievalMethod int
+
 // NewEventFromContractEvent creates a new event after converting eventData to interface{}
 func NewEventFromContractEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
-	timestamp int64) (*Event, error) {
+	timestamp int64, retrievalMethod RetrievalMethod) (*Event, error) {
 	event := &Event{}
 
 	payload := NewEventPayload(eventData)
@@ -33,13 +43,13 @@ func NewEventFromContractEvent(eventType string, contractName string, contractAd
 	if err != nil {
 		return event, err
 	}
-	event, err = NewEvent(eventType, contractName, contractAddress, timestamp, eventPayload, logPayload)
+	event, err = NewEvent(eventType, contractName, contractAddress, timestamp, retrievalMethod, eventPayload, logPayload)
 	return event, err
 }
 
 // NewEvent is a convenience function to create a new Event
 func NewEvent(eventType string, contractName string, contractAddress common.Address, timestamp int64,
-	eventPayload map[string]interface{}, logPayload *types.Log) (*Event, error) {
+	retrievalMethod RetrievalMethod, eventPayload map[string]interface{}, logPayload *types.Log) (*Event, error) {
 	event := &Event{}
 	event.eventType = eventType
 	event.contractName = contractName
@@ -47,6 +57,7 @@ func NewEvent(eventType string, contractName string, contractAddress common.Addr
 	event.eventPayload = eventPayload
 	event.logPayload = logPayload
 	event.timestamp = timestamp
+	event.retrievalMethod = retrievalMethod
 	event.eventHash = event.hashEvent()
 	return event, nil
 }
@@ -54,7 +65,6 @@ func NewEvent(eventType string, contractName string, contractAddress common.Addr
 // Event represents a single smart contract event log item.
 // Represents any event type from the sol/abi generated code and creates
 // a single type to handle in the listener/retriever.
-//TODO(IS): I think we should add a field here "retrievalMethod", it would help understand for debug purposes and understand what the timestamp is referring to.
 type Event struct {
 
 	// eventHash is the hash of event
@@ -72,6 +82,9 @@ type Event struct {
 	// timestamp is the time in nanoseconds this event was retrieved.
 	timestamp int64
 
+	// retrievalMethod is the way this event was retrieved, i.e. filterer or watcher.
+	retrievalMethod RetrievalMethod
+
 	// event payload that doesn't include the "Raw" field
 	eventPayload map[string]interface{}
 
@@ -87,13 +100,7 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 		return eventPayload, err
 	}
 
-	// NOTE(IS): We don't need to trim the eventType passed in here. look at L118 in gen/eventhandlergen.go
-	// Trim the eventType clean
-	// eventType = strings.Trim(eventType, " _")
-
-	// NOTE(IS): We do need to keep this though
-	// Some contracts have an underscore prefix on their events. Handle both
-	// non-underscore/underscore cases here.
+	// Some contracts have an underscore prefix on their events. Handle both non-underscore/underscore cases here.
 	events, ok := _abi.Events[eventType]
 	if !ok {
 		events, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
@@ -167,7 +174,6 @@ func extractRawFieldFromEvent(payload *EventPayload) (*types.Log, error) {
 }
 
 // hashEvent returns a hash for event using contractAddress, eventType, log index, and transaction hash
-// NOTE: Should we hash more parameters here?
 func (e *Event) hashEvent() string {
 	logIndex := int(e.logPayload.Index)
 	txHash := e.logPayload.TxHash.Hex()
@@ -195,6 +201,11 @@ func (e *Event) ContractAddress() common.Address {
 // Timestamp returns the timestamp for the Event
 func (e *Event) Timestamp() int64 {
 	return e.timestamp
+}
+
+// RetrievalMethod returns the method that was used to retrieve this event
+func (e *Event) RetrievalMethod() RetrievalMethod {
+	return e.retrievalMethod
 }
 
 // EventPayload returns the event payload for the Event
