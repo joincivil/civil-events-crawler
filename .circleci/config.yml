@@ -26,20 +26,10 @@ jobs:
               echo sudo > ~/sudo
             fi
       - checkout
-      - restore_cache:
-          keys:
-          - v1-dependencies-{{ checksum "Gopkg.lock" }}
-          # fallback to using the latest cache if no exact match is found
-          - v1-dependencies-
       - setup_remote_docker:   # (2)
           docker_layer_caching: true # (3)
 
       - run: make setup
-
-      - save_cache:
-          paths:
-            - vendor
-          key: v1-dependencies-{{ checksum "Gopkg.lock" }}
 
       - run:
           name: Waiting for Postgres to be ready
