@@ -370,7 +370,66 @@ event table tests
 
 // TODO(IS): test that all queries can be performed w the instance of db, i.e. connection pools are being returned
 func TestMultipleQueries(t *testing.T) {
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTable(persister)
 
+	events, err := setupEvents(true)
+	if err != nil {
+		t.Errorf("Couldn't setup civilEvents from contract %v", err)
+	}
+
+	// save each type of test event to table
+	// save events
+	err = persister.saveEventsToTable(events, eventTestTableName)
+	if err != nil {
+		t.Errorf("Cannot save event to events_test table: %v", err)
+	}
+
+	// retrieve events
+	_, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
+		Offset:  0,
+		Count:   1,
+		Reverse: false,
+	})
+	if err != nil {
+		t.Errorf("Couldn't retrieve events %v", err)
+	}
+
+	// get latest events
+	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	if err != nil {
+		t.Errorf("Couldn't populate block data %v", err)
+	}
+
+	// save events again
+	_, err = setupEvents(true)
+	if err != nil {
+		t.Errorf("Couldn't setup civilEvents from contract %v", err)
+	}
+
+	// retrieve events again
+	_, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
+		Offset:  0,
+		Count:   1,
+		Reverse: false,
+	})
+	if err != nil {
+		t.Errorf("Couldn't retrieve events %v", err)
+	}
+
+	// get latest events again
+	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	if err != nil {
+		t.Errorf("Couldn't populate blockdata %v", err)
+	}
+
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func TestSaveEvents(t *testing.T) {
