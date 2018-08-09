@@ -368,6 +368,11 @@ func TestStartBlockUpdate(t *testing.T) {
 event table tests
 */
 
+// TODO(IS): test that all queries can be performed w the instance of db, i.e. connection pools are being returned
+func TestMultipleQueries(t *testing.T) {
+
+}
+
 func TestSaveEvents(t *testing.T) {
 	persister, err := setupTestTable()
 	if err != nil {

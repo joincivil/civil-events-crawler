@@ -42,23 +42,6 @@ var (
 			Index:       1,
 		},
 	}
-	// testEvent3 = &contract.NewsroomContractRevisionUpdated{
-	// 	Editor:     common.HexToAddress(contractAddress),
-	// 	ContentId:  big.NewInt(1),
-	// 	RevisionId: big.NewInt(0),
-	// 	Uri:        "http://joincivil.com/1",
-	// 	Raw: types.Log{
-	// 		Address:     common.HexToAddress(testAddress),
-	// 		Topics:      []common.Hash{},
-	// 		Data:        []byte{},
-	// 		BlockNumber: 888889,
-	// 		TxHash:      common.Hash{},
-	// 		TxIndex:     3,
-	// 		BlockHash:   common.Hash{},
-	// 		Index:       4,
-	// 		Removed:     false,
-	// 	},
-	// }
 )
 
 func setupEvent() (*model.Event, error) {

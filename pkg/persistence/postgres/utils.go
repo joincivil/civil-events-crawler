@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"reflect"
 )
 
@@ -38,25 +37,8 @@ func (jp *JsonbPayload) Scan(src interface{}) error {
 	return nil
 }
 
-// ReturnEventsFromABI returns abi.Event struct from the ABI
-func ReturnEventsFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
-	// Trim the eventType clean
-	events := abi.Event{}
-	ok := false
-	// Some contracts have an underscore prefix on their events. Handle both
-	// non-underscore/underscore cases here.
-	events, ok = _abi.Events[eventType]
-	if !ok {
-		events, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
-		if !ok {
-			return events, fmt.Errorf("No event type %v in contract", eventType)
-		}
-	}
-	return events, nil
-}
-
 // StructFieldsForQuery is a generic Insert statement for any table
-// TODO(IS): gosec linting errors for bytes.buffer use here. is it inefficient?
+// NOTE(IS): There may be a better way to construct this query
 func StructFieldsForQuery(exampleStruct interface{}, colon bool) (string, string) {
 	var fields bytes.Buffer
 	var fieldsWithColon bytes.Buffer

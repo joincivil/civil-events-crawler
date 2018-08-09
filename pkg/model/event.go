@@ -27,6 +27,20 @@ const (
 // RetrievalMethod is the enum for the type of retrieval method
 type RetrievalMethod int
 
+// ReturnEventsFromABI returns abi.Event struct from the ABI
+func ReturnEventsFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
+	// Some contracts have an underscore prefix on their events. Handle both
+	// non-underscore/underscore cases here.
+	events, ok := _abi.Events[eventType]
+	if !ok {
+		events, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
+		if !ok {
+			return events, fmt.Errorf("No event type %v in contract", eventType)
+		}
+	}
+	return events, nil
+}
+
 // NewEventFromContractEvent creates a new event after converting eventData to interface{}
 func NewEventFromContractEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
 	timestamp int64, retrievalMethod RetrievalMethod) (*Event, error) {
@@ -64,7 +78,7 @@ func NewEvent(eventType string, contractName string, contractAddress common.Addr
 
 // Event represents a single smart contract event log item.
 // Represents any event type from the sol/abi generated code and creates
-// a single type to handle in the listener/retriever.
+// a single type to handle in the watcher/filterer.
 type Event struct {
 
 	// eventHash is the hash of event
@@ -100,13 +114,9 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 		return eventPayload, err
 	}
 
-	// Some contracts have an underscore prefix on their events. Handle both non-underscore/underscore cases here.
-	events, ok := _abi.Events[eventType]
-	if !ok {
-		events, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
-		if !ok {
-			return eventPayload, fmt.Errorf("No event type %v in contract %v", eventType, contractName)
-		}
+	events, err := ReturnEventsFromABI(_abi, eventType)
+	if err != nil {
+		return eventPayload, err
 	}
 
 	for _, input := range events.Inputs {

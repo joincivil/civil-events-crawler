@@ -86,11 +86,11 @@ func NewDbEventFromEvent(event *model.Event) (*Event, error) {
 func (c *Event) EventDataToDB(event map[string]interface{}) error {
 	abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
-		return fmt.Errorf("Error getting abi from contract name: %v", err)
+		return fmt.Errorf("Error getting ABI from contract name: %v", err)
 	}
-	events, err := ReturnEventsFromABI(abi, c.EventType)
+	events, err := model.ReturnEventsFromABI(abi, c.EventType)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error parsing ABI to get events, err: %v", err)
 	}
 	eventPayload := make(JsonbPayload)
 
@@ -123,7 +123,7 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 		return event, fmt.Errorf("Error getting abi from contract name: %v", err)
 	}
 	eventPayload := make(map[string]interface{})
-	events, err := ReturnEventsFromABI(abi, c.EventType)
+	events, err := model.ReturnEventsFromABI(abi, c.EventType)
 	if err != nil {
 		return event, err
 	}

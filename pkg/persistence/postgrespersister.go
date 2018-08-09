@@ -180,7 +180,6 @@ func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *mode
 	return queryBuf.String()
 }
 
-// actually can make this even more generic and put in utils
 func (p *PostgresPersister) saveEventToTable(query string, event *model.Event) error {
 	dbEvent, err := postgres.NewDbEventFromEvent(event)
 	if err != nil {
