@@ -1,5 +1,6 @@
 // Package persistence contains components to interact with the DB
 package persistence // import "github.com/joincivil/civil-events-crawler/pkg/persistence"
+// NOTE(IS): Only tested with event wrappers around contracts implemented: civiltcr and newsroom
 
 import (
 	"bytes"
@@ -16,6 +17,10 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 )
 
+const (
+	eventTableName = "event"
+)
+
 // NewPostgresPersister creates a new postgres persister
 func NewPostgresPersister(host string, port int, user string, password string, dbname string) (*PostgresPersister, error) {
 	pgPersister := &PostgresPersister{}
@@ -25,30 +30,40 @@ func NewPostgresPersister(host string, port int, user string, password string, d
 		return pgPersister, fmt.Errorf("Error connecting to sqlx: %v", err)
 	}
 	pgPersister.db = db
-	pgPersister.eventToLastBlockNumber = make(map[common.Address]map[string]PersisterBlockData)
+	pgPersister.eventToBlockData = make(map[common.Address]map[string]PersisterBlockData)
 	return pgPersister, nil
 }
 
 // PostgresPersister holds the DB connection and persistence
 type PostgresPersister struct {
-	eventToLastBlockNumber map[common.Address]map[string]PersisterBlockData
-	db                     *sqlx.DB
+	eventToBlockData map[common.Address]map[string]PersisterBlockData
+	db               *sqlx.DB
+}
+
+// SaveEvents saves events to events table in DB
+func (p *PostgresPersister) SaveEvents(events []*model.Event) error {
+	return p.saveEventsToTable(events, eventTableName)
+}
+
+// RetrieveEvents retrieves the Events given an offset, count, and asc/dec bool
+func (p *PostgresPersister) RetrieveEvents(criteria *model.RetrieveEventsCriteria) ([]*model.Event, error) {
+	return p.retrieveEventsFromTable(eventTableName, criteria)
 }
 
 // LastBlockNumber returns the last block number seen by the persister
 func (p *PostgresPersister) LastBlockNumber(eventType string, contractAddress common.Address) uint64 {
-	if p.eventToLastBlockNumber[contractAddress] == nil {
-		p.eventToLastBlockNumber[contractAddress] = make(map[string]PersisterBlockData)
+	if p.eventToBlockData[contractAddress] == nil {
+		p.eventToBlockData[contractAddress] = make(map[string]PersisterBlockData)
 	}
-	return p.eventToLastBlockNumber[contractAddress][eventType].BlockNumber
+	return p.eventToBlockData[contractAddress][eventType].BlockNumber
 }
 
 // LastBlockHash returns the last block hash seen by the persister
 func (p *PostgresPersister) LastBlockHash(eventType string, contractAddress common.Address) common.Hash {
-	if p.eventToLastBlockNumber[contractAddress] == nil {
-		p.eventToLastBlockNumber[contractAddress] = make(map[string]PersisterBlockData)
+	if p.eventToBlockData[contractAddress] == nil {
+		p.eventToBlockData[contractAddress] = make(map[string]PersisterBlockData)
 	}
-	return p.eventToLastBlockNumber[contractAddress][eventType].BlockHash
+	return p.eventToBlockData[contractAddress][eventType].BlockHash
 }
 
 // UpdateLastBlockData updates the last block number seen by the persister
@@ -62,23 +77,35 @@ func (p *PostgresPersister) UpdateLastBlockData(events []*model.Event) error {
 	return nil
 }
 
-// SaveEvents saves events to events table in DB
-func (p *PostgresPersister) SaveEvents(events []*model.Event) error {
-	return p.saveEventsToTable(events, "event")
-}
+// PopulateBlockDataFromDB will fill the persistence with data from the DB.
+func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
+	events, err := p.getLatestEvents(tableName)
+	if err != nil {
+		return err
+	}
+	for _, event := range events {
+		modelEvent, err := event.DBToEventData()
+		if err != nil {
+			return err
+		}
+		blockData := PersisterBlockData{}
+		logPayload := modelEvent.LogPayload()
+		blockData.BlockNumber = logPayload.BlockNumber
+		blockData.BlockHash = logPayload.BlockHash
 
-// RetrieveEvents retrieves the Events given an offset, count, and asc/dec bool
-func (p *PostgresPersister) RetrieveEvents(criteria *model.RetrieveEventsCriteria) (
-	[]*model.Event, error) {
-	return p.retrieveEvents("event", criteria)
+		contractAddress := modelEvent.ContractAddress()
+		if p.eventToBlockData[contractAddress] == nil {
+			p.eventToBlockData[contractAddress] = make(map[string]PersisterBlockData)
+		}
+		p.eventToBlockData[contractAddress][modelEvent.EventType()] = blockData
+	}
+	return nil
 }
 
 // CreateTables creates tables in DB if they don't exist
 func (p *PostgresPersister) CreateTables() error {
-	// TODO(IS): per PN's advice have some logic to determine which models need to be part
-	// of this DB to run create for those set of models.
-	schema := postgres.EventTableSchema()
-	_, err := p.db.Exec(schema)
+	eventTableQuery := postgres.CreateEventTableQuery()
+	_, err := p.db.Exec(eventTableQuery)
 	return err
 }
 
@@ -90,46 +117,27 @@ func (p *PostgresPersister) CreateIndices() error {
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {
-	var err error
+	queryString := postgres.InsertIntoDBQueryString(tableName, postgres.Event{})
+	// There is no way to batch insert using sqlx, so doing a loop here
 	for _, event := range events {
-		dbEvent, dbEventErr := postgres.NewDbEventFromEvent(event)
-		if dbEventErr != nil {
-			return dbEventErr
-		}
-		query := p.getInsertEventQueryString(tableName)
-		err = p.saveEvent(dbEvent, query)
+		err := p.saveEventToTable(queryString, event)
 		if err != nil {
 			return err
 		}
 	}
-	return err
+	return nil
 }
 
-func (p *PostgresPersister) saveEvent(dbEvent *postgres.Event, query string) error {
-	_, err := p.db.NamedExec(query, dbEvent)
-	return err
-}
-
-func (p *PostgresPersister) getInsertEventQueryString(tableName string) string {
-	return fmt.Sprintf("INSERT INTO %s (event_type, hash, contract_address, contract_name, timestamp, payload, log_payload)"+
-		" VALUES (:event_type, :hash, :contract_address, :contract_name, :timestamp, :payload, :log_payload);",
-		tableName)
-}
-
-// GetAllEvents gets all events from table
-func (p *PostgresPersister) GetAllEvents(tableName string) ([]postgres.Event, error) {
-	dbEvent := []postgres.Event{}
-	queryString := fmt.Sprintf("SELECT event_type, hash, contract_address, contract_name, timestamp, payload, log_payload "+
-		"FROM %s;", tableName)
-	err := p.db.Select(&dbEvent, queryString)
-	return dbEvent, err
-}
-
-func (p *PostgresPersister) retrieveEvents(tableName string, criteria *model.RetrieveEventsCriteria) (
-	[]*model.Event, error) {
-	dbEvents, err := p.retrieveDbEvents(tableName, criteria)
+func (p *PostgresPersister) retrieveEventsFromTable(tableName string, criteria *model.RetrieveEventsCriteria) ([]*model.Event, error) {
+	queryString := p.retrieveEventsQuery(tableName, criteria)
+	dbEvents := []postgres.Event{}
+	nstmt, err := p.db.PrepareNamed(queryString)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error preparing query with sqlx: %v", err)
+	}
+	err = nstmt.Select(&dbEvents, criteria)
+	if err != nil {
+		return nil, fmt.Errorf("Error retrieving events from table: %v", err)
 	}
 	events := make([]*model.Event, len(dbEvents))
 	for index, dbEvent := range dbEvents {
@@ -143,14 +151,12 @@ func (p *PostgresPersister) retrieveEvents(tableName string, criteria *model.Ret
 	return events, nil
 }
 
-func (p *PostgresPersister) retrieveDbEvents(tableName string, criteria *model.RetrieveEventsCriteria) (
-	[]postgres.Event, error) {
-	queryBuf := bytes.NewBufferString("SELECT")
-	queryBuf.WriteString(
-		" event_type, hash, contract_address, contract_name, timestamp, payload, log_payload",
-	) // nolint: gosec
-	queryBuf.WriteString(fmt.Sprintf(" FROM %v", tableName)) // nolint: gosec
-
+func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *model.RetrieveEventsCriteria) string {
+	queryBuf := bytes.NewBufferString("SELECT ")
+	fields, _ := postgres.StructFieldsForQuery(postgres.Event{}, false)
+	queryBuf.WriteString(fields)    // nolint: gosec
+	queryBuf.WriteString(" FROM ")  // nolint: gosec
+	queryBuf.WriteString(tableName) // nolint: gosec
 	if criteria.FromTs > 0 {
 		queryBuf.WriteString(" WHERE timestamp > :fromts") // nolint: gosec
 	}
@@ -171,51 +177,35 @@ func (p *PostgresPersister) retrieveDbEvents(tableName string, criteria *model.R
 	if criteria.Count > 0 {
 		queryBuf.WriteString(" LIMIT :count") // nolint: gosec
 	}
-
-	dbEvent := []postgres.Event{}
-	nstmt, err := p.db.PrepareNamed(queryBuf.String())
-	if err != nil {
-		return nil, err
-	}
-	err = nstmt.Select(&dbEvent, criteria)
-	return dbEvent, err
+	return queryBuf.String()
 }
 
-// PopulateBlockDataFromDB will fill the persistence with data from the DB.
-func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
-	events, err := p.getLatestEvents(tableName)
+func (p *PostgresPersister) saveEventToTable(query string, event *model.Event) error {
+	dbEvent, err := postgres.NewDbEventFromEvent(event)
 	if err != nil {
 		return err
 	}
-	// TODO: if you have 2 events w the same timestamp, just take the max block number
-	for _, event := range events {
-		modelEvent, err := event.DBToEventData()
-		if err != nil {
-			return err
-		}
-		blockData := PersisterBlockData{}
-		logPayload := modelEvent.LogPayload()
-		blockData.BlockNumber = logPayload.BlockNumber
-		blockData.BlockHash = logPayload.BlockHash
-		contractAddress := modelEvent.ContractAddress()
-		p.eventToLastBlockNumber[contractAddress] = make(map[string]PersisterBlockData)
-		p.eventToLastBlockNumber[contractAddress][modelEvent.EventType()] = blockData
+	_, err = p.db.NamedExec(query, dbEvent)
+	if err != nil {
+		return fmt.Errorf("Error saving event to table %v", err)
 	}
 	return nil
 }
 
 func (p *PostgresPersister) getLatestEvents(tableName string) ([]postgres.Event, error) {
-	query := p.retrieveLatestEventsQueryString(tableName)
+	queryString := p.retrieveLatestEventsQueryString(tableName)
 	events := []postgres.Event{}
-	err := p.db.Select(&events, query)
+	err := p.db.Select(&events, queryString)
 	return events, err
 }
 
+// retrieveLatestEventsQueryString queries for the events with the latest timestamp given an event type and contract address
 func (p *PostgresPersister) retrieveLatestEventsQueryString(tableName string) string {
 	// Query for the latest timestamp.
-	return fmt.Sprintf("SELECT e.event_type, e.log_payload, e.payload, e.hash, e.contract_address, e.contract_name, max_e.timestamp "+
-		"FROM (SELECT event_type, contract_address, MAX(timestamp) AS timestamp FROM %s GROUP BY event_type, contract_address) max_e "+
-		"JOIN %s e ON e.event_type = max_e.event_type AND e.timestamp = max_e.timestamp AND e.contract_address = max_e.contract_address;", tableName, tableName)
+	return fmt.Sprintf(`SELECT e.event_type, e.log_payload, e.payload, e.hash, e.contract_address, e.contract_name, max_e.timestamp
+		FROM (SELECT event_type, contract_address, MAX(timestamp) AS timestamp FROM %s GROUP BY event_type, contract_address) max_e
+		JOIN %s e ON e.event_type = max_e.event_type AND e.timestamp = max_e.timestamp AND e.contract_address = max_e.contract_address;
+        `, tableName, tableName)
 }
 
 func (p *PostgresPersister) parseEventToPersist(event *model.Event) error {
@@ -223,10 +213,10 @@ func (p *PostgresPersister) parseEventToPersist(event *model.Event) error {
 	contractAddress := event.ContractAddress()
 	blockNumber := event.BlockNumber()
 	blockHash := event.BlockHash()
-	if p.eventToLastBlockNumber[contractAddress] == nil {
-		p.eventToLastBlockNumber[contractAddress] = make(map[string]PersisterBlockData)
+	if p.eventToBlockData[contractAddress] == nil {
+		p.eventToBlockData[contractAddress] = make(map[string]PersisterBlockData)
 	}
-	p.eventToLastBlockNumber[contractAddress][eventType] = PersisterBlockData{blockNumber, blockHash}
+	p.eventToBlockData[contractAddress][eventType] = PersisterBlockData{blockNumber, blockHash}
 	return nil
 }
 

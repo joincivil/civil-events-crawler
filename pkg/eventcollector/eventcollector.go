@@ -168,7 +168,8 @@ func (c *EventCollector) updateRetrieverStartingBlocks() {
 		eventTypes := filter.EventTypes()
 		for _, eventType := range eventTypes {
 			lastBlock := c.retrieverPersister.LastBlockNumber(eventType, contractAddress)
-			filter.UpdateStartBlock(eventType, lastBlock)
+			// NOTE (IS): Starting at lastBlock+1. There could be a scenario where this could miss the rest of events in prev block?
+			filter.UpdateStartBlock(eventType, lastBlock+1)
 		}
 	}
 }

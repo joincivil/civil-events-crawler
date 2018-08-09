@@ -41,8 +41,8 @@ type RetrieveEventsCriteria struct {
 	Offset    int    `db:"offset"`
 	Count     int    `db:"count"`
 	Reverse   bool   `db:"reverse"`
-	FromTs    int    `db:"fromts"`
-	BeforeTs  int    `db:"beforets"`
+	FromTs    int64  `db:"fromts"`
+	BeforeTs  int64  `db:"beforets"`
 	EventType string `db:"eventtype"`
 }
 

@@ -3,6 +3,9 @@
 // This is an integration test file for postgrespersister. Postgres needs to be running.
 // Run this using go test -tags=integration
 // Run benchmark test using go test -tags=integration -bench=.
+
+// NOTE(IS): This only tests with civiltcr and newsroom contract events because we only have
+// event wrappers around those contracts so far.
 package persistence
 
 import (
@@ -13,25 +16,27 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
-	"time"
 )
 
 const (
-	postgresPort   = 5432
-	postgresDBName = "civil_crawler"
-	postgresUser   = "docker"
-	postgresPswd   = "docker"
-	postgresHost   = "localhost"
+	eventTestTableName = "event_test"
+	postgresPort       = 5432
+	postgresDBName     = "civil_crawler"
+	postgresUser       = "docker"
+	postgresPswd       = "docker"
+	postgresHost       = "localhost"
 )
 
 var (
-	contractAddress = "0x77e5aaBddb760FBa989A1C4B2CDd4aA8Fa3d311d"
-	testAddress     = "0xDFe273082089bB7f70Ee36Eebcde64832FE97E55"
-	testEvent       = &contract.CivilTCRContractApplication{
+	contractAddress      = "0x77e5aaBddb760FBa989A1C4B2CDd4aA8Fa3d311d"
+	testAddress          = "0xDFe273082089bB7f70Ee36Eebcde64832FE97E55"
+	testApplicationEvent = &contract.CivilTCRContractApplication{
 		ListingAddress: common.HexToAddress(testAddress),
 		Deposit:        big.NewInt(1000),
 		AppEndDate:     big.NewInt(1653860896),
@@ -49,26 +54,21 @@ var (
 			Removed:     false,
 		},
 	}
-	testEvent2 = &contract.CivilTCRContractApplicationWhitelisted{
+	testApplicationWhitelistedEvent = &contract.CivilTCRContractApplicationWhitelisted{
 		ListingAddress: common.HexToAddress(testAddress),
 		Raw: types.Log{
 			Address:     common.HexToAddress(testAddress),
 			Topics:      []common.Hash{},
 			Data:        []byte{},
-			BlockNumber: 8888888,
+			BlockNumber: 8888886,
 			TxHash:      common.Hash{},
-			TxIndex:     2,
+			TxIndex:     3,
 			BlockHash:   common.Hash{},
 			Index:       2,
 			Removed:     false,
 		},
 	}
-	ChallengeID   *big.Int
-	Data          string
-	CommitEndDate *big.Int
-	RevealEndDate *big.Int
-	Challenger    common.Address
-	testEvent3    = &contract.CivilTCRContractChallenge{
+	testChallengeEvent = &contract.CivilTCRContractChallenge{
 		ListingAddress: common.HexToAddress(testAddress),
 		ChallengeID:    big.NewInt(8),
 		Data:           "DATA",
@@ -79,9 +79,23 @@ var (
 			Address:     common.HexToAddress(testAddress),
 			Topics:      []common.Hash{},
 			Data:        []byte{},
-			BlockNumber: 8888888,
+			BlockNumber: 8888887,
 			TxHash:      common.Hash{},
-			TxIndex:     2,
+			TxIndex:     4,
+			BlockHash:   common.Hash{},
+			Index:       2,
+			Removed:     false,
+		},
+	}
+	testNwsrmNameChangedEvent = &contract.NewsroomContractNameChanged{
+		NewName: "test newsroom",
+		Raw: types.Log{
+			Address:     common.HexToAddress(testAddress),
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8888889,
+			TxHash:      common.Hash{},
+			TxIndex:     4,
 			BlockHash:   common.Hash{},
 			Index:       2,
 			Removed:     false,
@@ -89,34 +103,79 @@ var (
 	}
 )
 
-// Sets up an Application event and generates a random hash for address so that the hash in DB is unique.
-func setupEvent(rand bool) (*model.Event, error) {
+/*
+Helpers for tests
+*/
+// TODO(IS) create a more realistic raw.log payload?
+// Sets up an Application event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
+func setupApplicationEvent(rand bool) (*model.Event, error) {
 	if rand {
 		randString, _ := randomHex(32)
-		testEvent.Raw.TxHash = common.HexToHash(randString)
+		testApplicationEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochSecsInInt()-(60*60*3))
+		testApplicationEvent, utils.CurrentEpochNanoSecsInInt64(), model.Filterer)
 }
 
-// Sets up an ApplicationWhitelisted event and generates a random hash for address so that the hash in DB is unique.
-func setupEvent2(rand bool) (*model.Event, error) {
+// Sets up an ApplicationWhitelisted event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
+func setupApplicationWhitelistedEvent(rand bool) (*model.Event, error) {
 	if rand {
 		randString, _ := randomHex(32)
-		testEvent2.Raw.TxHash = common.HexToHash(randString)
+		testApplicationWhitelistedEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent2, utils.CurrentEpochSecsInInt()-(60*60*2))
+		testApplicationWhitelistedEvent, utils.CurrentEpochNanoSecsInInt64(), model.Watcher)
 }
 
-// Sets up an Challenge event and generates a random hash for address so that the hash in DB is unique.
-func setupEvent3(rand bool) (*model.Event, error) {
+// Sets up an Challenge event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
+func setupChallengeEvent(rand bool) (*model.Event, error) {
 	if rand {
 		randString, _ := randomHex(32)
-		testEvent2.Raw.TxHash = common.HexToHash(randString)
+		testChallengeEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("Challenge", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent3, utils.CurrentEpochSecsInInt()-(60*60))
+		testChallengeEvent, utils.CurrentEpochNanoSecsInInt64(), model.Filterer)
+}
+
+// Sets up a Newsroom Name Changed event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
+func setupNewsroomNameChanged(rand bool) (*model.Event, error) {
+	if rand {
+		randString, _ := randomHex(32)
+		testNwsrmNameChangedEvent.Raw.TxHash = common.HexToHash(randString)
+	}
+	return model.NewEventFromContractEvent("NameChanged", "NewsroomContract", common.HexToAddress(contractAddress),
+		testNwsrmNameChangedEvent, utils.CurrentEpochNanoSecsInInt64(), model.Watcher)
+}
+
+// specify fields for testing purposes
+func setupApplicationEventWithParams(rand bool, contractAddress string, timestamp int64) (*model.Event, error) {
+	if rand {
+		randString, _ := randomHex(32)
+		testApplicationEvent.Raw.TxHash = common.HexToHash(randString)
+	}
+	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
+		testApplicationEvent, timestamp, model.Filterer)
+}
+
+// Sets up all the above events and returns a list of test events
+func setupEvents(rand bool) ([]*model.Event, error) {
+	appEvent, err := setupApplicationEvent(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup Application event: %v", err)
+	}
+	appWhitelisted, err := setupApplicationWhitelistedEvent(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup ApplicationWhitelisted event: %v", err)
+	}
+	challenge, err := setupChallengeEvent(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup Challenge event: %v", err)
+	}
+	nameChanged, err := setupNewsroomNameChanged(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup NameChanged event: %v", err)
+	}
+	return []*model.Event{appEvent, appWhitelisted, challenge, nameChanged}, nil
 }
 
 // random hex string generation
@@ -128,9 +187,23 @@ func randomHex(n int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+// Change block number of events for tests
+func changeBlockData(blockNo int, event *model.Event) {
+	event.LogPayload().BlockNumber = uint64(blockNo)
+}
+
 func setupDBConnection() (*PostgresPersister, error) {
 	postgresPersister, err := NewPostgresPersister(postgresHost, postgresPort, postgresUser, postgresPswd, postgresDBName)
 	return postgresPersister, err
+}
+
+// allEventsFromTable gets all events from table and is used for testing
+func allEventsFromTable(persister *PostgresPersister, tableName string) ([]postgres.Event, error) {
+	dbEvent := []postgres.Event{}
+	queryString := fmt.Sprintf("SELECT event_type, hash, contract_address, contract_name, timestamp, payload, log_payload "+
+		"FROM %s;", tableName)
+	err := persister.db.Select(&dbEvent, queryString)
+	return dbEvent, err
 }
 
 func setupTestTable() (*PostgresPersister, error) {
@@ -138,18 +211,7 @@ func setupTestTable() (*PostgresPersister, error) {
 	if err != nil {
 		return persister, fmt.Errorf("Error connecting to DB: %v", err)
 	}
-	createTableQuery := `
-		CREATE TABLE IF NOT EXISTS event_test(
-			id SERIAL PRIMARY KEY,
-			event_type TEXT,
-			hash TEXT UNIQUE,
-			contract_address TEXT,
-			contract_name TEXT,
-			timestamp INT,
-			payload JSONB,
-			log_payload JSONB
-		);
-	`
+	createTableQuery := postgres.CreateEventTableQueryString(eventTestTableName)
 	_, err = persister.db.Query(createTableQuery)
 	if err != nil {
 		return persister, fmt.Errorf("Couldn't create test table %v", err)
@@ -165,6 +227,10 @@ func deleteTestTable(persister *PostgresPersister) error {
 	}
 	return nil
 }
+
+/*
+Tests for postgres setup
+*/
 
 func TestDBConnection(t *testing.T) {
 	persister, err := setupDBConnection()
@@ -182,7 +248,6 @@ func TestDBConnection(t *testing.T) {
 }
 
 func TestTableSetup(t *testing.T) {
-	// run function to create tables, and test table exists
 	persister, err := setupDBConnection()
 	if err != nil {
 		t.Errorf("Error connecting to DB: %v", err)
@@ -229,11 +294,7 @@ func TestIndexCreationTestTable(t *testing.T) {
 	}
 	defer deleteTestTable(persister)
 
-	indexCreationQuery := `
-		CREATE INDEX IF NOT EXISTS event_event_type_idx ON event_test (event_type);
-		CREATE INDEX IF NOT EXISTS event_contract_address_idx ON event_test (contract_address);
-		CREATE INDEX IF NOT EXISTS event_timestamp_idx ON event_test (timestamp);
-	`
+	indexCreationQuery := postgres.CreateEventTableIndicesString(eventTestTableName)
 	_, err = persister.db.Query(indexCreationQuery)
 	if err != nil {
 		t.Errorf("Error creating indices in test table: %v", err)
@@ -243,33 +304,139 @@ func TestIndexCreationTestTable(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error creating indices in test table: %v", err)
 	}
-
 }
 
-func TestSaveToEventTestTable(t *testing.T) {
+// Try to save the an event with the same payload hash twice. This should not work
+func TestDuplicateEvents(t *testing.T) {
 	persister, err := setupTestTable()
 	if err != nil {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
-	event, err := setupEvent(true)
+	// create 2 events w same payload hash
+	event1, err := setupApplicationEvent(false)
+	if err != nil {
+		t.Errorf("Cannot setup Application event: %v", err)
+	}
+	event2, err := setupApplicationEvent(false)
+	if err != nil {
+		t.Errorf("Cannot setup Application event: %v", err)
+	}
+	if event1.Hash() != event2.Hash() {
+		t.Errorf("Hashes for events should be equal, but they are %v, %v", event1.Hash(), event2.Hash())
+	}
+	civilEventsFromContract := []*model.Event{event1, event2}
+	// save to database, catch the error
+	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
+	if !strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+		t.Errorf("Error for duplicate key value should have been thrown")
+	}
+
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+// Test saving the same list of events twice to ensure that start block for filterers is being updated w persistence
+func TestStartBlockUpdate(t *testing.T) {
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTable(persister)
+	events, err := setupEvents(false)
+	if err != nil {
+		t.Errorf("Couldn't setup civilEvent from contract %v", err)
+	}
+	err = persister.saveEventsToTable(events, eventTestTableName)
+	if err != nil {
+		fmt.Errorf("Error saving events to table, %v", err)
+	}
+	err = persister.saveEventsToTable(events, eventTestTableName)
+	if err != nil {
+		fmt.Errorf("Error saving same events to table, %v", err)
+	}
+
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+/*
+event table tests
+*/
+
+// TestMultipleQueries tests that all queries can be performed w the instance of db, i.e. connection pools are being returned
+func TestMultipleQueries(t *testing.T) {
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTable(persister)
+	// save each type of test event to table
+	// save many events
+	for i := 1; i <= 100; i++ {
+		events, err := setupEvents(true)
+		if err != nil {
+			t.Errorf("Couldn't setup civilEvents from contract %v", err)
+		}
+		// save events
+		err = persister.saveEventsToTable(events, eventTestTableName)
+		if err != nil {
+			t.Errorf("Cannot save event to events_test table: %v", err)
+		}
+
+		// retrieve events
+		_, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
+			Offset:  0,
+			Count:   1,
+			Reverse: false,
+		})
+		if err != nil {
+			t.Errorf("Couldn't retrieve events %v", err)
+		}
+
+		// get latest events
+		err = persister.PopulateBlockDataFromDB(eventTestTableName)
+		if err != nil {
+			t.Errorf("Couldn't populate block data %v", err)
+		}
+	}
+
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestSaveEvents(t *testing.T) {
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTable(persister)
+
+	events, err := setupEvents(true)
 	if err != nil {
 		t.Errorf("Couldn't setup civilEvent from contract %v", err)
 	}
 
-	civilEventsFromContract := []*model.Event{event}
-	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
+	// save each type of test event to table
+	err = persister.saveEventsToTable(events, eventTestTableName)
 	if err != nil {
 		t.Errorf("Cannot save event to events_test table: %v", err)
 	}
 
-	civilEventDB, err := persister.GetAllEvents("event_test")
+	civilEventsDB, err := allEventsFromTable(persister, eventTestTableName)
 	if err != nil {
 		t.Errorf("error querying event from events_test table: %v", err)
 	}
-	if len(civilEventDB) != 1 {
-		t.Errorf("expected there to be only 1 event in table but there is %v events", len(civilEventDB))
+	if len(civilEventsDB) != 4 {
+		t.Errorf("expected there to be 4 events in table but there are %v events", len(civilEventsDB))
 	}
+
 	err = deleteTestTable(persister)
 	if err != nil {
 		t.Error(err)
@@ -286,25 +453,27 @@ func BenchmarkSavingManyEventsToEventTestTable(b *testing.B) {
 	defer deleteTestTable(persister)
 
 	numEvents := 100
+	numEventTypes := 4
 	civilEventsFromContract := make([]*model.Event, 0)
 	for i := 1; i <= numEvents; i++ {
-		event, err := setupEvent(true)
+		events, err := setupEvents(true)
 		if err != nil {
 			b.Errorf("Couldn't setup civilEvent from contract %v", err)
 		}
-		civilEventsFromContract = append(civilEventsFromContract, event)
+		civilEventsFromContract = append(civilEventsFromContract, events...)
 	}
 
-	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
+	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
 		b.Errorf("Cannot save event to event_test table: %v", err)
 	}
 	var numRows int
 	err = persister.db.QueryRow(`SELECT COUNT(*) FROM
                                         event_test`).Scan(&numRows)
-	if numRows != numEvents {
+	if numRows != numEvents*numEventTypes {
 		b.Errorf("Number of rows in event_test table should be %v but it is %v", numEvents, numRows)
 	}
+
 	err = deleteTestTable(persister)
 	if err != nil {
 		b.Error(err)
@@ -317,22 +486,43 @@ func TestPersistenceUpdate(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error connecting to DB: %v", err)
 	}
-	event, err := setupEvent(true)
+	events, err := setupEvents(true)
 	if err != nil {
-		t.Errorf("Couldn't setup civilEvent from contract %v", err)
+		t.Errorf("Couldn't setup civilEvents from contracts %v", err)
 	}
-	civilEventsFromContract := []*model.Event{event}
-	err = persister.UpdateLastBlockData(civilEventsFromContract)
+
+	err = persister.UpdateLastBlockData(events)
 	if err != nil {
 		t.Errorf("Couldn't update last block data: %v", err)
 	}
+	for _, event := range events {
+		if persister.LastBlockNumber(event.EventType(), event.ContractAddress()) != event.LogPayload().BlockNumber {
+			t.Error("Blocknumber was not updated correctly in persistence")
+		}
+		if persister.LastBlockHash(event.EventType(), event.ContractAddress()) != event.LogPayload().BlockHash {
+			t.Error("Blockhash was not updated correctly in persistence")
+		}
+	}
+	// should actually change block no here?
+	// now save 4 new events, see if persistence is updated
+	events2, err := setupEvents(true)
+	if err != nil {
+		t.Errorf("Couldn't setup civilEvents from contracts %v", err)
+	}
 
-	if persister.LastBlockNumber(event.EventType(), event.ContractAddress()) != testEvent.Raw.BlockNumber {
-		t.Error("Blocknumber was not updated correctly in persistence")
+	err = persister.UpdateLastBlockData(events)
+	if err != nil {
+		t.Errorf("Couldn't update last block data: %v", err)
 	}
-	if persister.LastBlockHash(event.EventType(), event.ContractAddress()) != testEvent.Raw.BlockHash {
-		t.Error("Blockhash was not updated correctly in persistence")
+	for _, event := range events2 {
+		if persister.LastBlockNumber(event.EventType(), event.ContractAddress()) != event.LogPayload().BlockNumber {
+			t.Error("Blocknumber was not updated correctly in persistence")
+		}
+		if persister.LastBlockHash(event.EventType(), event.ContractAddress()) != event.LogPayload().BlockHash {
+			t.Error("Blockhash was not updated correctly in persistence")
+		}
 	}
+
 }
 
 func TestLatestEventsQuery(t *testing.T) {
@@ -341,138 +531,265 @@ func TestLatestEventsQuery(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
-	var latestTimestamp int
-	civilEventsFromContract := make([]*model.Event, 0)
 
-	event, err := setupEvent(true)
+	testEvents, err := setupEvents(true)
 	if err != nil {
-		t.Errorf("Couldn't setup Application civilEvent from contract %v", err)
+		t.Errorf("Couldn't setup event %v", err)
 	}
-	event2, err := setupEvent2(true)
+	// create more events that are at a later time
+	testEventsLatest, err := setupEvents(true)
 	if err != nil {
-		t.Errorf("Couldn't setup ApplicationWhitelisted civilEvent from contract %v", err)
+		t.Errorf("Couldn't setup event %v", err)
 	}
-	civilEventsFromContract = append(civilEventsFromContract, event, event2)
-
-	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
+	testEvents = append(testEvents, testEventsLatest...)
+	numEvents := len(testEventsLatest)
+	// save events
+	err = persister.saveEventsToTable(testEvents, eventTestTableName)
 	if err != nil {
 		t.Errorf("Cannot save event to event_test table: %v", err)
 	}
 
-	events, err := persister.getLatestEvents("event_test")
+	// retrieve events
+	dbEvents, err := persister.getLatestEvents(eventTestTableName)
 	if err != nil {
 		t.Errorf("Error retrieving events: %v", err)
 	}
-	if len(events) != 2 {
-		t.Errorf("Query should have only returned 2 events but there are %v", len(events))
+	if len(dbEvents) != numEvents {
+		t.Errorf("Query should have only returned %v events but there are %v", numEvents, len(dbEvents))
 	}
 
-	latestTimestamp = event.Timestamp()
-	queryTimestamp := events[0].Timestamp
-	if queryTimestamp != latestTimestamp {
-		t.Errorf("Query didn't pull the latest event for contract and event type for %v", events[0].EventType)
-	}
+	// check fields that would change are equal
+	for i, event := range testEventsLatest {
+		latestTimestamp := event.Timestamp()
+		queryTimestamp := dbEvents[i].Timestamp
+		if latestTimestamp != queryTimestamp {
+			t.Errorf("Query didn't pull the latest event for contract %v and event type %v", event.ContractName(), event.EventType())
+		}
 
-	latestTimestamp = event2.Timestamp()
-	queryTimestamp2 := events[1].Timestamp
-	if queryTimestamp2 != latestTimestamp {
-		t.Errorf("Query didn't pull the latest event for contract and event type %v", events[1].EventType)
 	}
-
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
+	}
 }
 
-func TestPersistenceUpdateFromDB(t *testing.T) {
+func TestPopulateBlockDataFromDB(t *testing.T) {
 	persister, err := setupTestTable()
 	if err != nil {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
+
+	// create test events, fill test block data
 	numEvents := 3
 	civilEventsFromContract := make([]*model.Event, 0)
+	blockNo := 8888888
+	correctEventToBlockData := make(map[common.Address]map[string]PersisterBlockData)
 	for i := 1; i <= numEvents; i++ {
-		event, err := setupEvent(true)
+		events, err := setupEvents(true)
 		if err != nil {
 			t.Errorf("Couldn't setup civilEvent from contract %v", err)
 		}
-		civilEventsFromContract = append(civilEventsFromContract, event)
-		time.Sleep(1 * time.Second)
+		for _, event := range events {
+			changeBlockData(blockNo, event)
+			contractAddress := event.ContractAddress()
+			eventType := event.EventType()
+
+			blockData := PersisterBlockData{event.LogPayload().BlockNumber, event.LogPayload().BlockHash}
+			if correctEventToBlockData[contractAddress] == nil {
+				correctEventToBlockData[contractAddress] = make(map[string]PersisterBlockData)
+			}
+			correctEventToBlockData[contractAddress][eventType] = blockData
+		}
+		blockNo++
+		civilEventsFromContract = append(civilEventsFromContract, events...)
 	}
 
-	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
+	// add events with a different contract address
+	contractAddress, _ = randomHex(42)
+
+	for i := 1; i <= numEvents; i++ {
+		events, err := setupEvents(true)
+		if err != nil {
+			t.Errorf("Couldn't setup civilEvent from contract %v", err)
+		}
+		for _, event := range events {
+			changeBlockData(blockNo, event)
+			contractAddress := event.ContractAddress()
+			eventType := event.EventType()
+			blockData := PersisterBlockData{event.LogPayload().BlockNumber, event.LogPayload().BlockHash}
+			if correctEventToBlockData[contractAddress] == nil {
+				correctEventToBlockData[contractAddress] = make(map[string]PersisterBlockData)
+			}
+			correctEventToBlockData[contractAddress][eventType] = blockData
+		}
+		blockNo++
+		civilEventsFromContract = append(civilEventsFromContract, events...)
+	}
+
+	// save events to table
+	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
 		t.Errorf("Cannot save event to event_test table: %v", err)
 	}
-	err = persister.PopulateBlockDataFromDB("event_test")
+
+	// populate persistence
+	err = persister.PopulateBlockDataFromDB(eventTestTableName)
 	if err != nil {
 		t.Errorf("Cannot fill persistence, %v", err)
 	}
 
-	blockNumber := persister.eventToLastBlockNumber[common.HexToAddress(contractAddress)]["Application"].BlockNumber
-	correctBlockNumber := testEvent.Raw.BlockNumber
-	if blockNumber != correctBlockNumber {
-		t.Errorf("Block number should be %v but is %v", correctBlockNumber, blockNumber)
+	if !reflect.DeepEqual(correctEventToBlockData, persister.eventToBlockData) {
+		t.Errorf("eventToBlockData was not populated correctly. it should be %v but is %v", correctEventToBlockData,
+			persister.eventToBlockData)
 	}
 
-	blockHash := persister.eventToLastBlockNumber[common.HexToAddress(contractAddress)]["Application"].BlockHash
-	correctBlockHash := testEvent.Raw.BlockHash
-	if blockHash != correctBlockHash {
-		t.Errorf("Block number should be %v but is %v", correctBlockHash, blockHash)
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
 	}
-
 }
 
-// This conversion needs to be here, bc we need the actual event after being saved in DB.
-func TestDBToEvent(t *testing.T) {
-	civilEvent, err := setupEvent(true)
-	if err != nil {
-		t.Errorf("setupEvent should have succeeded: err: %v", err)
-	}
-	// Get this event from DB
+// Two events with the same timestamp
+// what even happens when 2 events have the same timestamp and you try to fill persistence
+func TestSameTimestampEvents(t *testing.T) {
 	persister, err := setupTestTable()
 	if err != nil {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
-	civilEventsFromContract := []*model.Event{civilEvent}
-	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
+
+	// setup 2 challenge events (same contract address) with the same timestamp..
+	// 2 cases
+	// 1. events have the same timestamp and block number (this would rarely happen), but same block number will be taken
+	// 2. events have the same timestamp and different block number. take the higher block number (I don't think this would ever happen)
+
+	// case 1
+	numEvents := 2
+	civilEventsFromContract := make([]*model.Event, numEvents)
+	timestamp := utils.CurrentEpochNanoSecsInInt64()
+	contractAddress, _ := randomHex(42)
+
+	for i := 0; i < numEvents; i++ {
+		event, err := setupApplicationEventWithParams(true, contractAddress, timestamp)
+		if err != nil {
+			t.Errorf("Couldn't setup civilEvent from contract %v", err)
+		}
+		civilEventsFromContract[i] = event
+	}
+
+	// save events to table
+	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
 		t.Errorf("Cannot save event to event_test table: %v", err)
 	}
 
-	civilEventDB, err := persister.GetAllEvents("event_test")
+	// populate persistence
+	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	if err != nil {
+		t.Errorf("Cannot fill persistence, %v", err)
+	}
 
-	dbEvent := civilEventDB[0]
+	// check peristence
+	if persister.eventToBlockData[common.HexToAddress(contractAddress)]["Application"].BlockNumber !=
+		civilEventsFromContract[0].LogPayload().BlockNumber {
+		t.Errorf("Block numbers are not equal: %v, %v", persister.eventToBlockData[common.HexToAddress(contractAddress)]["Application"].BlockNumber,
+			civilEventsFromContract[0].LogPayload().BlockNumber)
+	}
 
-	civilEventFromDB, err := dbEvent.DBToEventData()
+	// case 2
+	civilEventsFromContract2 := make([]*model.Event, numEvents)
+	timestamp2 := utils.CurrentEpochNanoSecsInInt64()
+	blockNo := 8888888
+
+	for i := 0; i < numEvents; i++ {
+		event, err := setupApplicationEventWithParams(true, contractAddress, timestamp2)
+		if err != nil {
+			t.Errorf("Couldn't setup civilEvent from contract %v", err)
+		}
+		blockNo++
+		changeBlockData(blockNo, event)
+		civilEventsFromContract2[i] = event
+	}
+
+	// save events to table
+	err = persister.saveEventsToTable(civilEventsFromContract2, eventTestTableName)
+	if err != nil {
+		t.Errorf("Cannot save event to event_test table: %v", err)
+	}
+
+	// populate persistence
+	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	if err != nil {
+		t.Errorf("Cannot fill persistence, %v", err)
+	}
+
+	// check peristence
+	if civilEventsFromContract2[1].LogPayload().BlockNumber !=
+		persister.eventToBlockData[common.HexToAddress(contractAddress)]["Application"].BlockNumber {
+		t.Errorf("Block number is not what it should be")
+	}
+
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+// This conversion needs to be here, bc we need the actual event after being saved in DB.
+func TestDBToEvent(t *testing.T) {
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTable(persister)
+
+	appEvent, err := setupApplicationEvent(true)
+	if err != nil {
+		t.Errorf("setupEvent should have succeeded: err: %v", err)
+	}
+
+	// Get this event from DB
+	events := []*model.Event{appEvent}
+	err = persister.saveEventsToTable(events, eventTestTableName)
+	if err != nil {
+		t.Errorf("Cannot save event to event_test table: %v", err)
+	}
+
+	appEventDB, err := allEventsFromTable(persister, eventTestTableName)
+
+	dbEvent := appEventDB[0]
+
+	appEventFromDB, err := dbEvent.DBToEventData()
 	if err != nil {
 		t.Errorf("Could not convert db event back to civilevent: err: %v", err)
 	}
 
 	// deep equal doesn't work bc of nested slices, etc. so just compare each element
-	if civilEvent.ContractAddress() != civilEventFromDB.ContractAddress() {
-		t.Errorf("ContractAddress not equal: %v %v", civilEvent.ContractAddress(), civilEventFromDB.ContractAddress())
+	if appEvent.ContractAddress() != appEventFromDB.ContractAddress() {
+		t.Errorf("ContractAddress not equal: %v %v", appEvent.ContractAddress(), appEventFromDB.ContractAddress())
 	}
-	if civilEvent.ContractName() != civilEventFromDB.ContractName() {
-		t.Errorf("ContractName not equal: %v %v", civilEvent.ContractName(), civilEventFromDB.ContractName())
+	if appEvent.ContractName() != appEventFromDB.ContractName() {
+		t.Errorf("ContractName not equal: %v %v", appEvent.ContractName(), appEventFromDB.ContractName())
 	}
-	if civilEvent.Hash() != civilEventFromDB.Hash() {
-		t.Errorf("Hash not equal: %v %v", civilEvent.Hash(), civilEventFromDB.Hash())
+	if appEvent.Hash() != appEventFromDB.Hash() {
+		t.Errorf("Hash not equal: %v %v", appEvent.Hash(), appEventFromDB.Hash())
 	}
-	if civilEvent.EventType() != civilEventFromDB.EventType() {
-		t.Errorf("EventType not equal: %v %v", civilEvent.EventType(), civilEventFromDB.EventType())
+	if appEvent.EventType() != appEventFromDB.EventType() {
+		t.Errorf("EventType not equal: %v %v", appEvent.EventType(), appEventFromDB.EventType())
 	}
-	if civilEvent.Timestamp() != civilEventFromDB.Timestamp() {
-		t.Errorf("Timestamp not equal: %v %v", civilEvent.Timestamp(), civilEventFromDB.Timestamp())
+	if appEvent.Timestamp() != appEventFromDB.Timestamp() {
+		t.Errorf("Timestamp not equal: %v %v", appEvent.Timestamp(), appEventFromDB.Timestamp())
 	}
 
 	// EventPayload
-	if !reflect.DeepEqual(civilEventFromDB.EventPayload(), civilEvent.EventPayload()) {
-		t.Errorf("EventPayloads not equal: %v %v", civilEvent.EventPayload(), civilEventFromDB.EventPayload())
+	if !reflect.DeepEqual(appEventFromDB.EventPayload(), appEvent.EventPayload()) {
+		t.Errorf("EventPayloads not equal: %v %v", appEvent.EventPayload(), appEventFromDB.EventPayload())
 	}
 
 	// LogPayload
-	civilLogPayload := civilEvent.LogPayload()
-	civilLogFromDBPayload := civilEventFromDB.LogPayload()
+	civilLogPayload := appEvent.LogPayload()
+	civilLogFromDBPayload := appEventFromDB.LogPayload()
 
 	if civilLogPayload.Address != civilLogFromDBPayload.Address {
 		t.Errorf("Address in Log not equal: %v %v", civilLogPayload.Address, civilLogFromDBPayload.Address)
@@ -501,6 +818,10 @@ func TestDBToEvent(t *testing.T) {
 	if civilLogPayload.Removed != civilLogFromDBPayload.Removed {
 		t.Errorf("Removed in Log not equal: %v %v", civilLogPayload.Removed, civilLogFromDBPayload.Removed)
 	}
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
+	}
 
 }
 
@@ -510,27 +831,17 @@ func TestRetrieveEvents(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
-	civilEventsFromContract := []*model.Event{}
-	event, err := setupEvent(true)
+	civilEventsFromContract, err := setupEvents(true)
 	if err != nil {
-		t.Errorf("Should not have received error from setting up event from contract %v", err)
+		t.Errorf("Couldn't setup event %v", err)
 	}
-	event2, err := setupEvent2(true)
-	if err != nil {
-		t.Errorf("Should not have received error from setting up event from contract %v", err)
-	}
-	event3, err := setupEvent3(true)
-	if err != nil {
-		t.Errorf("Should not have received error from setting up event from contract %v", err)
-	}
-	civilEventsFromContract = append(civilEventsFromContract, event, event2, event3)
 
-	err = persister.saveEventsToTable(civilEventsFromContract, "event_test")
+	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
 		t.Errorf("Should not have seen error when saving events to table: %v", err)
 	}
 
-	events, err := persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+	events, err := persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
 		Offset:  0,
 		Count:   1,
 		Reverse: false,
@@ -541,11 +852,11 @@ func TestRetrieveEvents(t *testing.T) {
 	if len(events) != 1 {
 		t.Errorf("Should have seen only 1 event: %v", len(events))
 	}
-	if events[0].EventType() != event.EventType() {
+	if events[0].EventType() != civilEventsFromContract[0].EventType() {
 		t.Errorf("Should have seen the type of the oldest event: err: %v", err)
 	}
 
-	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
 		Offset:  0,
 		Count:   3,
 		Reverse: false,
@@ -557,8 +868,20 @@ func TestRetrieveEvents(t *testing.T) {
 		t.Errorf("Should have seen only 3 event: %v", len(events))
 	}
 
-	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
 		Offset:  0,
+		Count:   5,
+		Reverse: false,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 4 {
+		t.Errorf("Should have seen only 4 events: %v", len(events))
+	}
+
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
+		Offset:  1,
 		Count:   5,
 		Reverse: false,
 	})
@@ -569,19 +892,7 @@ func TestRetrieveEvents(t *testing.T) {
 		t.Errorf("Should have seen only 3 events: %v", len(events))
 	}
 
-	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
-		Offset:  1,
-		Count:   5,
-		Reverse: false,
-	})
-	if err != nil {
-		t.Errorf("Should not have received error when retrieving events: err: %v", err)
-	}
-	if len(events) != 2 {
-		t.Errorf("Should have seen only 2 events: %v", len(events))
-	}
-
-	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
 		Offset:  0,
 		Count:   3,
 		Reverse: true,
@@ -592,11 +903,11 @@ func TestRetrieveEvents(t *testing.T) {
 	if len(events) != 3 {
 		t.Errorf("Should have seen only 2 event: %v", len(events))
 	}
-	if events[0].EventType() != event3.EventType() {
+	if events[0].EventType() != civilEventsFromContract[3].EventType() {
 		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
 	}
 
-	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
 		Offset:    0,
 		Count:     10,
 		EventType: "Application",
@@ -611,33 +922,38 @@ func TestRetrieveEvents(t *testing.T) {
 		t.Errorf("Should have seen the type application")
 	}
 
-	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
 		Offset: 0,
 		Count:  10,
-		FromTs: event2.Timestamp(),
+		FromTs: civilEventsFromContract[1].Timestamp(),
 	})
 	if err != nil {
 		t.Errorf("Should not have received error when retrieving events: err: %v", err)
 	}
-	if len(events) != 1 {
-		t.Errorf("Should have seen only 1 event: %v", len(events))
+	if len(events) != 2 {
+		t.Errorf("Should have seen 2 events: %v", len(events))
 	}
 	if events[0].EventType() != "Challenge" {
 		t.Errorf("Should have seen the type challenge")
 	}
 
-	events, err = persister.retrieveEvents("event_test", &model.RetrieveEventsCriteria{
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
 		Offset:   0,
 		Count:    10,
-		BeforeTs: event2.Timestamp(),
+		BeforeTs: civilEventsFromContract[1].Timestamp(),
 	})
 	if err != nil {
 		t.Errorf("Should not have received error when retrieving events: err: %v", err)
 	}
 	if len(events) != 1 {
-		t.Errorf("Should have seen only 1 event: %v", len(events))
+		t.Errorf("Should have seen only 1: %v", len(events))
 	}
 	if events[0].EventType() != "Application" {
 		t.Errorf("Should have seen the type application")
+	}
+
+	err = deleteTestTable(persister)
+	if err != nil {
+		t.Error(err)
 	}
 }

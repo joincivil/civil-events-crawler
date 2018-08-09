@@ -144,7 +144,7 @@ func eventType(contractTypeName string, eventName string) string {
 }
 
 func cleanEventName(name string) string {
-	return strings.Trim(name, "_")
+	return strings.Trim(name, " _")
 }
 
 // translateType inspired by bindUnnestedTypeGo in go-ethereum/accounts/abi/bind

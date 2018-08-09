@@ -10,31 +10,46 @@ import (
 	"strings"
 )
 
-// EventTableSchema returns the query to create this table
-func EventTableSchema() string {
-	schema := `
-		CREATE TABLE IF NOT EXISTS event(
-			id SERIAL PRIMARY KEY,
-			event_type TEXT,
-			hash TEXT UNIQUE,
-			contract_address TEXT,
-			contract_name TEXT,
-			timestamp BIGINT,
-			payload JSONB,
-			log_payload JSONB
-		);
-	`
-	return schema
+const (
+	eventTableName = "event"
+)
+
+// CreateEventTableQuery returns the query to create the event table
+func CreateEventTableQuery() string {
+	return CreateEventTableQueryString(eventTableName)
+}
+
+// CreateEventTableQueryString returns the query to create this table
+func CreateEventTableQueryString(tableName string) string {
+	queryString := fmt.Sprintf(`
+        CREATE TABLE IF NOT EXISTS %s(
+            id SERIAL PRIMARY KEY,
+            event_type TEXT,
+            hash TEXT UNIQUE,
+            contract_address TEXT,
+            contract_name TEXT,
+            timestamp BIGINT,
+            retrieval_method SMALLINT,
+            payload JSONB,
+            log_payload JSONB
+        );
+    `, tableName)
+	return queryString
 }
 
 // EventTableIndices returns the query to create indices for this table
 func EventTableIndices() string {
-	indexCreationQuery := `
-		CREATE INDEX IF NOT EXISTS event_event_type_idx ON event (event_type);
-		CREATE INDEX IF NOT EXISTS event_contract_address_idx ON event (contract_address);
-		CREATE INDEX IF NOT EXISTS event_timestamp_idx ON event (timestamp);
-	`
-	return indexCreationQuery
+	return CreateEventTableIndicesString(eventTableName)
+}
+
+// CreateEventTableIndicesString returns the query to create this table
+func CreateEventTableIndicesString(tableName string) string {
+	queryString := fmt.Sprintf(`
+		CREATE INDEX IF NOT EXISTS event_event_type_idx ON %s (event_type);
+		CREATE INDEX IF NOT EXISTS event_contract_address_idx ON %s (contract_address);
+		CREATE INDEX IF NOT EXISTS event_timestamp_idx ON %s (timestamp);
+	`, tableName, tableName, tableName)
+	return queryString
 }
 
 // Event is the model for events table in DB
@@ -43,7 +58,8 @@ type Event struct {
 	EventHash       string       `db:"hash"`
 	ContractAddress string       `db:"contract_address"`
 	ContractName    string       `db:"contract_name"`
-	Timestamp       int          `db:"timestamp"`
+	Timestamp       int64        `db:"timestamp"`
+	RetrievalMethod int          `db:"retrieval_method"`
 	EventPayload    JsonbPayload `db:"payload"`
 	LogPayload      JsonbPayload `db:"log_payload"`
 }
@@ -56,6 +72,7 @@ func NewDbEventFromEvent(event *model.Event) (*Event, error) {
 	dbEvent.ContractName = event.ContractName()
 	dbEvent.ContractAddress = event.ContractAddress().Hex()
 	dbEvent.Timestamp = event.Timestamp()
+	dbEvent.RetrievalMethod = int(event.RetrievalMethod())
 	dbEvent.EventPayload = make(JsonbPayload)
 	dbEvent.LogPayload = make(JsonbPayload)
 	err := dbEvent.parseEventPayload(event)
@@ -65,25 +82,15 @@ func NewDbEventFromEvent(event *model.Event) (*Event, error) {
 	return dbEvent, nil
 }
 
-// parseEventPayload() parses and converts payloads from event to store in DB
-func (c *Event) parseEventPayload(event *model.Event) error {
-	err := c.EventDataToDB(event.EventPayload())
-	if err != nil {
-		return err
-	}
-	c.EventLogDataToDB(event.LogPayload())
-	return nil
-}
-
 // EventDataToDB converts event types so they can be stored in the DB
 func (c *Event) EventDataToDB(event map[string]interface{}) error {
 	abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
-		return fmt.Errorf("Error getting abi from contract name: %v", err)
+		return fmt.Errorf("Error getting ABI from contract name: %v", err)
 	}
-	events, err := ReturnEventsFromABI(abi, c.EventType)
+	events, err := model.ReturnEventsFromABI(abi, c.EventType)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error parsing ABI to get events, err: %v", err)
 	}
 	eventPayload := make(JsonbPayload)
 
@@ -94,7 +101,7 @@ func (c *Event) EventDataToDB(event map[string]interface{}) error {
 		case "address":
 			eventPayload[eventFieldName] = eventField.(common.Address).Hex()
 		case "uint256":
-			// NOTE: converting all *big.Int to int64. assuming for now that numbers will fall into int64 range.
+			// NOTE(IS): converting all *big.Int to int64. assuming for now that numbers will fall into int64 range.
 			eventPayload[eventFieldName] = eventField.(*big.Int).Int64()
 		case "string":
 			eventPayload[eventFieldName] = eventField.(string)
@@ -108,7 +115,7 @@ func (c *Event) EventDataToDB(event map[string]interface{}) error {
 }
 
 // DBToEventData converts the db event model to a model.
-// NOTE: because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
+// NOTE(IS): because jsonb payloads are stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
 func (c *Event) DBToEventData() (*model.Event, error) {
 	event := &model.Event{}
 	abi, err := model.AbiJSON(c.ContractName)
@@ -116,7 +123,7 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 		return event, fmt.Errorf("Error getting abi from contract name: %v", err)
 	}
 	eventPayload := make(map[string]interface{})
-	events, err := ReturnEventsFromABI(abi, c.EventType)
+	events, err := model.ReturnEventsFromABI(abi, c.EventType)
 	if err != nil {
 		return event, err
 	}
@@ -153,7 +160,7 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 	}
 	logPayload := c.DBToEventLogData()
 	contractAddress := common.HexToAddress(c.ContractAddress)
-	event, err = model.NewEvent(c.EventType, c.ContractName, contractAddress, c.Timestamp, eventPayload,
+	event, err = model.NewEvent(c.EventType, c.ContractName, contractAddress, c.Timestamp, model.RetrievalMethod(c.RetrievalMethod), eventPayload,
 		logPayload)
 
 	return event, err
@@ -169,9 +176,7 @@ func (c *Event) EventLogDataToDB(payload *types.Log) {
 		topics = append(topics, topic.Hex())
 	}
 	c.LogPayload["Topics"] = topics
-
 	c.LogPayload["Data"] = payload.Data
-
 	c.LogPayload["BlockNumber"] = payload.BlockNumber
 	c.LogPayload["TxHash"] = payload.TxHash.Hex()
 	c.LogPayload["TxIndex"] = payload.TxIndex
@@ -182,7 +187,7 @@ func (c *Event) EventLogDataToDB(payload *types.Log) {
 }
 
 // DBToEventLogData converts the DB raw log payload back to types.Log
-// NOTE: because this is stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
+// NOTE(IS): because jsonb payloads are stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
 func (c *Event) DBToEventLogData() *types.Log {
 	log := &types.Log{}
 	log.Address = common.HexToAddress(c.LogPayload["Address"].(string))
@@ -194,23 +199,26 @@ func (c *Event) DBToEventLogData() *types.Log {
 		newTopics[i] = common.HexToHash(topicString)
 	}
 	log.Topics = newTopics
-
 	// NOTE: Data is stored in DB as a string
 	log.Data = []byte(c.LogPayload["Data"].(string))
-
 	// NOTE: BlockNumber is stored in DB as float64
 	log.BlockNumber = uint64(c.LogPayload["BlockNumber"].(float64))
-
 	log.TxHash = common.HexToHash(c.LogPayload["TxHash"].(string))
-
 	// NOTE: TxIndex is stored in DB as float64
 	log.TxIndex = uint(c.LogPayload["TxIndex"].(float64))
-
 	log.BlockHash = common.HexToHash(c.LogPayload["BlockHash"].(string))
-
 	// NOTE: Index is stored in DB as float64
 	log.Index = uint(c.LogPayload["Index"].(float64))
-
 	log.Removed = c.LogPayload["Removed"].(bool)
 	return log
+}
+
+// parseEventPayload() parses and converts payloads from event to store in DB
+func (c *Event) parseEventPayload(event *model.Event) error {
+	err := c.EventDataToDB(event.EventPayload())
+	if err != nil {
+		return err
+	}
+	c.EventLogDataToDB(event.LogPayload())
+	return nil
 }

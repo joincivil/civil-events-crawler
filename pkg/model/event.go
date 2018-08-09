@@ -17,9 +17,33 @@ import (
 	"github.com/fatih/structs"
 )
 
+const (
+	// Filterer is the enum value for a retrieval method of type "filterer"
+	Filterer RetrievalMethod = iota
+	// Watcher is the enum value for a retrieval method of type "watcher"
+	Watcher
+)
+
+// RetrievalMethod is the enum for the type of retrieval method
+type RetrievalMethod int
+
+// ReturnEventsFromABI returns abi.Event struct from the ABI
+func ReturnEventsFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
+	// Some contracts have an underscore prefix on their events. Handle both
+	// non-underscore/underscore cases here.
+	events, ok := _abi.Events[eventType]
+	if !ok {
+		events, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
+		if !ok {
+			return events, fmt.Errorf("No event type %v in contract", eventType)
+		}
+	}
+	return events, nil
+}
+
 // NewEventFromContractEvent creates a new event after converting eventData to interface{}
 func NewEventFromContractEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
-	timestamp int) (*Event, error) {
+	timestamp int64, retrievalMethod RetrievalMethod) (*Event, error) {
 	event := &Event{}
 
 	payload := NewEventPayload(eventData)
@@ -33,13 +57,13 @@ func NewEventFromContractEvent(eventType string, contractName string, contractAd
 	if err != nil {
 		return event, err
 	}
-	event, err = NewEvent(eventType, contractName, contractAddress, timestamp, eventPayload, logPayload)
+	event, err = NewEvent(eventType, contractName, contractAddress, timestamp, retrievalMethod, eventPayload, logPayload)
 	return event, err
 }
 
 // NewEvent is a convenience function to create a new Event
-func NewEvent(eventType string, contractName string, contractAddress common.Address, timestamp int,
-	eventPayload map[string]interface{}, logPayload *types.Log) (*Event, error) {
+func NewEvent(eventType string, contractName string, contractAddress common.Address, timestamp int64,
+	retrievalMethod RetrievalMethod, eventPayload map[string]interface{}, logPayload *types.Log) (*Event, error) {
 	event := &Event{}
 	event.eventType = eventType
 	event.contractName = contractName
@@ -47,19 +71,20 @@ func NewEvent(eventType string, contractName string, contractAddress common.Addr
 	event.eventPayload = eventPayload
 	event.logPayload = logPayload
 	event.timestamp = timestamp
+	event.retrievalMethod = retrievalMethod
 	event.eventHash = event.hashEvent()
 	return event, nil
 }
 
 // Event represents a single smart contract event log item.
 // Represents any event type from the sol/abi generated code and creates
-// a single type to handle in the listener/retriever.
+// a single type to handle in the watcher/filterer.
 type Event struct {
 
 	// eventHash is the hash of event
 	eventHash string
 
-	// eventType is the type of event. i.e. _Challenge, _Appeal, _Application.
+	// eventType is the type of event. i.e. Challenge, Appeal, Application.
 	eventType string
 
 	// contractAddress of the contract emitting the event
@@ -68,8 +93,11 @@ type Event struct {
 	// contractName is the name of the contract
 	contractName string
 
-	// timestamp is the time this event was created.
-	timestamp int
+	// timestamp is the time in nanoseconds this event was retrieved.
+	timestamp int64
+
+	// retrievalMethod is the way this event was retrieved, i.e. filterer or watcher.
+	retrievalMethod RetrievalMethod
 
 	// event payload that doesn't include the "Raw" field
 	eventPayload map[string]interface{}
@@ -86,17 +114,9 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 		return eventPayload, err
 	}
 
-	// Trim the eventType clean
-	eventType = strings.Trim(eventType, " _")
-
-	// Some contracts have an underscore prefix on their events. Handle both
-	// non-underscore/underscore cases here.
-	events, ok := _abi.Events[eventType]
-	if !ok {
-		events, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
-		if !ok {
-			return eventPayload, fmt.Errorf("No event type %v in contract %v", eventType, contractName)
-		}
+	events, err := ReturnEventsFromABI(_abi, eventType)
+	if err != nil {
+		return eventPayload, err
 	}
 
 	for _, input := range events.Inputs {
@@ -163,8 +183,7 @@ func extractRawFieldFromEvent(payload *EventPayload) (*types.Log, error) {
 	return logPayload, nil
 }
 
-// hashEvent returns a hash for event using contractAddress, eventType, and log index
-// NOTE: Should we hash more parameters here?
+// hashEvent returns a hash for event using contractAddress, eventType, log index, and transaction hash
 func (e *Event) hashEvent() string {
 	logIndex := int(e.logPayload.Index)
 	txHash := e.logPayload.TxHash.Hex()
@@ -190,8 +209,13 @@ func (e *Event) ContractAddress() common.Address {
 }
 
 // Timestamp returns the timestamp for the Event
-func (e *Event) Timestamp() int {
+func (e *Event) Timestamp() int64 {
 	return e.timestamp
+}
+
+// RetrievalMethod returns the method that was used to retrieve this event
+func (e *Event) RetrievalMethod() RetrievalMethod {
+	return e.retrievalMethod
 }
 
 // EventPayload returns the event payload for the Event
@@ -205,6 +229,7 @@ func (e *Event) ContractName() string {
 }
 
 // LogPayload returns "Raw" types.log field of event
+// NOTE(IS): by returning this, we are allowing the possibility of mutating the fields in this
 func (e *Event) LogPayload() *types.Log {
 	return e.logPayload
 }
@@ -220,6 +245,7 @@ func (e *Event) BlockHash() common.Hash {
 }
 
 // LogPayloadToString is a string representation of some fields of log
+// TODO(IS): use go-ethereum function for this.
 func (e *Event) LogPayloadToString() string {
 	log := e.logPayload
 	return fmt.Sprintf(
