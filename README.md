@@ -6,7 +6,7 @@
 This repository contains open-source code to capture and handle Civil-specific smart contract event log data. It is written in `golang`. It currently captures Civil TCR and Civil Newsroom related events, but can be expanded to capture additional events.
 
 [![CircleCI](https://img.shields.io/circleci/project/github/joincivil/civil-events-crawler.svg)](https://circleci.com/gh/joincivil/civil-events-crawler/tree/master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/joincivil/civil-events-crawler)]
+[![Go Report Card](https://goreportcard.com/badge/github.com/joincivil/civil-events-crawler)](https://goreportcard.com/report/github.com/joincivil/civil-events-crawler)
 [![Gitter chat](https://badges.gitter.im/joincivil/Lobby.png)](https://gitter.im/joincivil/Lobby)
 [![Telegram chat](https://img.shields.io/badge/chat-telegram-blue.svg)](https://t.me/join_civil)
 
