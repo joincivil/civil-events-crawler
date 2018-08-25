@@ -30,3 +30,8 @@ func CurrentEpochSecsInInt() int {
 func CurrentEpochNanoSecsInInt64() int64 {
 	return time.Now().UnixNano()
 }
+
+// SecsToNanoSecsInInt64 converts a value from secs to nanoseconds.
+func SecsToNanoSecsInInt64(secs int64) int64 {
+	return secs * int64(1000000000)
+}

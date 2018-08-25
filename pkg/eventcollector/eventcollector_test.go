@@ -2,14 +2,17 @@
 package eventcollector_test
 
 import (
+	"context"
 	"errors"
 	"math/big"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
@@ -41,6 +44,45 @@ type lastBlockData struct {
 	eventType       string
 	contractAddress string
 	lastBlockNumber uint64
+}
+
+type testSubscription struct {
+}
+
+func (t *testSubscription) Unsubscribe() {
+}
+
+func (t *testSubscription) Err() <-chan error {
+	return make(chan error)
+}
+
+type testChainReader struct {
+}
+
+func (t *testChainReader) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
+	return &types.Block{}, nil
+}
+func (t *testChainReader) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
+	return &types.Block{}, nil
+}
+func (t *testChainReader) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
+	return &types.Header{
+		Time: big.NewInt(88888888),
+	}, nil
+}
+func (t *testChainReader) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	return &types.Header{
+		Time: big.NewInt(88888888),
+	}, nil
+}
+func (t *testChainReader) TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error) {
+	return uint(0), nil
+}
+func (t *testChainReader) TransactionInBlock(ctx context.Context, blockHash common.Hash, index uint) (*types.Transaction, error) {
+	return &types.Transaction{}, nil
+}
+func (t *testChainReader) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
+	return &testSubscription{}, nil
 }
 
 type testPersister struct {
@@ -137,6 +179,7 @@ func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.Even
 	}
 
 	collector := eventcollector.NewEventCollector(
+		&testChainReader{},
 		contracts.Client,
 		filterers,
 		watchers,
@@ -164,6 +207,7 @@ func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*event
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
 	collector := eventcollector.NewEventCollector(
+		&testChainReader{},
 		contracts.Client,
 		filterers,
 		watchers,
@@ -192,6 +236,7 @@ func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContr
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
 	collector := eventcollector.NewEventCollector(
+		&testChainReader{},
 		contracts.Client,
 		filterers,
 		watchers,
@@ -220,6 +265,7 @@ func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTest
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
 	collector := eventcollector.NewEventCollector(
+		&testChainReader{},
 		contracts.Client,
 		filterers,
 		watchers,
@@ -246,6 +292,7 @@ func setupTestCollectorBadWatcher(contracts *cutils.AllTestContracts) *eventcoll
 	}
 
 	collector := eventcollector.NewEventCollector(
+		&testChainReader{},
 		contracts.Client,
 		filterers,
 		watchers,

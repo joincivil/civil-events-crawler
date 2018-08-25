@@ -2,25 +2,35 @@
 package eventcollector // import "github.com/joincivil/civil-events-crawler/pkg/eventcollector"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	log "github.com/golang/glog"
+	"math/big"
 	"sync"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
+)
+
+const (
+	blockHeaderExpirySecs = 60 * 5 // 5 mins
 )
 
 // NewEventCollector creates a new event collector
-func NewEventCollector(client bind.ContractBackend, filterers []model.ContractFilterers,
-	watchers []model.ContractWatchers, retrieverPersister model.RetrieverMetaDataPersister,
-	listenerPersister model.ListenerMetaDataPersister, eventDataPersister model.EventDataPersister,
-	triggers []Trigger) *EventCollector {
-
+func NewEventCollector(chain ethereum.ChainReader, client bind.ContractBackend,
+	filterers []model.ContractFilterers, watchers []model.ContractWatchers,
+	retrieverPersister model.RetrieverMetaDataPersister,
+	listenerPersister model.ListenerMetaDataPersister,
+	eventDataPersister model.EventDataPersister, triggers []Trigger) *EventCollector {
 	eventcollector := &EventCollector{
+		chain:              chain,
 		client:             client,
 		filterers:          filterers,
 		watchers:           watchers,
@@ -34,6 +44,8 @@ func NewEventCollector(client bind.ContractBackend, filterers []model.ContractFi
 
 // EventCollector handles logic for getting historical and live events
 type EventCollector struct {
+	chain ethereum.ChainReader
+
 	client bind.ContractBackend
 
 	triggers []Trigger
@@ -56,6 +68,8 @@ type EventCollector struct {
 	quitChan chan interface{}
 
 	mutex sync.Mutex
+
+	headerCache *utils.BlockHeaderCache
 }
 
 // StartCollection contains logic to run retriever and listener.
@@ -65,6 +79,10 @@ func (c *EventCollector) StartCollection() error {
 		return fmt.Errorf("Error retrieving events: err: %v", err)
 	}
 	pastEvents := c.retrieve.PastEvents
+	err = c.updateEventTimesFromBlockHeaders(pastEvents)
+	if err != nil {
+		return fmt.Errorf("Error updating dates for events: err: %v", err)
+	}
 	err = c.eventDataPersister.SaveEvents(pastEvents)
 	if err != nil {
 		return fmt.Errorf("Error persisting events: err: %v", err)
@@ -101,6 +119,12 @@ func (c *EventCollector) StartCollection() error {
 						event.Timestamp(),
 						event.LogPayloadToString(),
 					)
+				}
+				err = c.updateEventTimeFromBlockHeader(event)
+				if err != nil {
+					err = fmt.Errorf("Error updating date for event: err: %v", err)
+					errors <- err
+					return
 				}
 				// Save event to persister
 				err = c.eventDataPersister.SaveEvents([]*model.Event{event})
@@ -172,6 +196,45 @@ func (c *EventCollector) updateRetrieverStartingBlocks() {
 			filter.UpdateStartBlock(eventType, lastBlock+1)
 		}
 	}
+}
+
+func (c *EventCollector) updateEventTimesFromBlockHeaders(events []*model.Event) error {
+	for _, event := range events {
+		err := c.updateEventTimeFromBlockHeader(event)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) error {
+	var header *types.Header
+	var err error
+
+	inCache := false
+	if c.headerCache == nil {
+		c.headerCache = utils.NewBlockHeaderCache(blockHeaderExpirySecs)
+	} else {
+		header = c.headerCache.HeaderByBlockNumber(event.BlockNumber())
+		if header != nil {
+			inCache = true
+		}
+	}
+	if !inCache {
+		blockNum := big.NewInt(0)
+		blockNum.SetUint64(event.BlockNumber())
+		header, err = c.chain.HeaderByNumber(context.Background(), blockNum)
+		if err != nil {
+			return err
+		}
+		c.headerCache.AddHeader(event.BlockNumber(), header)
+	}
+	if err != nil {
+		return err
+	}
+	event.SetTimestamp(utils.SecsToNanoSecsInInt64(header.Time.Int64()))
+	return nil
 }
 
 func (c *EventCollector) retrieveEvents() error {

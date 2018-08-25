@@ -213,6 +213,11 @@ func (e *Event) Timestamp() int64 {
 	return e.timestamp
 }
 
+// SetTimestamp returns the timestamp for the Event
+func (e *Event) SetTimestamp(ts int64) {
+	e.timestamp = ts
+}
+
 // RetrievalMethod returns the method that was used to retrieve this event
 func (e *Event) RetrievalMethod() RetrievalMethod {
 	return e.retrievalMethod

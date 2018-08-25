@@ -113,6 +113,7 @@ func startUp(config *utils.CrawlerConfig) error {
 	log.Info("Setting up event collector")
 	eventCol := eventcollector.NewEventCollector(
 		client,
+		client,
 		contractFilterers(config),
 		contractWatchers(config),
 		listenerMetaDataPersister(config),

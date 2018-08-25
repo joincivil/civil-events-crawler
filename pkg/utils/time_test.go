@@ -45,3 +45,28 @@ func TestCurrentEpochSecsInInt(t *testing.T) {
 		t.Error("Int timestamp is not equal to the calculated timestamp")
 	}
 }
+
+func TestSecsToNanosecsInInt64(t *testing.T) {
+	tsecs := utils.CurrentEpochSecsInInt64()
+	tnsecs := utils.SecsToNanoSecsInInt64(tsecs)
+	secsTime := time.Unix(tsecs, 0)
+	nanoTime := time.Unix(0, tnsecs)
+	if secsTime.Year() != nanoTime.Year() {
+		t.Error("Should have had the same year in comparison")
+	}
+	if secsTime.Month() != nanoTime.Month() {
+		t.Error("Should have had the same month in comparison")
+	}
+	if secsTime.Day() != nanoTime.Day() {
+		t.Error("Should have had the same day in comparison")
+	}
+	if secsTime.Hour() != nanoTime.Hour() {
+		t.Error("Should have had the same hour in comparison")
+	}
+	if secsTime.Minute() != nanoTime.Minute() {
+		t.Error("Should have had the same min in comparison")
+	}
+	if secsTime.Second() != nanoTime.Second() {
+		t.Error("Should have had the same sec in comparison")
+	}
+}
