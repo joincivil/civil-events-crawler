@@ -93,7 +93,9 @@ type Event struct {
 	// contractName is the name of the contract
 	contractName string
 
-	// timestamp is the time in nanoseconds this event was retrieved.
+	// timestamp is the time in secs from epoch of the block of
+	// the transaction for this event.  If that is unable to be retrieved, will
+	// use timestamp of retrieval.
 	timestamp int64
 
 	// retrievalMethod is the way this event was retrieved, i.e. filterer or watcher.

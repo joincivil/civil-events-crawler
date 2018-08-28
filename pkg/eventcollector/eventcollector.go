@@ -233,7 +233,7 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 	if err != nil {
 		return err
 	}
-	event.SetTimestamp(utils.SecsToNanoSecsInInt64(header.Time.Int64()))
+	event.SetTimestamp(header.Time.Int64())
 	return nil
 }
 
