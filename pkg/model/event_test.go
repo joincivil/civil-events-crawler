@@ -46,7 +46,7 @@ var (
 
 func setupEvent() (*model.Event, error) {
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochNanoSecsInInt64(), model.Filterer)
+		testEvent, utils.CurrentEpochSecsInInt64(), model.Filterer)
 }
 
 func TestEventSetup(t *testing.T) {
@@ -88,7 +88,7 @@ func TestEventPayloadNoRaw(t *testing.T) {
 		name: "name",
 	}
 	_, err := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		noRawTestEvent, utils.CurrentEpochNanoSecsInInt64(), model.Watcher)
+		noRawTestEvent, utils.CurrentEpochSecsInInt64(), model.Watcher)
 	if err == nil {
 		t.Errorf("Event creation should have failed with no raw event to create hash: err: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestEventPayloadNotLog(t *testing.T) {
 		Raw:  "name",
 	}
 	_, err := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		notLogTestEvent, utils.CurrentEpochNanoSecsInInt64(), model.Watcher)
+		notLogTestEvent, utils.CurrentEpochSecsInInt64(), model.Watcher)
 	if err == nil {
 		t.Errorf("Event creation should have failed with no Log found: err: %v", err)
 	}
@@ -181,9 +181,9 @@ func TestEventLogPayloadValues(t *testing.T) {
 // Test that these 2 event hashes are not equal
 func TestEventHashDifferent(t *testing.T) {
 	civilEvent1, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
-		utils.CurrentEpochNanoSecsInInt64(), model.Watcher)
+		utils.CurrentEpochSecsInInt64(), model.Watcher)
 	civilEvent2, _ := model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent2, utils.CurrentEpochNanoSecsInInt64(), model.Watcher)
+		testEvent2, utils.CurrentEpochSecsInInt64(), model.Watcher)
 	if civilEvent2.Hash() == civilEvent1.Hash() {
 		t.Error("These events should have different hashes")
 	}
@@ -191,7 +191,7 @@ func TestEventHashDifferent(t *testing.T) {
 
 // Test that hash created on the same event are the same
 func TestEventHashSame(t *testing.T) {
-	timestamp := utils.CurrentEpochNanoSecsInInt64()
+	timestamp := utils.CurrentEpochSecsInInt64()
 	civilEvent, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
 		timestamp, model.Watcher)
 	civilEventDup, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),

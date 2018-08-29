@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
@@ -41,7 +42,6 @@ func (r *EventRetriever) Retrieve() error {
 			return err
 		}
 		r.PastEvents = pastEvents
-
 	}
 	return nil
 }

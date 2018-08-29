@@ -143,7 +143,7 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
     }
     nextEvent := itr.Next()
     for nextEvent {
-        modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", f.ContractName(), f.contractAddress, itr.Event, utils.CurrentEpochNanoSecsInInt64(), model.Filterer)
+        modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", f.ContractName(), f.contractAddress, itr.Event, utils.CurrentEpochSecsInInt64(), model.Filterer)
         if err != nil {
             log.Errorf("Error creating new event: event: %v, err: %v", itr.Event, err)
             continue
