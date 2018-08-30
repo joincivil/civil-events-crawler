@@ -51,7 +51,7 @@ func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.Contr
         lastEvents: make([]*model.Event, 0),
     }
     for _, eventType := range contractFilterers.eventTypes {
-        contractFilterers.eventToStartBlock[eventType] = 0
+        contractFilterers.eventToStartBlock[eventType] = {{.DefaultStartBlock}} 
     }
     return contractFilterers
 }

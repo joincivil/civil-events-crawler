@@ -26,6 +26,16 @@ const (
 	PersisterTypePostgresql
 )
 
+const (
+	// DefaultStartBlock is the default block to start filtering.
+	// Sort of arbitrary right now but optimizes to looking
+	// at all blocks from genesis.  Infura was not working and
+	// suggested that we only query what we need.
+	// Need to look at when contracts were created and start there.
+	// DefaultStartBlock = 2000000
+	DefaultStartBlock = 2337909
+)
+
 var (
 	// PersisterNameToType maps valid persister names to the types above
 	PersisterNameToType = map[string]PersisterType{

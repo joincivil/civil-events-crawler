@@ -192,6 +192,11 @@ func (c *EventCollector) updateRetrieverStartingBlocks() {
 		eventTypes := filter.EventTypes()
 		for _, eventType := range eventTypes {
 			lastBlock := c.retrieverPersister.LastBlockNumber(eventType, contractAddress)
+			// If lastBlock is 0, assume it has never been set, so set to default
+			// start block value.
+			if lastBlock == 0 {
+				lastBlock = utils.DefaultStartBlock
+			}
 			// NOTE (IS): Starting at lastBlock+1. There could be a scenario where this could miss the rest of events in prev block?
 			filter.UpdateStartBlock(eventType, lastBlock+1)
 		}
