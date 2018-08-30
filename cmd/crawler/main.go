@@ -108,6 +108,7 @@ func startUp(config *utils.CrawlerConfig) error {
 		if err == nil {
 			log.Infof("Latest block number is: %v", header.Number)
 		}
+		log.Infof("Starting to filter at block number %v", config.EthStartBlock)
 	}
 
 	log.Info("Setting up event collector")
@@ -120,6 +121,7 @@ func startUp(config *utils.CrawlerConfig) error {
 		retrieverMetaDataPersister(config),
 		eventDataPersister(config),
 		eventTriggers(config),
+		config.EthStartBlock,
 	)
 
 	setupKillNotify(eventCol)

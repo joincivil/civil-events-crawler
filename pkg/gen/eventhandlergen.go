@@ -13,7 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
+)
+
+const (
+	defaultStartBlock = 0
 )
 
 var handlerToTemplate = map[string]TemplateData{
@@ -131,7 +134,7 @@ func generateEventHandlersFromABI(writer io.Writer, _abiStr string, packageName 
 		ContractImportPath:  contractImportPath,
 		ContractTypePackage: contractTypePackage,
 		ContractTypeName:    contractTypeName,
-		DefaultStartBlock:   utils.DefaultStartBlock,
+		DefaultStartBlock:   defaultStartBlock,
 		GenTime:             time.Now().UTC(),
 		EventHandlers:       eventHandlers,
 	}

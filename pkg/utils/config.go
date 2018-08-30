@@ -26,16 +26,6 @@ const (
 	PersisterTypePostgresql
 )
 
-const (
-	// DefaultStartBlock is the default block to start filtering.
-	// Sort of arbitrary right now but optimizes to looking
-	// at all blocks from genesis.  Infura was not working and
-	// suggested that we only query what we need.
-	// Need to look at when contracts were created and start there.
-	// DefaultStartBlock = 2000000
-	DefaultStartBlock = 2337909
-)
-
 var (
 	// PersisterNameToType maps valid persister names to the types above
 	PersisterNameToType = map[string]PersisterType{
@@ -64,7 +54,8 @@ const (
 // CrawlerConfig is the master config for the crawler derived from environment
 // variables.
 type CrawlerConfig struct {
-	EthAPIURL string `envconfig:"eth_api_url" required:"true" desc:"Ethereum API address"`
+	EthAPIURL     string `envconfig:"eth_api_url" required:"true" desc:"Ethereum API address"`
+	EthStartBlock uint64 `envconfig:"eth_start_block" desc:"Sets the start Eth block (default 0)" default:"0"`
 
 	// ContractAddresses map a contract type to a string of contract addresses.  If there are more than 1
 	// contract to be tracked for a particular type, delimit the addresses with '|'.
