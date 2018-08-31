@@ -104,8 +104,8 @@ func startUp(config *utils.CrawlerConfig) error {
 	}
 
 	if log.V(2) {
-		header, err := client.HeaderByNumber(context.TODO(), nil)
-		if err == nil {
+		header, logErr := client.HeaderByNumber(context.TODO(), nil)
+		if logErr == nil {
 			log.Infof("Latest block number is: %v", header.Number)
 		}
 	}
