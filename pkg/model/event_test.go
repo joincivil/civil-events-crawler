@@ -144,40 +144,6 @@ func TestEventPayloadValues(t *testing.T) {
 	}
 }
 
-func TestEventLogPayloadValues(t *testing.T) {
-	event, _ := setupEvent()
-	payload := *event.LogPayload()
-
-	if !reflect.DeepEqual(payload, testEvent.Raw) {
-		t.Errorf("Log was not set correctly in civil event")
-	}
-
-	valueAddress := payload.Address
-	if valueAddress != common.HexToAddress(testAddress) {
-		t.Errorf("Address is not correctly assigned in LogPayload %v", valueAddress)
-	}
-
-	// valueTopics := payload.Topics
-	// if valueTopics != []common.Hash{} {
-	// 	t.Errorf("Topics is not correctly assigned in LogPayload %v", valueTopics)
-	// }
-
-	// valueData := payload.Data
-	// if valueData != []byte{} {
-	// 	t.Errorf("Data is not correctly assigned in LogPayload %v", valueData)
-	// }
-
-	valueIndex := payload.Index
-	if valueIndex != 2 {
-		t.Errorf("Index is not correctly assigned in LogPayload %v", valueIndex)
-	}
-
-	valueBlockNumber := payload.BlockNumber
-	if valueBlockNumber != 8888888 {
-		t.Errorf("BlockNumber is not correctly assigned in LogPayload %v", valueBlockNumber)
-	}
-}
-
 // Test that these 2 event hashes are not equal
 func TestEventHashDifferent(t *testing.T) {
 	civilEvent1, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress), testEvent,
@@ -289,4 +255,29 @@ func TestEventPayloadStructValues(t *testing.T) {
 		t.Errorf("Raw log cannot be the type types.Log")
 	}
 
+}
+
+func TestEventLogToString(t *testing.T) {
+	event, err := setupEvent()
+	if err != nil {
+		t.Errorf("setupEvent should have succeeded: err: %v", err)
+	}
+	logString := event.LogPayloadToString()
+	logStringTrue := "log: addr: 0xDFe273082089bB7f70Ee36Eebcde64832FE97E55, blknum: 8888888, txhash: 0x0000000000000000000000000000000000000000000000000000000000000000, txidx: 0, blkhash: 0x0000000000000000000000000000000000000000000000000000000000000000, idx: 2, rem: false"
+	if logString != logStringTrue {
+		t.Errorf("logString is not what it should be %v", logString)
+	}
+}
+
+func TestEventLogPayloadImmutability(t *testing.T) {
+	event, err := setupEvent()
+	if err != nil {
+		t.Errorf("setupEvent should have succeeded: err: %v", err)
+	}
+	logPayload := event.LogPayload()
+	newBlockNo := uint64(32)
+	logPayload.BlockNumber = newBlockNo
+	if newBlockNo == event.LogPayload().BlockNumber {
+		t.Errorf("these should not be equal")
+	}
 }
