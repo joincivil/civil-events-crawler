@@ -238,7 +238,16 @@ func (e *Event) ContractName() string {
 // LogPayload returns the log payload from the block
 func (e *Event) LogPayload() *types.Log {
 	// make a copy so fields are immutable
-	logPayloadCopy := &types.Log{Address: e.logPayload.Address, Topics: e.logPayload.Topics, Data: e.logPayload.Data, BlockNumber: e.logPayload.BlockNumber, TxHash: e.logPayload.TxHash, TxIndex: e.logPayload.TxIndex, BlockHash: e.logPayload.BlockHash, Index: e.logPayload.Index, Removed: e.logPayload.Removed}
+	logPayloadCopy := &types.Log{
+		Address:     e.logPayload.Address,
+		Topics:      e.logPayload.Topics,
+		Data:        e.logPayload.Data,
+		BlockNumber: e.logPayload.BlockNumber,
+		TxHash:      e.logPayload.TxHash,
+		TxIndex:     e.logPayload.TxIndex,
+		BlockHash:   e.logPayload.BlockHash,
+		Index:       e.logPayload.Index,
+		Removed:     e.logPayload.Removed}
 	return logPayloadCopy
 }
 
