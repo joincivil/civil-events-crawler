@@ -187,6 +187,7 @@ func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.Even
 		persister,
 		persister,
 		triggers,
+		0,
 	)
 	return collector
 }
@@ -215,6 +216,7 @@ func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*event
 		persister,
 		persister,
 		triggers,
+		0,
 	)
 	return collector, persister
 }
@@ -244,6 +246,7 @@ func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContr
 		goodPersister,
 		badPersister,
 		triggers,
+		0,
 	)
 	return collector, badPersister
 }
@@ -273,6 +276,7 @@ func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTest
 		goodPersister,
 		badPersister,
 		triggers,
+		0,
 	)
 	return collector, badPersister
 }
@@ -300,6 +304,7 @@ func setupTestCollectorBadWatcher(contracts *cutils.AllTestContracts) *eventcoll
 		persister,
 		persister,
 		triggers,
+		0,
 	)
 	return collector
 }

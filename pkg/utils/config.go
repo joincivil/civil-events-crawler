@@ -2,14 +2,17 @@
 package utils
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	log "github.com/golang/glog"
 	"os"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/shurcooL/graphql"
 )
 
 // PersisterType is the type of persister to use.
@@ -54,7 +57,12 @@ const (
 // CrawlerConfig is the master config for the crawler derived from environment
 // variables.
 type CrawlerConfig struct {
-	EthAPIURL string `envconfig:"eth_api_url" required:"true" desc:"Ethereum API address"`
+	EthAPIURL     string `envconfig:"eth_api_url" required:"true" desc:"Ethereum API address"`
+	EthStartBlock uint64 `envconfig:"eth_start_block" desc:"Sets the start Eth block (default 0)" default:"0"`
+
+	// CivilListingsGraphqlURL enables call to retrieve newsroom listings from Civil.
+	// Should pass in the URL to the GraphQL endpoint to enable.
+	CivilListingsGraphqlURL string `envconfig:"civil_listing_graphql_url" desc:"URL of the Civil Listings GraphQL endpoint"`
 
 	// ContractAddresses map a contract type to a string of contract addresses.  If there are more than 1
 	// contract to be tracked for a particular type, delimit the addresses with '|'.
@@ -68,6 +76,45 @@ type CrawlerConfig struct {
 	PersisterPostgresDbname  string        `split_words:"true" desc:"If persister type is Postgresql, sets the database name"`
 	PersisterPostgresUser    string        `split_words:"true" desc:"If persister type is Postgresql, sets the database user"`
 	PersisterPostgresPw      string        `split_words:"true" desc:"If persister type is Postgresql, sets the database password"`
+}
+
+// FetchListingAddresses retrieves the list of Civil newsroom listings if given
+// the endpoint URL
+func (c *CrawlerConfig) FetchListingAddresses() error {
+	if c.CivilListingsGraphqlURL == "" {
+		return nil
+	}
+
+	var listingQuery struct {
+		Listings []struct {
+			Name            graphql.String
+			ContractAddress graphql.String
+		} `graphql:"listings(whitelistedOnly: true)"`
+	}
+
+	client := graphql.NewClient(c.CivilListingsGraphqlURL, nil)
+	err := client.Query(context.Background(), &listingQuery, nil)
+	if err != nil {
+		return err
+	}
+
+	newsroomContractName := "newsroom"
+	var addressStrings []string
+	var addressObjs []common.Address
+
+	if c.ContractAddresses[newsroomContractName] != "" {
+		addressStrings = strings.Split(c.ContractAddresses[newsroomContractName], "|")
+	}
+
+	for _, listing := range listingQuery.Listings {
+		log.Infof("adding newsroom contract: %v, %v", listing.Name, string(listing.ContractAddress))
+		addressStrings = append(addressStrings, string(listing.ContractAddress))
+		addressObjs = append(addressObjs, common.HexToAddress(string(listing.ContractAddress)))
+	}
+
+	c.ContractAddresses["newsroom"] = strings.Join(addressStrings, "|")
+	c.ContractAddressObjs["newsroom"] = append(c.ContractAddressObjs["newsroom"], addressObjs...)
+	return nil
 }
 
 // OutputUsage prints the usage string to os.Stdout
@@ -96,6 +143,11 @@ func (c *CrawlerConfig) PopulateFromEnv() error {
 	}
 
 	c.populateContractAddressObjs()
+
+	err = c.FetchListingAddresses()
+	if err != nil {
+		log.Errorf("Unable to fetch the Civil listing addresses: err: %v", err)
+	}
 
 	err = c.populatePersisterType()
 	if err != nil {

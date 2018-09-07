@@ -28,7 +28,8 @@ func NewEventCollector(chain ethereum.ChainReader, client bind.ContractBackend,
 	filterers []model.ContractFilterers, watchers []model.ContractWatchers,
 	retrieverPersister model.RetrieverMetaDataPersister,
 	listenerPersister model.ListenerMetaDataPersister,
-	eventDataPersister model.EventDataPersister, triggers []Trigger) *EventCollector {
+	eventDataPersister model.EventDataPersister, triggers []Trigger,
+	startBlock uint64) *EventCollector {
 	eventcollector := &EventCollector{
 		chain:              chain,
 		client:             client,
@@ -38,6 +39,7 @@ func NewEventCollector(chain ethereum.ChainReader, client bind.ContractBackend,
 		listenerPersister:  listenerPersister,
 		eventDataPersister: eventDataPersister,
 		triggers:           triggers,
+		startBlock:         startBlock,
 	}
 	return eventcollector
 }
@@ -63,6 +65,8 @@ type EventCollector struct {
 	listen *listener.EventListener
 
 	retrieve *retriever.EventRetriever
+
+	startBlock uint64
 
 	// quitChan is created in StartCollection() and stops the goroutine listening for events.
 	quitChan chan interface{}
@@ -192,6 +196,11 @@ func (c *EventCollector) updateRetrieverStartingBlocks() {
 		eventTypes := filter.EventTypes()
 		for _, eventType := range eventTypes {
 			lastBlock := c.retrieverPersister.LastBlockNumber(eventType, contractAddress)
+			// If lastBlock is 0, assume it has never been set, so set to default
+			// start block value.
+			if lastBlock == 0 {
+				lastBlock = c.startBlock
+			}
 			// NOTE (IS): Starting at lastBlock+1. There could be a scenario where this could miss the rest of events in prev block?
 			filter.UpdateStartBlock(eventType, lastBlock+1)
 		}
