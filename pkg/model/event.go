@@ -235,15 +235,36 @@ func (e *Event) ContractName() string {
 	return e.contractName
 }
 
-// LogPayload returns "Raw" types.log field of event
-// NOTE(IS): by returning this, we are allowing the possibility of mutating the fields in this
+// LogPayload returns the log payload from the block
 func (e *Event) LogPayload() *types.Log {
-	return e.logPayload
+	// make a copy so fields are immutable
+	logPayloadCopy := &types.Log{e.logPayload.Address, e.logPayload.Topics, e.logPayload.Data, e.logPayload.BlockNumber, e.logPayload.TxHash, e.logPayload.TxIndex, e.logPayload.BlockHash, e.logPayload.Index, e.logPayload.Removed}
+	return logPayloadCopy
 }
 
-// BlockNumber gets the block number from the Event Payload
+// LogTopics returns the list of topics provided by the contract
+func (e *Event) LogTopics() []common.Hash {
+	return e.logPayload.Topics
+}
+
+// LogData is data provided by the contract, ABI encoded
+func (e *Event) LogData() []byte {
+	return e.logPayload.Data
+}
+
+// BlockNumber is the block number for this event
 func (e *Event) BlockNumber() uint64 {
 	return e.logPayload.BlockNumber
+}
+
+// TxHash is the hash of the transaction
+func (e *Event) TxHash() common.Hash {
+	return e.logPayload.TxHash
+}
+
+// TxIndex is the index of the transaction in the block
+func (e *Event) TxIndex() uint {
+	return e.logPayload.TxIndex
 }
 
 // BlockHash gets the block hash from the Event Payload
@@ -251,14 +272,26 @@ func (e *Event) BlockHash() common.Hash {
 	return e.logPayload.BlockHash
 }
 
+// LogIndex is the log index position in the block
+func (e *Event) LogIndex() uint {
+	return e.logPayload.Index
+}
+
+// LogRemoved is true if log was reverted due to chain reorganization.
+func (e *Event) LogRemoved() bool {
+	return e.logPayload.Removed
+}
+
 // LogPayloadToString is a string representation of some fields of log
-// TODO(IS): use go-ethereum function for this.
 func (e *Event) LogPayloadToString() string {
 	log := e.logPayload
 	return fmt.Sprintf(
-		"log: addr: %v, blknum: %v, ind: %v, rem: %v",
+		"log: addr: %v, blknum: %v, txhash: %v, txidx: %v, blkhash: %v, idx: %v, rem: %v",
 		log.Address.Hex(),
 		log.BlockNumber,
+		log.TxHash.Hex(),
+		log.TxIndex,
+		log.BlockHash.Hex(),
 		log.Index,
 		log.Removed,
 	)
