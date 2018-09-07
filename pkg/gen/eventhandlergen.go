@@ -15,6 +15,10 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
+const (
+	defaultStartBlock = 0
+)
+
 var handlerToTemplate = map[string]TemplateData{
 	"watcher": {
 		tmplName: "watcher.tmpl",
@@ -84,6 +88,7 @@ type EventHandlerContractTmplData struct {
 	ContractImportPath  string
 	ContractTypePackage string
 	ContractTypeName    string
+	DefaultStartBlock   int
 	GenTime             time.Time
 	EventHandlers       []*EventHandlerTmplData
 }
@@ -129,6 +134,7 @@ func generateEventHandlersFromABI(writer io.Writer, _abiStr string, packageName 
 		ContractImportPath:  contractImportPath,
 		ContractTypePackage: contractTypePackage,
 		ContractTypeName:    contractTypeName,
+		DefaultStartBlock:   defaultStartBlock,
 		GenTime:             time.Now().UTC(),
 		EventHandlers:       eventHandlers,
 	}
