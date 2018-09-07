@@ -154,6 +154,22 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/shurcooL/go"
+  packages = ["ctxhttp"]
+  revision = "9e1955d9fb6e1ee2345ba1f5e71669263e719e27"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/shurcooL/graphql"
+  packages = [
+    ".",
+    "ident",
+    "internal/jsonutil"
+  ]
+  revision = "62c9ce094e75302d560f7adcdf16c06d05aaa958"
+
+[[projects]]
+  branch = "master"
   name = "github.com/syndtr/goleveldb"
   packages = [
     "leveldb",
@@ -230,6 +246,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1526285958946eb05fcbe561f4fd1ebbe6c0c8fd505aeae14768c88f40bcd67a"
+  inputs-digest = "7938ef07609b453bab40c218994dfb9a048fb676eab29229c847a26003cff5d5"
   solver-name = "gps-cdcl"
   solver-version = 1

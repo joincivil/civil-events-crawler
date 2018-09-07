@@ -2,7 +2,9 @@
 package utils_test
 
 import (
+	"context"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
+	"net/http"
 	"os"
 	"testing"
 )
@@ -312,4 +314,103 @@ func TestPersisterTypeFromName(t *testing.T) {
 	if persisterType != utils.PersisterTypePostgresql {
 		t.Error("Should have retrieved a persister type for 'postgresql' value")
 	}
+}
+
+func testGraphqlResponse(w http.ResponseWriter, r *http.Request) {
+	message := `
+	{
+		"data": {
+			"listings": [
+				{
+					"name": "The Intercept",
+					"contractAddress": "0xADbB46098E06dBE18aFF2416920FF03EA6814e7b"
+				},
+				{
+					"name": "Spectrum News - NY1",
+					"contractAddress": "0x5572DBfa985b1127219ff38f4A10AdB10311725b"
+				},
+				{
+					"name": "New York Times",
+					"contractAddress": "0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA"
+				},
+				{
+					"name": "The Drudge Report",
+					"contractAddress": "0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9"
+				},
+				{
+					"name": "WWMT",
+					"contractAddress": "0xA3a7056f4727d9E8094957D937b993adB35f21fF"
+				},
+				{
+					"name": "Project Veritas",
+					"contractAddress": "0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8"
+				},
+				{
+					"name": "The Los Angeles Times",
+					"contractAddress": "0xcFfd0E01AD3712B776740aa9766034850dbA2725"
+				}
+			]
+		}
+	}`
+	w.Write([]byte(message))
+}
+
+func testServer(t *testing.T, handler func(http.ResponseWriter, *http.Request)) *http.Server {
+	srv := &http.Server{Addr: ":8888"}
+	http.HandleFunc("/", handler)
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil {
+			t.Logf("Error starting test service: %s", err)
+		}
+	}()
+
+	// returning reference so caller can call Shutdown()
+	return srv
+}
+
+func TestFetchListingAddresses(t *testing.T) {
+	server := testServer(t, testGraphqlResponse)
+	os.Setenv(
+		"CRAWL_ETH_API_URL",
+		"http://ethaddress.com",
+	)
+	os.Setenv(
+		"CRAWL_CIVIL_LISTING_GRAPHQL_URL",
+		"http://localhost:8888/query",
+	)
+	os.Setenv(
+		"CRAWL_CONTRACT_ADDRESSES",
+		"civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55",
+	)
+	os.Setenv(
+		"CRAWL_PERSISTER_TYPE_NAME",
+		"postgresql",
+	)
+	os.Setenv(
+		"CRAWL_PERSISTER_POSTGRES_ADDRESS",
+		"localhost",
+	)
+	os.Setenv(
+		"CRAWL_PERSISTER_POSTGRES_PORT",
+		"5432",
+	)
+	os.Setenv(
+		"CRAWL_PERSISTER_POSTGRES_DBNAME",
+		"civil_crawler",
+	)
+	config := &utils.CrawlerConfig{}
+	err := config.PopulateFromEnv()
+	if err != nil {
+		t.Errorf("Should have populated env vars: err: %v", err)
+	}
+	if len(config.ContractAddresses["newsroom"]) <= 0 {
+		t.Errorf("Should have fetched listing addresses: len: %v, err: %v",
+			len(config.ContractAddresses["newsroom"]), err)
+	}
+	if len(config.ContractAddressObjs["newsroom"]) != 8 {
+		t.Errorf("Should have fetched listing 8 address objs: len: %v, err: %v",
+			len(config.ContractAddressObjs["newsroom"]), err)
+	}
+	server.Shutdown(context.TODO())
 }
