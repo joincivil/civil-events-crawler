@@ -148,7 +148,7 @@ func TestSorting(t *testing.T) {
 
 }
 
-func TestPastEvents(t *testing.T) {
+func TestLastEvents(t *testing.T) {
 
 	contracts, retriever, filterers := setupTestRetriever(t)
 
