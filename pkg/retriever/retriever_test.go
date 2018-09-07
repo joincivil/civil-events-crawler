@@ -7,7 +7,6 @@ import (
 	// "github.com/ethereum/go-ethereum/core/types"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	commongen "github.com/joincivil/civil-events-crawler/pkg/generated/common"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
