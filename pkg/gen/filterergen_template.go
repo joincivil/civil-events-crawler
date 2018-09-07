@@ -17,6 +17,7 @@ import (
 
     "github.com/joincivil/civil-events-crawler/pkg/model"
     "github.com/joincivil/civil-events-crawler/pkg/utils"
+    commongen "github.com/joincivil/civil-events-crawler/pkg/generated/common"
 {{if .ContractImportPath -}}
     "{{.ContractImportPath}}"
 {{- end}}
@@ -27,26 +28,10 @@ import (
 {{- end}}
 )
 
-// TODO(IS): Need to move this to a central place, use it outside the package
-{{if .EventHandlers -}}
-var eventTypes{{.ContractTypeName}} = []string{
-    {{- range .EventHandlers}}
-        "{{.EventMethod}}",
-    {{- end}}
-}
-{{- end}}
-
-// TODO(IS): Need to move this to a central place, use it outside the package
-func EventTypes{{.ContractTypeName}}() []string {
-	tmp := make([]string, len(eventTypes{{.ContractTypeName}}))
-	copy(tmp, eventTypes{{.ContractTypeName}})
-	return tmp
-}
-
 func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.ContractTypeName}}Filterers {
     contractFilterers := &{{.ContractTypeName}}Filterers{
         contractAddress: contractAddress,
-        eventTypes: eventTypes{{.ContractTypeName}},
+        eventTypes: commongen.EventTypes{{.ContractTypeName}}(),
         eventToStartBlock: make(map[string]uint64),
         lastEvents: make([]*model.Event, 0),
     }

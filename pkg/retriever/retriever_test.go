@@ -6,7 +6,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	// "github.com/ethereum/go-ethereum/core/types"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
-	// "github.com/joincivil/civil-events-crawler/pkg/generated/contract"
+	commongen "github.com/joincivil/civil-events-crawler/pkg/generated/common"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
@@ -23,7 +24,7 @@ const (
 func TestFilterersEventList(t *testing.T) {
 	tcrFilterers := filterer.NewCivilTCRContractFilterers(common.HexToAddress(testTCRAddress))
 	internalEvents := tcrFilterers.EventTypes()
-	events := filterer.EventTypesCivilTCRContract()
+	events := commongen.EventTypesCivilTCRContract()
 	for index, event := range events {
 		if event != internalEvents[index] {
 			t.Error("Internal events list should match external events list")
