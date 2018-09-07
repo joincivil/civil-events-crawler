@@ -51,7 +51,7 @@ func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.Contr
         lastEvents: make([]*model.Event, 0),
     }
     for _, eventType := range contractFilterers.eventTypes {
-        contractFilterers.eventToStartBlock[eventType] = 0
+        contractFilterers.eventToStartBlock[eventType] = {{.DefaultStartBlock}} 
     }
     return contractFilterers
 }
@@ -128,7 +128,7 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
         Start: startBlock,
     }
 
-	log.Infof("Filtering events for {{.EventMethod}} for contract %v", f.contractAddress.Hex())
+    log.Infof("Filtering events for {{.EventMethod}} for contract %v starting at block %v", f.contractAddress.Hex(), startBlock)
     itr, err := f.contract.Filter{{.EventMethod}}(
         opts,
     {{- if .ParamValues -}}
@@ -141,6 +141,7 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
         log.Errorf("Error getting event {{.EventMethod}}: %v", err)
         return err, pastEvents
     }
+    beforeCount := len(pastEvents)
     nextEvent := itr.Next()
     for nextEvent {
         modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", f.ContractName(), f.contractAddress, itr.Event, utils.CurrentEpochSecsInInt64(), model.Filterer)
@@ -151,6 +152,8 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
         pastEvents = append(pastEvents, modelEvent)
         nextEvent = itr.Next()
     }
+    numEventsAdded := len(pastEvents) - beforeCount
+    log.Infof("{{.EventMethod}} events added: %v", numEventsAdded)
     return nil, pastEvents
 }
 

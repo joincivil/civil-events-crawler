@@ -57,7 +57,8 @@ const (
 // CrawlerConfig is the master config for the crawler derived from environment
 // variables.
 type CrawlerConfig struct {
-	EthAPIURL string `envconfig:"eth_api_url" required:"true" desc:"Ethereum API address"`
+	EthAPIURL     string `envconfig:"eth_api_url" required:"true" desc:"Ethereum API address"`
+	EthStartBlock uint64 `envconfig:"eth_start_block" desc:"Sets the start Eth block (default 0)" default:"0"`
 
 	// CivilListingsGraphqlURL enables call to retrieve newsroom listings from Civil.
 	// Should pass in the URL to the GraphQL endpoint to enable.
