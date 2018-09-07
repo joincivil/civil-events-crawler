@@ -27,6 +27,7 @@ GENERATED_DIR=pkg/generated
 GENERATED_CONTRACT_DIR=$(GENERATED_DIR)/contract
 GENERATED_WATCHER_DIR=$(GENERATED_DIR)/watcher
 GENERATED_FILTERER_DIR=$(GENERATED_DIR)/filterer
+GENERATED_COMMON_DIR=$(GENERATED_DIR)/common
 GENERATED_HANDLER_LIST_DIR=$(GENERATED_DIR)/handlerlist
 
 ## Civil specific commands
@@ -124,6 +125,12 @@ generate-civil-filterers: ## Runs filterergen to generate contract Filter* wrapp
 	@mkdir -p $(GENERATED_FILTERER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr filterer filterer > ./$(GENERATED_FILTERER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroom.go
+
+.PHONY: generate-civil-common
+generate-civil-common: ## Runs commongen to generate common contract wrapper code for Civil.
+	@mkdir -p $(GENERATED_COMMON_DIR)
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr common common > ./$(GENERATED_COMMON_DIR)/civiltcr.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom common common > ./$(GENERATED_COMMON_DIR)/newsroom.go
 
 .PHONY: generate-civil-handler-lists
 generate-civil-handler-lists: ## Runs handlerlistgen to generate handler list wrapper code for Civil.

@@ -24,6 +24,10 @@ var handlerToTemplate = map[string]TemplateData{
 		tmplName: "filterer.tmpl",
 		tmplVar:  filtererTmpl,
 	},
+	"common": {
+		tmplName: "common.tmpl",
+		tmplVar:  commonTmpl,
+	},
 }
 
 // TemplateData is a struct to store template information
