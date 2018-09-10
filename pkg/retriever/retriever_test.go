@@ -2,15 +2,12 @@
 package retriever_test
 
 import (
-	// "fmt"
 	"github.com/ethereum/go-ethereum/common"
-	// "github.com/ethereum/go-ethereum/core/types"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	commongen "github.com/joincivil/civil-events-crawler/pkg/generated/common"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
-	// "github.com/joincivil/civil-events-crawler/pkg/utils"
 	"math/big"
 	"sort"
 	"testing"
@@ -39,15 +36,6 @@ func setupTCRContractEvents(t *testing.T, contracts *cutils.AllTestContracts) in
 		t.Fatalf("Application failed, error: %v", err)
 	}
 	contracts.Client.Commit()
-
-	// NOTE (IS): why does gas estimation fail here?
-	// this fail with "failed to estimate gas needed: gas required exceeds allowance or always failing transaction"
-	// c, err := contracts.CivilTcrContract.Challenge(contracts.Auth, contracts.NewsroomAddr, "")
-	// fmt.Println(c)
-	// if err != nil {
-	// 	t.Fatalf("Challenge failed, error: %v", err)
-	// }
-	// contracts.Client.Commit()
 
 	_, err = contracts.CivilTcrContract.Deposit(contracts.Auth, contracts.NewsroomAddr, big.NewInt(5))
 	if err != nil {
@@ -110,7 +98,6 @@ func TestRetrieveMethod(t *testing.T) {
 	}
 
 	pastEvents := retriever.PastEvents
-
 	if len(pastEvents) != numEvents {
 		t.Errorf("Should have collected %v events but collected %v", numEvents, len(pastEvents))
 	}

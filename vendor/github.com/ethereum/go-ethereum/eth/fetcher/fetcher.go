@@ -88,7 +88,7 @@ type headerFilterTask struct {
 	time    time.Time       // Arrival time of the headers
 }
 
-// headerFilterTask represents a batch of block bodies (transactions and uncles)
+// bodyFilterTask represents a batch of block bodies (transactions and uncles)
 // needing fetcher filtering.
 type bodyFilterTask struct {
 	peer         string                 // The source peer of block bodies
@@ -204,7 +204,7 @@ func (f *Fetcher) Notify(peer string, hash common.Hash, number uint64, time time
 	}
 }
 
-// Enqueue tries to fill gaps the the fetcher's future import queue.
+// Enqueue tries to fill gaps the fetcher's future import queue.
 func (f *Fetcher) Enqueue(peer string, block *types.Block) error {
 	op := &inject{
 		origin: peer,

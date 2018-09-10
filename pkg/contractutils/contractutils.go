@@ -14,14 +14,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
+	// "github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 )
 
 const (
-	rinkebyAddress = "wss://rinkeby.infura.io/ws"
-	gasLimit       = uint64(8000000)
+	// rinkebyAddress = "wss://rinkeby.infura.io/ws"
+	gasLimit = uint64(8000000)
 
 	minDeposit                       = 10
 	pMinDeposit                      = 100
@@ -45,14 +45,14 @@ const (
 	appealSupermajorityPercentage    = 66
 )
 
-// SetupRinkebyClient returns an instance of the ethclient setup on Rinkeby
-func SetupRinkebyClient() (*ethclient.Client, error) {
-	client, err := ethclient.Dial(rinkebyAddress)
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
-}
+// // SetupRinkebyClient returns an instance of the ethclient setup on Rinkeby
+// func SetupRinkebyClient() (*ethclient.Client, error) {
+// 	client, err := ethclient.Dial(rinkebyAddress)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return client, nil
+// }
 
 // SetupSimulatedClient returns an an instance of the simulated backend.
 func SetupSimulatedClient(gasLimit uint64) (*backends.SimulatedBackend, *bind.TransactOpts) {
@@ -61,12 +61,7 @@ func SetupSimulatedClient(gasLimit uint64) (*backends.SimulatedBackend, *bind.Tr
 	genAlloc := make(core.GenesisAlloc)
 	genAlloc[auth.From] = core.GenesisAccount{Balance: big.NewInt(9223372036854775807)}
 
-	if gasLimit > 0 {
-		sim := newSimulatedBackendWithGasLimit(genAlloc, gasLimit)
-		return sim, auth
-	}
-
-	sim := backends.NewSimulatedBackend(genAlloc)
+	sim := backends.NewSimulatedBackend(genAlloc, gasLimit)
 	return sim, auth
 }
 
