@@ -185,25 +185,25 @@ func setupEventsDifferentTimes(rand bool) ([]*model.Event, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Cannot setup Application event: %v", err)
 	}
-	time.Sleep(time.Second)
+	time.Sleep(1 * time.Second)
 
 	appWhitelisted, err := setupApplicationWhitelistedEvent(rand)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot setup ApplicationWhitelisted event: %v", err)
 	}
-	time.Sleep(time.Second)
+	time.Sleep(1 * time.Second)
 
 	challenge, err := setupChallengeEvent(rand)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot setup Challenge event: %v", err)
 	}
-	time.Sleep(time.Second)
+	time.Sleep(1 * time.Second)
 
 	nameChanged, err := setupNewsroomNameChanged(rand)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot setup NameChanged event: %v", err)
 	}
-	time.Sleep(time.Second)
+	time.Sleep(1 * time.Second)
 	return []*model.Event{appEvent, appWhitelisted, challenge, nameChanged}, nil
 }
 
@@ -860,15 +860,16 @@ func TestDBToEvent(t *testing.T) {
 }
 
 func TestRetrieveEvents(t *testing.T) {
+	civilEventsFromContract, err := setupEventsDifferentTimes(true)
+	if err != nil {
+		t.Errorf("Couldn't setup event %v", err)
+	}
+
 	persister, err := setupTestTable()
 	if err != nil {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
-	civilEventsFromContract, err := setupEventsDifferentTimes(true)
-	if err != nil {
-		t.Errorf("Couldn't setup event %v", err)
-	}
 
 	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
