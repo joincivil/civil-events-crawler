@@ -126,7 +126,7 @@ func TestListenerEventChan(t *testing.T) {
 		for {
 			select {
 			case event := <-listener.EventRecvChan:
-				if event.EventType() != "_Application" {
+				if event.EventType() != "Application" {
 					t.Errorf("Eventtype is not correct: %v", event.EventType())
 				}
 				recv <- true
@@ -149,7 +149,7 @@ func TestListenerEventChan(t *testing.T) {
 			BlockNumber: 8888888,
 		},
 	}
-	newEvent, _ := model.NewEventFromContractEvent("_Application", "CivilTCRContract", contracts.CivilTcrAddr, tempPayload,
+	newEvent, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", contracts.CivilTcrAddr, tempPayload,
 		utils.CurrentEpochSecsInInt64(), model.Filterer)
 	listener.EventRecvChan <- newEvent
 
@@ -255,8 +255,8 @@ func setupEventRecvLoop(t *testing.T, listener *listener.EventListener,
 		for {
 			select {
 			case event := <-listener.EventRecvChan:
-				if event.EventType() != "_Application" && event.EventType() != "_Withdrawal" &&
-					event.EventType() != "_Deposit" {
+				if event.EventType() != "Application" && event.EventType() != "Withdrawal" &&
+					event.EventType() != "Deposit" {
 					t.Errorf("EventType is not correct: eventType: %v", event.EventType())
 				}
 				recv <- true
