@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -175,6 +176,34 @@ func setupEvents(rand bool) ([]*model.Event, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Cannot setup NameChanged event: %v", err)
 	}
+	return []*model.Event{appEvent, appWhitelisted, challenge, nameChanged}, nil
+}
+
+//Set up Events different times
+func setupEventsDifferentTimes(rand bool) ([]*model.Event, error) {
+	appEvent, err := setupApplicationEvent(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup Application event: %v", err)
+	}
+	time.Sleep(1 * time.Second)
+
+	appWhitelisted, err := setupApplicationWhitelistedEvent(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup ApplicationWhitelisted event: %v", err)
+	}
+	time.Sleep(1 * time.Second)
+
+	challenge, err := setupChallengeEvent(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup Challenge event: %v", err)
+	}
+	time.Sleep(1 * time.Second)
+
+	nameChanged, err := setupNewsroomNameChanged(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup NameChanged event: %v", err)
+	}
+	time.Sleep(1 * time.Second)
 	return []*model.Event{appEvent, appWhitelisted, challenge, nameChanged}, nil
 }
 
@@ -536,11 +565,16 @@ func TestLatestEventsQuery(t *testing.T) {
 	if err != nil {
 		t.Errorf("Couldn't setup event %v", err)
 	}
+
+	// sleep to create events at a later time
+	time.Sleep(time.Second)
+
 	// create more events that are at a later time
 	testEventsLatest, err := setupEvents(true)
 	if err != nil {
 		t.Errorf("Couldn't setup event %v", err)
 	}
+
 	testEvents = append(testEvents, testEventsLatest...)
 	numEvents := len(testEventsLatest)
 	// save events
@@ -826,15 +860,16 @@ func TestDBToEvent(t *testing.T) {
 }
 
 func TestRetrieveEvents(t *testing.T) {
+	civilEventsFromContract, err := setupEventsDifferentTimes(true)
+	if err != nil {
+		t.Errorf("Couldn't setup event %v", err)
+	}
+
 	persister, err := setupTestTable()
 	if err != nil {
 		t.Error(err)
 	}
 	defer deleteTestTable(persister)
-	civilEventsFromContract, err := setupEvents(true)
-	if err != nil {
-		t.Errorf("Couldn't setup event %v", err)
-	}
 
 	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
@@ -903,6 +938,7 @@ func TestRetrieveEvents(t *testing.T) {
 	if len(events) != 3 {
 		t.Errorf("Should have seen only 2 event: %v", len(events))
 	}
+
 	if events[0].EventType() != civilEventsFromContract[3].EventType() {
 		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
 	}
