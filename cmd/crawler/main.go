@@ -87,6 +87,7 @@ func setupKillNotify(eventCol *eventcollector.EventCollector) {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
+		log.Info("Stopping collector...")
 		err := eventCol.StopCollection()
 		if err != nil {
 			log.Errorf("Error stopping collection: err: %v", err)

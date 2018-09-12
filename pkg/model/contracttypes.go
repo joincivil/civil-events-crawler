@@ -2,6 +2,7 @@ package model
 
 import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
+	"sync"
 )
 
 const (
@@ -114,6 +115,7 @@ type ContractType int
 type CTypes struct {
 	types            map[string]ContractType
 	simpleNameToName map[string]string
+	mutex            sync.Mutex
 }
 
 // Get returns the contract type for a given contract simple name
@@ -141,6 +143,8 @@ func (c *CTypes) Names() []string {
 
 // GetFromContractName returns the contract type for a given contract name
 func (c *CTypes) GetFromContractName(name string) (ContractType, bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	if c.types == nil || len(c.types) == 0 {
 		c.build()
 	}
