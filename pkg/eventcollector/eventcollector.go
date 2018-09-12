@@ -7,7 +7,10 @@ import (
 	"fmt"
 	log "github.com/golang/glog"
 	"math/big"
+	"runtime"
 	"sync"
+
+	"github.com/Jeffail/tunny"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -76,6 +79,46 @@ type EventCollector struct {
 	headerCache *utils.BlockHeaderCache
 }
 
+type handleEventInputs struct {
+	event  *model.Event
+	errors chan<- error
+}
+
+// handleEvent is the func used for the goroutine pool that handles
+// incoming events fromt the watchers
+func (c *EventCollector) handleEvent(payload interface{}) interface{} {
+	inputs := payload.(handleEventInputs)
+	event := inputs.event
+	errors := inputs.errors
+
+	err := c.updateEventTimeFromBlockHeader(event)
+	if err != nil {
+		err = fmt.Errorf("Error updating date for event: err: %v", err)
+		errors <- err
+		return nil
+	}
+	// Save event to persister
+	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
+	if err != nil {
+		err = fmt.Errorf("Error saving events: err: %v", err)
+		errors <- err
+		return nil
+	}
+	// Update last block in persistence in case of error
+	err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
+	if err != nil {
+		err = fmt.Errorf("Error updating last block: err: %v", err)
+		errors <- err
+		return nil
+	}
+	// Call event triggers
+	err = c.callTriggers(event)
+	if err != nil {
+		log.Errorf("Error calling triggers: err: %v", err)
+	}
+	return nil
+}
+
 // StartCollection contains logic to run retriever and listener.
 func (c *EventCollector) StartCollection() error {
 	err := c.retrieveEvents()
@@ -112,6 +155,11 @@ func (c *EventCollector) StartCollection() error {
 	errorsChan := make(chan error)
 
 	go func(quit <-chan interface{}, errors chan<- error) {
+		multiplier := 1
+		numCPUs := runtime.NumCPU() * multiplier
+		pool := tunny.NewFunc(numCPUs, c.handleEvent)
+		defer pool.Close()
+
 		for {
 			select {
 			case event := <-c.listen.EventRecvChan:
@@ -124,31 +172,14 @@ func (c *EventCollector) StartCollection() error {
 						event.LogPayloadToString(),
 					)
 				}
-				err = c.updateEventTimeFromBlockHeader(event)
-				if err != nil {
-					err = fmt.Errorf("Error updating date for event: err: %v", err)
-					errors <- err
-					return
-				}
-				// Save event to persister
-				err = c.eventDataPersister.SaveEvents([]*model.Event{event})
-				if err != nil {
-					err = fmt.Errorf("Error saving events: err: %v", err)
-					errors <- err
-					return
-				}
-				// Update last block in persistence in case of error
-				err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
-				if err != nil {
-					err = fmt.Errorf("Error updating last block: err: %v", err)
-					errors <- err
-					return
-				}
-				// Call event triggers
-				err = c.callTriggers(event)
-				if err != nil {
-					log.Errorf("Error calling triggers: err: %v", err)
-				}
+				go func(e *model.Event, errs chan<- error) {
+					pool.Process(
+						handleEventInputs{
+							event:  e,
+							errors: errs,
+						},
+					)
+				}(event, errors)
 			case <-quit:
 				return
 			}

@@ -10,7 +10,10 @@ package {{.PackageName}}
 
 import (
     log "github.com/golang/glog"
-    "fmt"
+    "sync"
+    "runtime"
+
+    "github.com/Jeffail/tunny"
 
     "github.com/ethereum/go-ethereum/accounts/abi/bind"
     "github.com/ethereum/go-ethereum/common"
@@ -47,6 +50,8 @@ type {{.ContractTypeName}}Filterers struct {
     eventTypes []string
     eventToStartBlock map[string]uint64
     lastEvents  []*model.Event
+    lastEventsMutex sync.Mutex
+    pastEventsMutex sync.Mutex
 }
 
 func (f *{{.ContractTypeName}}Filterers) ContractName() string {
@@ -81,27 +86,67 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
         return err, pastEvents
     }
     f.contract = contract
-    var startBlock uint64
-    prevEventsLength := len(pastEvents)
+
+    workerMultiplier := 1
+    numWorkers := runtime.NumCPU() * workerMultiplier
+    log.Infof("Num of workers: %v", numWorkers)
+    pool := tunny.NewFunc(numWorkers, func(payload interface{}) interface{} {
+        f := payload.(func())
+        f()
+        return nil
+    })
+    defer pool.Close()
+
+    wg := sync.WaitGroup{}
+    resultsChan := make(chan []*model.Event)
+    done := make(chan bool)
 
 
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-    startBlock = f.eventToStartBlock["{{.EventMethod}}"]
-    err, pastEvents = f.startFilter{{.EventMethod}}(startBlock, pastEvents)
-    if err != nil {
-        return fmt.Errorf("Error retrieving {{.EventMethod}}: err: %v", err), pastEvents
-    }
-    if len(pastEvents) > prevEventsLength {
-        f.lastEvents = append(f.lastEvents, pastEvents[len(pastEvents) - 1])
-        prevEventsLength = len(pastEvents)
-    }
+    wg.Add(1)
+    go func() {
+        filterFunc := func() {
+            startBlock := f.eventToStartBlock["{{.EventMethod}}"]
+            e, pevents := f.startFilter{{.EventMethod}}(startBlock, []*model.Event{})
+            if e != nil {
+                log.Errorf("Error retrieving {{.EventMethod}}: err: %v", e)
+                return
+            }
+            if len(pevents) > 0 {
+                f.lastEventsMutex.Lock()
+                f.lastEvents = append(f.lastEvents, pevents[len(pevents)-1])
+                f.lastEventsMutex.Unlock()
+                resultsChan <- pevents
+            }
+        }
+        pool.Process(filterFunc)
+        wg.Done()
+    }()
 
 
 {{- end}}
 {{- end}}
 
+    go func() {
+        wg.Wait()
+        done <- true
+        log.Info("Filtering routines complete")
+    }()
+
+Loop:
+    for {
+        select {
+        case <-done:
+            break Loop
+        case pevents := <-resultsChan:
+            f.pastEventsMutex.Lock()
+            pastEvents = append(pastEvents, pevents...)
+            f.pastEventsMutex.Unlock()
+        }
+    }
+    log.Infof("Total events found: %v", len(pastEvents))
     return nil, pastEvents
 }
 
