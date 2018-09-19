@@ -5,6 +5,8 @@ POSTGRES_DB_NAME=civil_crawler
 POSTGRES_USER=docker
 POSTGRES_PSWD=docker
 
+PUBSUB_SIM_DOCKER_IMAGE=kinok/google-pubsub-emulator:latest
+
 GOCMD=go
 GOGEN=$(GOCMD) generate
 GORUN=$(GOCMD) run
@@ -103,8 +105,21 @@ postgres-start: check-docker-env postgres-setup-launch postgres-check-available 
 
 .PHONY: postgres-stop
 postgres-stop: check-docker-env ## Stops the development PostgreSQL server
-	@docker stop `docker ps -q`
+	@docker stop `docker ps -q --filter "ancestor=$(POSTGRES_DOCKER_IMAGE)"`
 	@echo 'Postgres stopped'
+
+.PHONY: pubsub-setup-launch
+pubsub-setup-launch:
+	@docker run -it -d -p 8042:8042 $(PUBSUB_SIM_DOCKER_IMAGE)
+
+.PHONY: pubsub-start
+pubsub-start: check-docker-env pubsub-setup-launch ## Starts up the pubsub simulator
+	@echo 'Google pubsub simulator up'
+
+.PHONY: pubsub-stop
+pubsub-stop: check-docker-env ## Stops the pubsub simulator
+	@docker stop `docker ps -q --filter "ancestor=$(PUBSUB_SIM_DOCKER_IMAGE)"`
+	@echo 'Google pubsub simulator down'
 
 ## gometalinter config in .gometalinter.json
 .PHONY: lint
@@ -161,7 +176,7 @@ test: ## Runs unit tests and tests code coverage.
 
 .PHONY: test-integration
 test-integration: ## Runs tagged integration tests
-	@echo 'mode: atomic' > coverage.txt && $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=60s -tags=integration ./...
+	@echo 'mode: atomic' > coverage.txt && PUBSUB_EMULATOR_HOST=localhost:8042 $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=60s -tags=integration ./...
 
 .PHONY: cover
 cover: test ## Runs unit tests, code coverage, and runs HTML coverage tool.
