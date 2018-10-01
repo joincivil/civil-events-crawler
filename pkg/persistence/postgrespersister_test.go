@@ -859,6 +859,43 @@ func TestDBToEvent(t *testing.T) {
 
 }
 
+func TestUint256Float64Conversion(t *testing.T) {
+	deposit := new(big.Int)
+	deposit.SetString("100000000000000000000", 10)
+	testApplicationEvent.Deposit = deposit
+
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTable(persister)
+
+	appEvent, err := setupApplicationEvent(true)
+	if err != nil {
+		t.Errorf("setupEvent should have succeeded: err: %v", err)
+	}
+
+	events := []*model.Event{appEvent}
+	err = persister.saveEventsToTable(events, eventTestTableName)
+	if err != nil {
+		t.Errorf("Cannot save event to event_test table: %v", err)
+	}
+
+	appEventDB, err := allEventsFromTable(persister, eventTestTableName)
+
+	dbEvent := appEventDB[0]
+
+	appEventFromDB, err := dbEvent.DBToEventData()
+	if err != nil {
+		t.Errorf("Could not convert db event back to civilevent: err: %v", err)
+	}
+
+	if !reflect.DeepEqual(appEventFromDB.EventPayload(), appEvent.EventPayload()) {
+		t.Errorf("EventPayloads not equal: %v %v", appEvent.EventPayload(), appEventFromDB.EventPayload())
+	}
+
+}
+
 func TestRetrieveEvents(t *testing.T) {
 	civilEventsFromContract, err := setupEventsDifferentTimes(true)
 	if err != nil {
