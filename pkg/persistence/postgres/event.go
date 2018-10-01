@@ -101,8 +101,14 @@ func (c *Event) EventDataToDB(event map[string]interface{}) error {
 		case "address":
 			eventPayload[eventFieldName] = eventField.(common.Address).Hex()
 		case "uint256":
-			// NOTE(IS): converting all *big.Int to int64. assuming for now that numbers will fall into int64 range.
-			eventPayload[eventFieldName] = eventField.(*big.Int).Int64()
+			i := eventField.(*big.Int)
+			if i.IsInt64() {
+				eventPayload[eventFieldName] = eventField.(*big.Int).Int64()
+			} else {
+				f := new(big.Float).SetInt(i)
+				val, _ := f.Float64()
+				eventPayload[eventFieldName] = val
+			}
 		case "string":
 			eventPayload[eventFieldName] = eventField.(string)
 		case "default":
