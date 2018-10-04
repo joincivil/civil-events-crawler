@@ -1,7 +1,6 @@
 package postgres_test
 
 import (
-	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
@@ -44,23 +43,21 @@ func setupEvent() (*model.Event, error) {
 		testEvent, utils.CurrentEpochSecsInInt64(), model.Filterer)
 }
 
-func setupDBEvent() (*postgres.Event, error) {
+func setupDBEvent(t *testing.T) *postgres.Event {
 	civilEvent, err := setupEvent()
 	if err != nil {
-		return &postgres.Event{}, fmt.Errorf("setupEvent should have succeeded: err: %v", err)
+		t.Errorf("setupEvent should have succeeded: err: %v", err)
 	}
 	dbEvent, err := setupDBEventFromEvent(civilEvent)
 	if err != nil {
-		return dbEvent, fmt.Errorf("setupDBEventFromEvent should have succeeded: err: %v", err)
+		t.Errorf("setupDBEventFromEvent should have succeeded: err: %v", err)
 	}
-	return dbEvent, nil
+	return dbEvent
 }
 
 func TestDBEventSetup(t *testing.T) {
-	dbEvent, err := setupDBEvent()
-	if err != nil {
-		t.Errorf("%v", err)
-	}
+	dbEvent := setupDBEvent(t)
+
 	if dbEvent == nil {
 		t.Error("postgres Event should not be nil")
 	}
@@ -87,6 +84,19 @@ func TestDBEventSetup(t *testing.T) {
 	}
 	if len(dbEvent.LogPayload) != 9 {
 		t.Errorf("EventPayload was not init correctly: %v", dbEvent.EventPayload)
+	}
+
+}
+
+func TestInt64Overflow(t *testing.T) {
+	deposit := new(big.Int)
+	deposit.SetString("100000000000000000000", 10)
+	testEvent.Deposit = deposit
+
+	dbEvent := setupDBEvent(t)
+	depositFloat, _ := new(big.Float).SetInt(deposit).Float64()
+	if dbEvent.EventPayload["Deposit"] != depositFloat {
+		t.Errorf("Wrong value, %v, %v", dbEvent.EventPayload["Deposit"], depositFloat)
 	}
 
 }

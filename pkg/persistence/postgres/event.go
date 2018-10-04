@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"math/big"
+	"strconv"
 	"strings"
 )
 
@@ -101,8 +102,11 @@ func (c *Event) EventDataToDB(event map[string]interface{}) error {
 		case "address":
 			eventPayload[eventFieldName] = eventField.(common.Address).Hex()
 		case "uint256":
-			// NOTE(IS): converting all *big.Int to int64. assuming for now that numbers will fall into int64 range.
-			eventPayload[eventFieldName] = eventField.(*big.Int).Int64()
+			// NOTE(IS): Store all values as float64 to avoid overflow for int64
+			i := eventField.(*big.Int)
+			f := new(big.Float).SetInt(i)
+			val, _ := f.Float64()
+			eventPayload[eventFieldName] = val
 		case "string":
 			eventPayload[eventFieldName] = eventField.(string)
 		case "default":
@@ -142,12 +146,14 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 			}
 			eventPayload[eventFieldName] = common.HexToAddress(address)
 		case "uint256":
-			// NOTE: Ints are stored in DB as float64
+			// NOTE: Ints are converted to float64 and stored in DB as float64
 			num, numOk := eventField.(float64)
 			if !numOk {
-				return event, errors.New("Cannot cast DB int to float64")
+				return event, errors.New("Cannot cast DB float to float64")
 			}
-			eventPayload[eventFieldName] = big.NewInt(int64(num))
+			bigInt := new(big.Int)
+			bigInt.SetString(strconv.FormatFloat(num, 'f', -1, 64), 10)
+			eventPayload[eventFieldName] = bigInt
 		case "string":
 			str, stringOk := eventField.(string)
 			if !stringOk {
