@@ -134,18 +134,21 @@ generate-civil-watchers: ## Runs watchergen to generate contract Watch* wrapper 
 	@mkdir -p $(GENERATED_WATCHER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr watcher watcher > ./$(GENERATED_WATCHER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom watcher watcher > ./$(GENERATED_WATCHER_DIR)/newsroom.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) plcrvoting watcher watcher > ./$(GENERATED_WATCHER_DIR)/plcrvoting.go
 
 .PHONY: generate-civil-filterers
 generate-civil-filterers: ## Runs filterergen to generate contract Filter* wrapper code for Civil.
 	@mkdir -p $(GENERATED_FILTERER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr filterer filterer > ./$(GENERATED_FILTERER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroom.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) plcrvoting filterer filterer > ./$(GENERATED_FILTERER_DIR)/plcrvoting.go
 
 .PHONY: generate-civil-common
 generate-civil-common: ## Runs commongen to generate common contract wrapper code for Civil.
 	@mkdir -p $(GENERATED_COMMON_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr common common > ./$(GENERATED_COMMON_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom common common > ./$(GENERATED_COMMON_DIR)/newsroom.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) plcrvoting common common > ./$(GENERATED_COMMON_DIR)/plcrvoting.go
 
 .PHONY: generate-civil-handler-lists
 generate-civil-handler-lists: ## Runs handlerlistgen to generate handler list wrapper code for Civil.

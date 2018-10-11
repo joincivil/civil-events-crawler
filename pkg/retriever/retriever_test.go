@@ -2,6 +2,8 @@
 package retriever_test
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	commongen "github.com/joincivil/civil-events-crawler/pkg/generated/common"
@@ -48,7 +50,6 @@ func setupTCRContractEvents(t *testing.T, contracts *cutils.AllTestContracts) in
 		t.Fatalf("Withdraw failed, error: %v", err)
 	}
 	contracts.Client.Commit()
-
 	return numEvents
 }
 
@@ -59,6 +60,16 @@ func setupNewsroomContractEvents(t *testing.T, contracts *cutils.AllTestContract
 	if err != nil {
 		t.Fatalf("NameChanged failed, error: %v", err)
 	}
+	contracts.Client.Commit()
+	return numEvents
+}
+
+func setupPLCRVotingContractEvents(t *testing.T, contracts *cutils.AllTestContracts) int {
+	numEvents := 1
+	// _, err := contracts.PlcrContract.StartPoll(contracts.Auth, big.NewInt(50), big.NewInt(1539098030), big.NewInt(1539184430))
+	// if err != nil {
+	// 	t.Fatalf("StartPoll failed, error: %v", err)
+	// }
 	contracts.Client.Commit()
 	return numEvents
 }
@@ -79,10 +90,13 @@ func setupTestRetriever(t *testing.T) (*cutils.AllTestContracts, *retriever.Even
 }
 
 func setupAllEvents(t *testing.T, contracts *cutils.AllTestContracts) int {
+	expectedNumPLCRVotingEvents := setupPLCRVotingContractEvents(t, contracts)
 	expectedNumTCREvents := setupTCRContractEvents(t, contracts)
 	// NOTE(IS): Setting up Newsroom contract emits 3 events
 	expectedNumNewsroomEvents := 3
 	expectedNumNewsroomEvents += setupNewsroomContractEvents(t, contracts)
+
+	fmt.Println(expectedNumPLCRVotingEvents)
 	numEvents := expectedNumTCREvents + expectedNumNewsroomEvents
 	return numEvents
 }
