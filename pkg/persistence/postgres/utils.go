@@ -7,6 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
+)
+
+const (
+	// If this is the field name in a struct db tag, it should be ignored
+	// ex. `db:"-"`
+	ignoredFieldName = "-"
 )
 
 // JsonbPayload is the jsonb payload
@@ -46,6 +53,10 @@ func StructFieldsForQuery(exampleStruct interface{}, colon bool) (string, string
 	typeOf := valStruct.Type()
 	for i := 0; i < valStruct.NumField(); i++ {
 		dbFieldName := typeOf.Field(i).Tag.Get("db")
+		// Skip ignored fields
+		if strings.TrimSpace(dbFieldName) == ignoredFieldName {
+			continue
+		}
 		fields.WriteString(dbFieldName) // nolint: gosec
 		if colon {
 			fieldsWithColon.WriteString(":")         // nolint: gosec
@@ -58,7 +69,8 @@ func StructFieldsForQuery(exampleStruct interface{}, colon bool) (string, string
 			}
 		}
 	}
-	return fields.String(), fieldsWithColon.String()
+	return strings.Trim(fields.String(), ", "),
+		strings.Trim(fieldsWithColon.String(), ", ")
 }
 
 // InsertIntoDBQueryString creates the query to insert a given struct into a given table
