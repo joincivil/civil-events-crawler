@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	// "github.com/ethereum/go-ethereum/ethclient"
-
+	// "fmt"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 )
 
@@ -25,7 +25,7 @@ const (
 
 	minDeposit                       = 10
 	pMinDeposit                      = 100
-	applyStageLength                 = 18000
+	applyStageLength                 = 0 // 18000
 	pApplyStageLength                = 120
 	commitStageLength                = 18000
 	pCommitStageLength               = 120
