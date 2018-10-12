@@ -126,7 +126,27 @@ func TestGenerateWatchersForNewsroom(t *testing.T) {
 	}
 }
 
-func TestGenerateRetrieversForCivilTcr(t *testing.T) {
+func TestGenerateWatchersForPLCRVoting(t *testing.T) {
+	buf := &bytes.Buffer{}
+	err := gen.GenerateEventHandlers(buf, model.PLCRVotingContractType, "watcher", "watcher")
+	if err != nil {
+		t.Errorf("Error generating watchers for the PLCRVoting contract: err: %v", err)
+	}
+
+	// TODO(PN): Do some sanity check tests.  ADD MORE!
+	code := buf.String()
+	if !strings.Contains(code, "func (w *PLCRVotingContractWatchers) StartWatchers") {
+		t.Error("Did not see expected StartWatchers in the generated watcher code")
+	}
+	if !strings.Contains(code, "func (w *PLCRVotingContractWatchers) StartPLCRVotingContractWatchers") {
+		t.Error("Did not see expected StartNewsroomContractWatchers in the generated code")
+	}
+	if !strings.Contains(code, "func (w *PLCRVotingContractWatchers) startWatchPollCreated") {
+		t.Error("Did not see expected startWatchRevisionUpdated in the generated code")
+	}
+}
+
+func TestGenerateFilterersForCivilTcr(t *testing.T) {
 	buf := &bytes.Buffer{}
 	err := gen.GenerateEventHandlers(buf, model.CivilTcrContractType, "filterer", "filterer")
 	if err != nil {
@@ -146,11 +166,11 @@ func TestGenerateRetrieversForCivilTcr(t *testing.T) {
 	}
 }
 
-func TestGenerateRetrieversForNewsroom(t *testing.T) {
+func TestGenerateFilterersForNewsroom(t *testing.T) {
 	buf := &bytes.Buffer{}
 	err := gen.GenerateEventHandlers(buf, model.NewsroomContractType, "filterer", "filterer")
 	if err != nil {
-		t.Errorf("Error generating retrievers for the Newsroom contract: err: %v", err)
+		t.Errorf("Error generating Filterers for the Newsroom contract: err: %v", err)
 	}
 
 	// TODO(IS): Do some sanity check tests.  ADD MORE!
@@ -160,5 +180,25 @@ func TestGenerateRetrieversForNewsroom(t *testing.T) {
 	}
 	if !strings.Contains(code, "func (f *NewsroomContractFilterers) startFilterRevisionUpdated") {
 		t.Error("Did not see expected startFilterRevisionUpdated in the generated code")
+	}
+}
+
+func TestGenerateFilterersForPLCRVoting(t *testing.T) {
+	buf := &bytes.Buffer{}
+	err := gen.GenerateEventHandlers(buf, model.PLCRVotingContractType, "filterer", "filterer")
+	if err != nil {
+		t.Errorf("Error generating filterers for the PLCRVoting contract: err: %v", err)
+	}
+
+	// TODO(IS): Do some sanity check tests.  ADD MORE!
+	code := buf.String()
+	if !strings.Contains(code, "func (f *PLCRVotingContractFilterers) StartFilterers") {
+		t.Error("Did not see expected StartFilterers in the generated code")
+	}
+	if !strings.Contains(code, "func (f *PLCRVotingContractFilterers) startFilterPollCreated") {
+		t.Error("Did not see expected startFilterPollCreated in the generated code")
+	}
+	if !strings.Contains(code, "func (f *PLCRVotingContractFilterers) startFilterVotingRightsWithdrawn") {
+		t.Error("Did not see expected startFilterVotingRightsWithdrawn in the generated code")
 	}
 }

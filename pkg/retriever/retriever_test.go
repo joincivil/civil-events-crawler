@@ -101,6 +101,7 @@ func setupTCRContractEvents(t *testing.T, contracts *cutils.AllTestContracts) in
 	// contracts.Client.Commit()
 	// bal, err = contracts.TokenContract.BalanceOf(callOpts, contracts.Auth.From)
 	// fmt.Println("balnce after challenge", bal)
+	contracts.Client.Commit()
 	return numEvents
 }
 
@@ -154,12 +155,11 @@ func setupTestRetriever(t *testing.T) (*cutils.AllTestContracts, *retriever.Even
 }
 
 func setupAllEvents(t *testing.T, contracts *cutils.AllTestContracts) int {
+	// expectedNumPLCRVotingEvents := setupPLCRVotingContractEvents(t, contracts)
 	expectedNumTCREvents := setupTCRContractEvents(t, contracts)
 	// NOTE(IS): Setting up Newsroom contract emits 3 events
 	expectedNumNewsroomEvents := 3
 	expectedNumNewsroomEvents += setupNewsroomContractEvents(t, contracts)
-	// expectedNumPLCRVotingEvents := setupPLCRVotingContractEvents(t, contracts)
-	// fmt.Println(expectedNumPLCRVotingEvents)
 	numEvents := expectedNumTCREvents + expectedNumNewsroomEvents
 	return numEvents
 }

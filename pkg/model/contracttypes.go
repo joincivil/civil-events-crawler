@@ -18,6 +18,9 @@ const (
 
 	// NewsroomContractType is the enum value for the Newsroom type
 	NewsroomContractType
+
+	// PLCRVotingContractType is the enum value for the PLCR Voting type
+	PLCRVotingContractType
 )
 
 var (
@@ -38,6 +41,13 @@ var (
 				name:        "NewsroomContract",
 				simpleName:  "newsroom",
 				abiStr:      contract.NewsroomContractABI,
+				importPath:  "github.com/joincivil/civil-events-crawler/pkg/generated/contract",
+				typePackage: "contract",
+			},
+			PLCRVotingContractType: {
+				name:        "PLCRVotingContract",
+				simpleName:  "plcrvoting",
+				abiStr:      contract.PLCRVotingContractABI,
 				importPath:  "github.com/joincivil/civil-events-crawler/pkg/generated/contract",
 				typePackage: "contract",
 			},
