@@ -17,6 +17,7 @@ import (
 
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	"github.com/joincivil/civil-events-crawler/pkg/eventcollector"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
@@ -472,4 +473,45 @@ func TestNewEventCollectorBadUpdateBlockData(t *testing.T) {
 		t.Errorf("Application failed: err: %v", err)
 	}
 	contracts.Client.Commit()
+}
+
+func TestCheckRetrievedEventsForNewsroom(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: %v", err)
+	}
+	collector, _ := setupTestCollectorTestPersisterBadUpdateBlockData(contracts)
+
+	testAddress := "0xdfe273082089bb7f70ee36eebcde64832fe97e55"
+	testApplicationWhitelisted := &contract.CivilTCRContractApplicationWhitelisted{
+		ListingAddress: common.HexToAddress(testAddress),
+		Raw: types.Log{
+			Address:     common.HexToAddress(testAddress),
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8888888,
+			Index:       1,
+		},
+	}
+	testListingRemoved := &contract.CivilTCRContractApplicationRemoved{
+		ListingAddress: common.HexToAddress(testAddress),
+		Raw: types.Log{
+			Address:     common.HexToAddress(testAddress),
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8888888,
+			Index:       1,
+		},
+	}
+	event1, _ := model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(testAddress),
+		testApplicationWhitelisted, 0, model.Watcher)
+	event2, _ := model.NewEventFromContractEvent("ListingRemoved", "CivilTCRContract", common.HexToAddress(testAddress),
+		testListingRemoved, 0, model.Watcher)
+	pastEvents := []*model.Event{event1, event2}
+
+	_, err = collector.CheckRetrievedEventsForNewsroom(pastEvents)
+	if err != nil {
+		t.Errorf("Error checking retrieved events: %v", err)
+	}
+
 }
