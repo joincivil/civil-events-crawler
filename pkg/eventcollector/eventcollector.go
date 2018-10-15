@@ -58,8 +58,6 @@ type EventCollector struct {
 
 	triggers []Trigger
 
-	additionalNewsroomFilterers []model.ContractFilterers
-
 	filterers []model.ContractFilterers
 
 	watchers []model.ContractWatchers
@@ -133,17 +131,12 @@ func (c *EventCollector) StartCollection() error {
 	pastEvents := c.retrieve.PastEvents
 
 	// Check pastEvents for any new newsrooms to track
-	err = c.CheckRetrievedEventsForNewsroom(pastEvents)
+	additionalEvents, err := c.CheckRetrievedEventsForNewsroom(pastEvents)
 	if err != nil {
 		return fmt.Errorf("Error checking newsroom events during filterer, err: %v", err)
 	}
-	if len(c.additionalNewsroomFilterers) > 0 {
-		// NOTE(IS): This overwrites the previous retriever with the new filterers
-		err = c.retrieveEvents(c.additionalNewsroomFilterers)
-		if err != nil {
-			return fmt.Errorf("Error retrieving new Newsroom events: err: %v", err)
-		}
-		pastEvents = append(pastEvents, c.retrieve.PastEvents...)
+	if len(additionalEvents) > 0 {
+		pastEvents = append(pastEvents, additionalEvents...)
 	}
 
 	err = c.updateEventTimesFromBlockHeaders(pastEvents)
@@ -308,21 +301,26 @@ func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers) err
 	return err
 }
 
-// CheckRetrievedEventsForNewsroom checks for new newsrooms from filtered events
-func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Event) error {
+// CheckRetrievedEventsForNewsroom checks pastEvents for TCR events that may include new newsroom events,
+// creates new Newsroom filterers and watchers upon valid events, filters for events, and then returns those events
+func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Event) ([]*model.Event, error) {
 	log.Infof("Checking for new newsrooms in filterer")
+
 	existingFiltererNewsroomAddr := c.getExistingNewsroomFilterers()
 	existingWatcherNewsroomAddr := c.getExistingNewsroomWatchers()
 	watchersToAdd := map[common.Address]*watcher.NewsroomContractWatchers{}
+	additionalNewsroomFilterers := []model.ContractFilterers{}
+	additionalEvents := []*model.Event{}
+
 	for _, event := range pastEvents {
 		if event.EventType() == "ApplicationWhitelisted" {
 			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
 			if !ok {
-				return fmt.Errorf("Cannot get newsroomAddr from eventpayload")
+				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
 			}
 			if _, ok := existingFiltererNewsroomAddr[newsroomAddr]; !ok {
 				newFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
-				c.additionalNewsroomFilterers = append(c.additionalNewsroomFilterers, newFilterer)
+				additionalNewsroomFilterers = append(additionalNewsroomFilterers, newFilterer)
 			}
 			if _, ok := existingWatcherNewsroomAddr[newsroomAddr]; !ok {
 				newWatcher := watcher.NewNewsroomContractWatchers(newsroomAddr)
@@ -332,7 +330,7 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 		if event.EventType() == "ListingRemoved" {
 			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
 			if !ok {
-				return fmt.Errorf("Cannot get newsroomAddr from eventpayload")
+				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
 			}
 			watchersToAdd[newsroomAddr] = nil
 		}
@@ -346,13 +344,24 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 		}
 
 	}
-	return nil
+
+	if len(additionalNewsroomFilterers) > 0 {
+		// NOTE(IS): This overwrites the previous retriever with the new filterers
+		// TODO(IS): Better solution for this
+		err := c.retrieveEvents(additionalNewsroomFilterers)
+		if err != nil {
+			return additionalEvents, fmt.Errorf("Error retrieving new Newsroom events: err: %v", err)
+		}
+		additionalEvents = append(additionalEvents, c.retrieve.PastEvents...)
+	}
+	return additionalEvents, nil
 }
 
 func (c *EventCollector) getExistingNewsroomFilterers() map[common.Address]bool {
 	existingNewsroomAddr := map[common.Address]bool{}
 	for _, existing := range c.filterers {
-		if existing.ContractName() == "NewsroomContract" {
+		specs, _ := model.ContractTypeToSpecs.Get(model.NewsroomContractType)
+		if existing.ContractName() == specs.Name() {
 			existingNewsroomAddr[existing.ContractAddress()] = true
 		}
 	}
@@ -362,7 +371,8 @@ func (c *EventCollector) getExistingNewsroomFilterers() map[common.Address]bool 
 func (c *EventCollector) getExistingNewsroomWatchers() map[common.Address]bool {
 	existingNewsroomAddr := map[common.Address]bool{}
 	for _, existing := range c.watchers {
-		if existing.ContractName() == "NewsroomContract" {
+		specs, _ := model.ContractTypeToSpecs.Get(model.NewsroomContractType)
+		if existing.ContractName() == specs.Name() {
 			existingNewsroomAddr[existing.ContractAddress()] = true
 		}
 	}

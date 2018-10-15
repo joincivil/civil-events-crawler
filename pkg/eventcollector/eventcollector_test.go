@@ -509,7 +509,7 @@ func TestCheckRetrievedEventsForNewsroom(t *testing.T) {
 		testListingRemoved, 0, model.Watcher)
 	pastEvents := []*model.Event{event1, event2}
 
-	err = collector.CheckRetrievedEventsForNewsroom(pastEvents)
+	_, err = collector.CheckRetrievedEventsForNewsroom(pastEvents)
 	if err != nil {
 		t.Errorf("Error checking retrieved events: %v", err)
 	}
