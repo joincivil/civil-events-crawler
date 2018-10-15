@@ -58,7 +58,7 @@ type EventCollector struct {
 
 	triggers []Trigger
 
-	filterTriggers []model.ContractFilterers
+	additionalNewsroomFilterers []model.ContractFilterers
 
 	filterers []model.ContractFilterers
 
@@ -137,9 +137,9 @@ func (c *EventCollector) StartCollection() error {
 	if err != nil {
 		return fmt.Errorf("Error checking newsroom events during filterer, err: %v", err)
 	}
-	if len(c.filterTriggers) > 0 {
+	if len(c.additionalNewsroomFilterers) > 0 {
 		// NOTE(IS): This overwrites the previous retriever with the new filterers
-		err = c.retrieveEvents(c.filterTriggers)
+		err = c.retrieveEvents(c.additionalNewsroomFilterers)
 		if err != nil {
 			return fmt.Errorf("Error retrieving new Newsroom events: err: %v", err)
 		}
@@ -322,7 +322,7 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 			}
 			if _, ok := existingFiltererNewsroomAddr[newsroomAddr]; !ok {
 				newFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
-				c.filterTriggers = append(c.filterTriggers, newFilterer)
+				c.additionalNewsroomFilterers = append(c.additionalNewsroomFilterers, newFilterer)
 			}
 			if _, ok := existingWatcherNewsroomAddr[newsroomAddr]; !ok {
 				newWatcher := watcher.NewNewsroomContractWatchers(newsroomAddr)
