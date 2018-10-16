@@ -7,6 +7,7 @@ import (
 
 	log "github.com/golang/glog"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
@@ -25,7 +26,7 @@ func (n *AddNewsroomWatchersTrigger) Description() string {
 // ShouldRun returns true or false on whether this trigger should be run
 func (n *AddNewsroomWatchersTrigger) ShouldRun(collector *EventCollector,
 	event *model.Event) bool {
-	return event.EventType() == "_ApplicationWhiteListed"
+	return event.EventType() == "ApplicationWhiteListed"
 }
 
 // Run returns the triggered code
@@ -34,7 +35,7 @@ func (n *AddNewsroomWatchersTrigger) Run(collector *EventCollector,
 	if !n.ShouldRun(collector, event) {
 		return errors.New("AddNewsroomWatchersTrigger should not run")
 	}
-	newsroomAddr := event.LogPayload().Address
+	newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
 	err := collector.AddWatchers(
 		watcher.NewNewsroomContractWatchers(newsroomAddr),
 	)
@@ -57,7 +58,7 @@ func (n *RemoveNewsroomWatchersTrigger) Description() string {
 // ShouldRun returns true or false on whether this trigger should be run
 func (n *RemoveNewsroomWatchersTrigger) ShouldRun(collector *EventCollector,
 	event *model.Event) bool {
-	return event.EventType() == "_ListingRemoved"
+	return event.EventType() == "ListingRemoved"
 }
 
 // Run returns the triggered code
@@ -66,7 +67,7 @@ func (n *RemoveNewsroomWatchersTrigger) Run(collector *EventCollector,
 	if !n.ShouldRun(collector, event) {
 		return errors.New("RemoveNewsroomWatchersTriggershould not run")
 	}
-	newsroomAddr := event.LogPayload().Address
+	newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
 	err := collector.RemoveWatchers(
 		watcher.NewNewsroomContractWatchers(newsroomAddr),
 	)
