@@ -138,7 +138,7 @@ go run cmd/crawler/main.go
 ```
 
 ### Contract Short Names
-`civiltcr`, `newsroom`
+`civiltcr`, `newsroom`, `plcrvoting`
 
 ### Persister Types
 `none`, `postgresql`

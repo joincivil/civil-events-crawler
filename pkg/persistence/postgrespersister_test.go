@@ -4,8 +4,7 @@
 // Run this using go test -tags=integration
 // Run benchmark test using go test -tags=integration -bench=.
 
-// NOTE(IS): This only tests with civiltcr and newsroom contract events because we only have
-// event wrappers around those contracts so far.
+// NOTE(IS): This only tests with civiltcr,newsroom & plcrvoting contract events
 package persistence
 
 import (
@@ -37,6 +36,7 @@ const (
 var (
 	contractAddress      = "0x77e5aaBddb760FBa989A1C4B2CDd4aA8Fa3d311d"
 	testAddress          = "0xDFe273082089bB7f70Ee36Eebcde64832FE97E55"
+	plcrcontractAddress  = "0x05007652cd356eea1d9b736c3eb469a9defd4034"
 	testApplicationEvent = &contract.CivilTCRContractApplication{
 		ListingAddress: common.HexToAddress(testAddress),
 		Deposit:        big.NewInt(1000),
@@ -102,6 +102,24 @@ var (
 			Removed:     false,
 		},
 	}
+	testPLCRPollCreatedEvent = &contract.PLCRVotingContractPollCreated{
+		VoteQuorum:    big.NewInt(50),
+		CommitEndDate: big.NewInt(1653860890),
+		RevealEndDate: big.NewInt(1653860900),
+		PollID:        big.NewInt(3),
+		Creator:       common.HexToAddress(testAddress),
+		Raw: types.Log{
+			Address:     common.HexToAddress(testAddress),
+			Topics:      []common.Hash{},
+			Data:        []byte{},
+			BlockNumber: 8898889,
+			TxHash:      common.Hash{},
+			TxIndex:     4,
+			BlockHash:   common.Hash{},
+			Index:       2,
+			Removed:     false,
+		},
+	}
 )
 
 /*
@@ -148,6 +166,16 @@ func setupNewsroomNameChanged(rand bool) (*model.Event, error) {
 		testNwsrmNameChangedEvent, utils.CurrentEpochSecsInInt64(), model.Watcher)
 }
 
+// Sets up a PLCRVotingContractPollCreated event
+func setupPLCRVotingContractPollCreated(rand bool) (*model.Event, error) {
+	if rand {
+		randString, _ := randomHex(32)
+		testPLCRPollCreatedEvent.Raw.TxHash = common.HexToHash(randString)
+	}
+	return model.NewEventFromContractEvent("PollCreated", "PLCRVotingContract", common.HexToAddress(plcrcontractAddress),
+		testPLCRPollCreatedEvent, utils.CurrentEpochSecsInInt64(), model.Filterer)
+}
+
 // specify fields for testing purposes
 func setupApplicationEventWithParams(rand bool, contractAddress string, timestamp int64) (*model.Event, error) {
 	if rand {
@@ -176,7 +204,11 @@ func setupEvents(rand bool) ([]*model.Event, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Cannot setup NameChanged event: %v", err)
 	}
-	return []*model.Event{appEvent, appWhitelisted, challenge, nameChanged}, nil
+	pollCreated, err := setupPLCRVotingContractPollCreated(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup PollCreated event: %v", err)
+	}
+	return []*model.Event{appEvent, appWhitelisted, challenge, nameChanged, pollCreated}, nil
 }
 
 //Set up Events different times
@@ -204,7 +236,12 @@ func setupEventsDifferentTimes(rand bool) ([]*model.Event, error) {
 		return nil, fmt.Errorf("Cannot setup NameChanged event: %v", err)
 	}
 	time.Sleep(1 * time.Second)
-	return []*model.Event{appEvent, appWhitelisted, challenge, nameChanged}, nil
+
+	pollCreated, err := setupPLCRVotingContractPollCreated(rand)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot setup PollCreated event: %v", err)
+	}
+	return []*model.Event{appEvent, appWhitelisted, challenge, nameChanged, pollCreated}, nil
 }
 
 // random hex string generation
@@ -411,7 +448,7 @@ func TestMultipleQueries(t *testing.T) {
 		if err != nil {
 			t.Errorf("Couldn't setup civilEvents from contract %v", err)
 		}
-		// save events
+
 		err = persister.saveEventsToTable(events, eventTestTableName)
 		if err != nil {
 			t.Errorf("Cannot save event to events_test table: %v", err)
@@ -462,8 +499,8 @@ func TestSaveEvents(t *testing.T) {
 	if err != nil {
 		t.Errorf("error querying event from events_test table: %v", err)
 	}
-	if len(civilEventsDB) != 4 {
-		t.Errorf("expected there to be 4 events in table but there are %v events", len(civilEventsDB))
+	if len(civilEventsDB) != 5 {
+		t.Errorf("expected there to be 5 events in table but there are %v events", len(civilEventsDB))
 	}
 
 	err = deleteTestTable(persister)
@@ -482,7 +519,7 @@ func BenchmarkSavingManyEventsToEventTestTable(b *testing.B) {
 	defer deleteTestTable(persister)
 
 	numEvents := 100
-	numEventTypes := 4
+	numEventTypes := 5
 	civilEventsFromContract := make([]*model.Event, 0)
 	for i := 1; i <= numEvents; i++ {
 		events, err := setupEvents(true)
@@ -533,7 +570,7 @@ func TestPersistenceUpdate(t *testing.T) {
 		}
 	}
 	// should actually change block no here?
-	// now save 4 new events, see if persistence is updated
+	// now save 5 new events, see if persistence is updated
 	events2, err := setupEvents(true)
 	if err != nil {
 		t.Errorf("Couldn't setup civilEvents from contracts %v", err)
@@ -948,8 +985,8 @@ func TestRetrieveEvents(t *testing.T) {
 	if err != nil {
 		t.Errorf("Should not have received error when retrieving events: err: %v", err)
 	}
-	if len(events) != 4 {
-		t.Errorf("Should have seen only 4 events: %v", len(events))
+	if len(events) != 5 {
+		t.Errorf("Should have seen only 5 events: %v", len(events))
 	}
 
 	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
@@ -960,8 +997,8 @@ func TestRetrieveEvents(t *testing.T) {
 	if err != nil {
 		t.Errorf("Should not have received error when retrieving events: err: %v", err)
 	}
-	if len(events) != 3 {
-		t.Errorf("Should have seen only 3 events: %v", len(events))
+	if len(events) != 4 {
+		t.Errorf("Should have seen only 4 events: %v", len(events))
 	}
 
 	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
@@ -975,8 +1012,7 @@ func TestRetrieveEvents(t *testing.T) {
 	if len(events) != 3 {
 		t.Errorf("Should have seen only 2 event: %v", len(events))
 	}
-
-	if events[0].EventType() != civilEventsFromContract[3].EventType() {
+	if events[0].EventType() != civilEventsFromContract[4].EventType() {
 		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
 	}
 
@@ -1003,8 +1039,8 @@ func TestRetrieveEvents(t *testing.T) {
 	if err != nil {
 		t.Errorf("Should not have received error when retrieving events: err: %v", err)
 	}
-	if len(events) != 2 {
-		t.Errorf("Should have seen 2 events: %v", len(events))
+	if len(events) != 3 {
+		t.Errorf("Should have seen 3 events: %v", len(events))
 	}
 	if events[0].EventType() != "Challenge" {
 		t.Errorf("Should have seen the type challenge")
