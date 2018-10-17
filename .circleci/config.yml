@@ -140,10 +140,8 @@ workflows:
           filters:
             branches:
               only:
-                - development
                 - master
-                - dankins/ch717/deploy
-                - /container-.*/
+                - /staging.*/
       - push-container:
           context: gcp-common
           requires:
@@ -151,10 +149,8 @@ workflows:
           filters:
             branches:
               only:
-                - development
                 - master
-                - dankins/ch717/deploy
-                - /container-.*/
+                - /staging.*/
       - deploy-staging:
           context: gcp-common
           requires:
@@ -162,8 +158,8 @@ workflows:
           filters:
             branches:
               only:
-                - development
-                - dankins/ch717/deploy
+                - master
+                - /staging.*/
       - deploy-production:
           context: gcp-common
           requires:
