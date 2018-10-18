@@ -115,7 +115,7 @@ jobs:
       - deploy:
           name: Update Kubernetes Deployment on STAGING
           command: |
-            kubectl set image deployment/$CIRCLE_PROJECT_REPONAME $CIRCLE_PROJECT_REPONAME=gcr.io/$GOOGLE_PROJECT_ID/$CIRCLE_PROJECT_REPONAME:development-$CIRCLE_SHA1 --namespace staging
+            kubectl set image deployment/$CIRCLE_PROJECT_REPONAME $CIRCLE_PROJECT_REPONAME=gcr.io/$GOOGLE_PROJECT_ID/$CIRCLE_PROJECT_REPONAME:$TAG-$CIRCLE_SHA1 --namespace staging
   deploy-production:
     docker:
       - image: civilmedia/gcloud-node:latest
