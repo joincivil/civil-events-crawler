@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -45,4 +46,12 @@ func (b *BlockHeaderCache) AddHeader(num uint64, header *types.Header) {
 		addedTs: CurrentEpochSecsInInt64(),
 		header:  header,
 	}
+}
+
+// NormalizeEthAddress takes a string address to normalize the
+// case of the ethereum address when it is a string.
+// Runs through common.Address.Hex().
+func NormalizeEthAddress(addr string) string {
+	address := common.HexToAddress(addr)
+	return address.Hex()
 }
