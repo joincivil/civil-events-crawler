@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -21,7 +23,18 @@ type JsonbPayload map[string]interface{}
 
 // Value is the value interface implemented for the sql driver
 func (jp JsonbPayload) Value() (driver.Value, error) {
-	return json.Marshal(jp)
+	// Ensure the payload gets converted properly,
+	// particularly proper case for common.Address
+	toMarshal := map[string]interface{}{}
+	for key, val := range jp {
+		switch v := val.(type) {
+		case common.Address:
+			toMarshal[key] = v.Hex()
+		default:
+			toMarshal[key] = v
+		}
+	}
+	return json.Marshal(toMarshal)
 }
 
 // Scan is the scan interface implemented for the sql driver
