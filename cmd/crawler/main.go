@@ -74,6 +74,12 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 		log.Errorf("Error creating tables, stopping...; err: %v", err)
 		os.Exit(1)
 	}
+	// Attempts to create all the necessary indices on the tables
+	err = persister.CreateIndices()
+	if err != nil {
+		log.Errorf("Error creating indices, stopping...; err: %v", err)
+		os.Exit(1)
+	}
 	// Populate persistence with latest block data from events table
 	err = persister.PopulateBlockDataFromDB("event")
 	if err != nil {
