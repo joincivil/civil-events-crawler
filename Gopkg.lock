@@ -234,12 +234,12 @@
   version = "v1.1"
 
 [[projects]]
-  branch = "master"
-  digest = "1:d3d891dc5a896524ae4b202034129c3c3279eeb4b416b0a4922c12074bb53226"
+  digest = "1:31d83d1b1c288073c91abadee3caec87de2a1fb5dbe589039264a802e67a26b8"
   name = "github.com/rjeczalik/notify"
   packages = ["."]
   pruneopts = "UT"
-  revision = "d152f3ce359a5464dc41e84a8919fc67e55bbbf0"
+  revision = "69d839f37b13a8cb7a78366f7633a4071cb43be7"
+  version = "v0.9.2"
 
 [[projects]]
   digest = "1:9695b472826ca23e521d650849fefac3102dddbf841c9a4b35fb9d3ed5d17011"

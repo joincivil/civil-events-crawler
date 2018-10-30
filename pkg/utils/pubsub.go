@@ -321,7 +321,7 @@ func (g *GooglePubSub) subscriber(wg *sync.WaitGroup) {
 	sub := g.client.Subscription(g.subscriptionName)
 	err := sub.Receive(g.subscribeContext, func(ctx context.Context, msg *pubsub.Message) {
 		msg.Ack()
-		log.Infof("Got message: %v: %v: %v\n", msg.ID, msg)
+		log.Infof("Got message: %v: %v\n", msg.ID, msg)
 		g.SubscribeChan <- msg
 	})
 	g.numRunningSubscribe--

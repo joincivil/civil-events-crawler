@@ -3,7 +3,7 @@ jobs:
   build:
     docker:
       # CircleCI Go images available at: https://hub.docker.com/r/circleci/golang/
-      - image: circleci/golang:1.10
+      - image: circleci/golang:1.11.1
       # CircleCI PostgreSQL images available at: https://hub.docker.com/r/circleci/postgres/
       - image: circleci/postgres:9.6-alpine
         environment:

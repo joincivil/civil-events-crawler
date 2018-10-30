@@ -21,7 +21,7 @@ and [**good first issue**](https://github.com/joincivil/civil-events-crawler/iss
 
 ## Install Requirements
 
-This project is using `make` to run setup, builds, tests, etc.  
+This project is using `make` to run setup, builds, tests, etc and has been tested and running on `go 1.11.1`.
 
 Ensure that your `$GOPATH` and `$GOROOT` are setup properly in your shell configuration and that this repo is cloned into the appropriate place in the `$GOPATH`. i.e. `$GOPATH/src/github.com/joincivil/civil-events-crawler/`
 
@@ -33,13 +33,13 @@ make setup
 
 ### Dependencies
 
-Relies on `dep`[https://golang.github.io/dep/](https://golang.github.io/dep/) for dependency management, updating the `/vendor/` directory in the project.  
+Relies on `dep`[https://golang.github.io/dep/](https://golang.github.io/dep/) for dependency management, updating the `/vendor/` directory in the project.
 
 When adding and removing imports, make sure to run `dep ensure`.  Any adding or removing will require committing the updates on `Gopkg.lock` and `/vendor/` to the repository.
 
 ## Code Generation
 
-There are a few places where code/artifacts need to be moved or generated before the project can be built, tested, and/or linted.  This is likely a place that can be streamlined and improved as time goes on.  
+There are a few places where code/artifacts need to be moved or generated before the project can be built, tested, and/or linted.  This is likely a place that can be streamlined and improved as time goes on.
 
 The latest generated code is checked into the repository, except for the contract `.abi/.bin`.  The `.abi/.bin` is only needed to generate the Solidity wrappers.
 
@@ -87,7 +87,7 @@ This creates wrapper functions around each contract's set of filterers and watch
 make generate-civil-handler-lists
 ```
 
-### Common 
+### Common
 
 This creates some common code in use for filterers/watchers and other code. These are generated using the `cmd/eventhandlergen` command.  These will be placed into the `pkg/generated/common` directory.
 
@@ -134,7 +134,7 @@ The crawler relies on environment vars for configuration.  At the root of the pr
 CRAWL_ETH_API_URL=<RPC API URL>
 CRAWL_CONTRACT_ADDRESSES="<contract short name>:<contract address>,..."
 CRAWL_PERSISTER_TYPE_NAME=<persister type>
-go run cmd/crawler/main.go 
+go run cmd/crawler/main.go
 ```
 
 ### Contract Short Names
@@ -149,7 +149,7 @@ Add `-logtostderr=true -stderrthreshold=INFO -v=2` as arguments for the `main.go
 
 ## Persistence
 
-The crawler is build to accept an implementation of persistence interfaces as defined in `pkg/model/persisttypes.go`.  These interfaces allow the crawler to store down specific data related to it's operation as well as the events to be collected. 
+The crawler is build to accept an implementation of persistence interfaces as defined in `pkg/model/persisttypes.go`.  These interfaces allow the crawler to store down specific data related to it's operation as well as the events to be collected.
 
 The initial reference implementation will be written for storing the data to `PostgreSQL`. However, the hope to add additional implementations as needed and as the community sees fit.
 
