@@ -134,21 +134,21 @@ generate-civil-watchers: ## Runs watchergen to generate contract Watch* wrapper 
 	@mkdir -p $(GENERATED_WATCHER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr watcher watcher > ./$(GENERATED_WATCHER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom watcher watcher > ./$(GENERATED_WATCHER_DIR)/newsroom.go
-	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) plcrvoting watcher watcher > ./$(GENERATED_WATCHER_DIR)/plcrvoting.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilplcrvoting watcher watcher > ./$(GENERATED_WATCHER_DIR)/civilplcrvoting.go
 
 .PHONY: generate-civil-filterers
 generate-civil-filterers: ## Runs filterergen to generate contract Filter* wrapper code for Civil.
 	@mkdir -p $(GENERATED_FILTERER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr filterer filterer > ./$(GENERATED_FILTERER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroom.go
-	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) plcrvoting filterer filterer > ./$(GENERATED_FILTERER_DIR)/plcrvoting.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilplcrvoting filterer filterer > ./$(GENERATED_FILTERER_DIR)/civilplcrvoting.go
 
 .PHONY: generate-civil-common
 generate-civil-common: ## Runs commongen to generate common contract wrapper code for Civil.
 	@mkdir -p $(GENERATED_COMMON_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr common common > ./$(GENERATED_COMMON_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom common common > ./$(GENERATED_COMMON_DIR)/newsroom.go
-	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) plcrvoting common common > ./$(GENERATED_COMMON_DIR)/plcrvoting.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilplcrvoting common common > ./$(GENERATED_COMMON_DIR)/civilplcrvoting.go
 
 .PHONY: generate-civil-handler-lists
 generate-civil-handler-lists: ## Runs handlerlistgen to generate handler list wrapper code for Civil.
@@ -161,10 +161,13 @@ ifneq ("$(wildcard $(ABI_DIR)/*.abi)", "")
 	@mkdir -p $(GENERATED_CONTRACT_DIR)
 	@$(ABIGEN) -abi ./$(ABI_DIR)/CivilTCR.abi -bin ./$(ABI_DIR)/CivilTCR.bin -type CivilTCRContract -out ./$(GENERATED_CONTRACT_DIR)/CivilTCRContract.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/Newsroom.abi -bin ./$(ABI_DIR)/Newsroom.bin -type NewsroomContract -out ./$(GENERATED_CONTRACT_DIR)/NewsroomContract.go -pkg contract
-	@$(ABIGEN) -abi ./$(ABI_DIR)/PLCRVoting.abi -bin ./$(ABI_DIR)/PLCRVoting.bin -type PLCRVotingContract -out ./$(GENERATED_CONTRACT_DIR)/PLCRVotingContract.go -pkg contract
+	@# @$(ABIGEN) -abi ./$(ABI_DIR)/AttributeStore.abi -bin ./$(ABI_DIR)/AttributeStore.bin -type AttributeStoreContract -out ./$(GENERATED_CONTRACT_DIR)/AttributeStoreContract.go -pkg contract
+	@# @$(ABIGEN) -abi ./$(ABI_DIR)/DLL.abi -bin ./$(ABI_DIR)/DLL.bin -type DLLContract -out ./$(GENERATED_CONTRACT_DIR)/DLLContract.go -pkg contract
+	@$(ABIGEN) -abi ./$(ABI_DIR)/CivilPLCRVoting.abi -bin ./$(ABI_DIR)/CivilPLCRVoting.bin -type CivilPLCRVotingContract -out ./$(GENERATED_CONTRACT_DIR)/CivilPLCRVotingContract.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/Parameterizer.abi -bin ./$(ABI_DIR)/Parameterizer.bin -type ParameterizerContract -out ./$(GENERATED_CONTRACT_DIR)/ParameterizerContract.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/Government.abi -bin ./$(ABI_DIR)/Government.bin -type GovernmentContract -out ./$(GENERATED_CONTRACT_DIR)/GovernmentContract.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/EIP20.abi -bin ./$(ABI_DIR)/EIP20.bin -type EIP20Contract -out ./$(GENERATED_CONTRACT_DIR)/EIP20.go -pkg contract
+	@$(ABIGEN) -abi ./$(ABI_DIR)/DummyTokenTelemetry.abi -bin ./$(ABI_DIR)/DummyTokenTelemetry.bin -type DummyTokenTelemetryContract -out ./$(GENERATED_CONTRACT_DIR)/DummyTokenTelemetry.go -pkg contract
 else
 	$(error No abi files found; copy them to /abi after generation)
 endif

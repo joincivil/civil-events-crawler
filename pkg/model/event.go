@@ -189,7 +189,7 @@ func extractRawFieldFromEvent(payload *EventPayload) (*types.Log, error) {
 func (e *Event) hashEvent() string {
 	logIndex := int(e.logPayload.Index)
 	txHash := e.logPayload.TxHash.Hex()
-	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType, // nolint: gas
+	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType, // nolint: gas, gosec
 		strconv.Itoa(logIndex), txHash})
 	h := crypto.Keccak256Hash(eventBytes)
 	return h.Hex()

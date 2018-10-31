@@ -15,34 +15,35 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	// "github.com/ethereum/go-ethereum/ethclient"
-	// "fmt"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 )
 
 const (
 	// rinkebyAddress = "wss://rinkeby.infura.io/ws"
-	gasLimit = uint64(8000000)
+	gasLimit = uint64(8000000000000)
 
-	minDeposit                       = 10
-	pMinDeposit                      = 100
-	applyStageLength                 = 0 // 18000
-	pApplyStageLength                = 120
-	commitStageLength                = 18000
-	pCommitStageLength               = 120
-	revealStageLength                = 18000
-	pRevealStageLength               = 120
-	dispensationPct                  = 50
-	pDispensationPct                 = 50
-	voteQuorum                       = 50
-	pVoteQuorum                      = 50
-	pProcessBy                       = 18000
-	appealFeeAmount                  = 1000
-	challengeAppealLength            = 18000
-	requestAppealPhaseLength         = 36000
-	judgeAppealPhaseLength           = 36000
-	appealChallengeCommitStageLength = 16000
-	appealChallengeRevealStageLength = 16000
-	appealSupermajorityPercentage    = 66
+	minDeposit                         = 10
+	pMinDeposit                        = 100
+	pDeposit                           = 150
+	applyStageLength                   = 0 // 18000
+	pApplyStageLength                  = 120
+	commitStageLength                  = 18000
+	pCommitStageLength                 = 120
+	revealStageLength                  = 18000
+	pRevealStageLength                 = 120
+	dispensationPct                    = 50
+	pDispensationPct                   = 50
+	voteQuorum                         = 50
+	pVoteQuorum                        = 50
+	pProcessBy                         = 18000
+	appealFeeAmount                    = 1000
+	challengeAppealLength              = 18000
+	requestAppealPhaseLength           = 36000
+	judgeAppealPhaseLength             = 36000
+	appealChallengeCommitStageLength   = 16000
+	appealChallengeRevealStageLength   = 16000
+	appealSupermajorityPercentage      = 66
+	appealChallengeVoteDispensationPct = 66
 )
 
 // // SetupRinkebyClient returns an instance of the ethclient setup on Rinkeby
@@ -67,26 +68,29 @@ func SetupSimulatedClient(gasLimit uint64) (*backends.SimulatedBackend, *bind.Tr
 
 // AllTestContracts contains the values returned from SetupAllTestContracts
 type AllTestContracts struct {
-	TokenAddr        common.Address
-	TokenContract    *contract.EIP20Contract
-	PlcrAddr         common.Address
-	PlcrContract     *contract.PLCRVotingContract
-	ParamAddr        common.Address
-	ParamContract    *contract.ParameterizerContract
-	GovtAddr         common.Address
-	GovtContract     *contract.GovernmentContract
-	CivilTcrAddr     common.Address
-	CivilTcrContract *contract.CivilTCRContract
-	NewsroomAddr     common.Address
-	NewsroomContract *contract.NewsroomContract
-	Client           *backends.SimulatedBackend
-	Auth             *bind.TransactOpts
+	TokenAddr         common.Address
+	TokenContract     *contract.EIP20Contract
+	PlcrAddr          common.Address
+	PlcrContract      *contract.CivilPLCRVotingContract
+	ParamAddr         common.Address
+	ParamContract     *contract.ParameterizerContract
+	GovtAddr          common.Address
+	GovtContract      *contract.GovernmentContract
+	CivilTcrAddr      common.Address
+	CivilTcrContract  *contract.CivilTCRContract
+	NewsroomAddr      common.Address
+	NewsroomContract  *contract.NewsroomContract
+	TokenTeleAddr     common.Address
+	TokenTeleContract *contract.DummyTokenTelemetryContract
+	Client            *backends.SimulatedBackend
+	Auth              *bind.TransactOpts
 }
 
 // SetupAllTestContracts returns a struct with all the test contracts deployed to the
 // simulated backend.
 func SetupAllTestContracts() (*AllTestContracts, error) {
 	client, auth := SetupSimulatedClient(gasLimit)
+
 	tokenAddr, eip20, err := setupTestEIP20Contract(client, auth)
 	if err != nil {
 		log.Fatalf("Unable to deploy a test token: %v", err)
@@ -100,9 +104,23 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 		Signer: auth.Signer,
 	}
 
-	plcrAddr, plcr, err := setupTestPLCRVotingContract(client, auth, tokenAddr)
+	tokenTeleAddr, tokenTele, err := setupTestDummyTokenTelemetryContract(client, auth)
 	if err != nil {
-		log.Fatalf("Unable to deploy a test PLCR voting contract: err: %v", err)
+		log.Fatalf("Unable to deploy a test dummy token telemetry contract: err: %v", err)
+		return nil, err
+	}
+
+	_, err = eip20.Approve(approveOpts, tokenTeleAddr, balance)
+	if err != nil {
+		log.Errorf("Unable to approve user for token telemetry: %v", err)
+		return nil, err
+	}
+
+	client.Commit()
+
+	plcrAddr, plcr, err := setupTestCivilPLCRVotingContract(client, auth, tokenAddr, tokenTeleAddr)
+	if err != nil {
+		log.Fatalf("Unable to deploy a test Civil PLCR voting contract: err: %v", err)
 		return nil, err
 	}
 
@@ -128,7 +146,8 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 
 	client.Commit()
 
-	govtAddr, govt, err := setupTestGovernmentContract(client, auth, auth.From, auth.From)
+	govtAddr, govt, err := setupTestGovernmentContract(client, auth, auth.From,
+		auth.From, plcrAddr)
 	if err != nil {
 		log.Fatalf("Unable to deploy a test government contract: err: %v", err)
 		return nil, err
@@ -143,7 +162,7 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 	client.Commit()
 
 	civilTcrAddr, civilTcr, err := setupTestCivilTCRContract(client, auth, tokenAddr,
-		plcrAddr, paramAddr, govtAddr)
+		plcrAddr, paramAddr, govtAddr, tokenTeleAddr)
 	if err != nil {
 		log.Fatalf("Unable to deploy a test civil tcr contract: err: %v", err)
 		return nil, err
@@ -172,20 +191,22 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 	client.Commit()
 
 	return &AllTestContracts{
-		TokenAddr:        tokenAddr,
-		TokenContract:    eip20,
-		PlcrAddr:         plcrAddr,
-		PlcrContract:     plcr,
-		ParamAddr:        paramAddr,
-		ParamContract:    param,
-		GovtAddr:         govtAddr,
-		GovtContract:     govt,
-		CivilTcrAddr:     civilTcrAddr,
-		CivilTcrContract: civilTcr,
-		NewsroomAddr:     newsroomAddr,
-		NewsroomContract: newsroom,
-		Client:           client,
-		Auth:             auth,
+		TokenAddr:         tokenAddr,
+		TokenContract:     eip20,
+		PlcrAddr:          plcrAddr,
+		PlcrContract:      plcr,
+		ParamAddr:         paramAddr,
+		ParamContract:     param,
+		GovtAddr:          govtAddr,
+		GovtContract:      govt,
+		CivilTcrAddr:      civilTcrAddr,
+		CivilTcrContract:  civilTcr,
+		NewsroomAddr:      newsroomAddr,
+		NewsroomContract:  newsroom,
+		TokenTeleAddr:     tokenTeleAddr,
+		TokenTeleContract: tokenTele,
+		Client:            client,
+		Auth:              auth,
 	}, nil
 
 }
@@ -223,13 +244,28 @@ func setupTestEIP20Contract(client bind.ContractBackend, auth *bind.TransactOpts
 	return address, contract, nil
 }
 
-// setupTestPLCRVotingContract deploys a test PLCR voting contract to the given ContractBackend.
-func setupTestPLCRVotingContract(client bind.ContractBackend, auth *bind.TransactOpts,
-	tokenAddr common.Address) (common.Address, *contract.PLCRVotingContract, error) {
-	address, _, contract, err := contract.DeployPLCRVotingContract(
+// setupTestCivilPLCRVotingContract deploys a test Civil PLCR voting contract to the given ContractBackend.
+func setupTestCivilPLCRVotingContract(client bind.ContractBackend, auth *bind.TransactOpts,
+	tokenAddr common.Address, teleAddr common.Address) (common.Address, *contract.CivilPLCRVotingContract, error) {
+	address, _, contract, err := contract.DeployCivilPLCRVotingContract(
 		auth,
 		client,
 		tokenAddr,
+		teleAddr,
+	)
+	if err != nil {
+		return common.Address{}, nil, err
+	}
+
+	return address, contract, nil
+}
+
+// setupTestDummyTokenTelemetryContract deploys a test dummy token telemetry contract to the given ContractBackend.
+func setupTestDummyTokenTelemetryContract(client bind.ContractBackend, auth *bind.TransactOpts) (
+	common.Address, *contract.DummyTokenTelemetryContract, error) {
+	address, _, contract, err := contract.DeployDummyTokenTelemetryContract(
+		auth,
+		client,
 	)
 	if err != nil {
 		return common.Address{}, nil, err
@@ -241,7 +277,7 @@ func setupTestPLCRVotingContract(client bind.ContractBackend, auth *bind.Transac
 // setupTestParameterizerContract deploys a test parameterizer voting contract to the given ContractBackend.
 func setupTestParameterizerContract(client bind.ContractBackend, auth *bind.TransactOpts,
 	tokenAddr common.Address, plcrAddr common.Address) (common.Address, *contract.ParameterizerContract, error) {
-	params := [16]*big.Int{
+	params := []*big.Int{
 		big.NewInt(minDeposit),
 		big.NewInt(pMinDeposit),
 		big.NewInt(applyStageLength),
@@ -274,17 +310,22 @@ func setupTestParameterizerContract(client bind.ContractBackend, auth *bind.Tran
 
 // setupTestGovernmentContract deploys a test government contract to the given ContractBackend.
 func setupTestGovernmentContract(client bind.ContractBackend, auth *bind.TransactOpts,
-	appellateAddr common.Address, governmentControllerAddr common.Address) (common.Address,
-	*contract.GovernmentContract, error) {
+	appellateAddr common.Address, governmentControllerAddr common.Address,
+	plcrAddr common.Address) (common.Address, *contract.GovernmentContract, error) {
 	address, _, contract, err := contract.DeployGovernmentContract(
 		auth,
 		client,
 		appellateAddr,
 		governmentControllerAddr,
+		plcrAddr,
 		big.NewInt(appealFeeAmount),
 		big.NewInt(requestAppealPhaseLength),
 		big.NewInt(judgeAppealPhaseLength),
 		big.NewInt(appealSupermajorityPercentage),
+		big.NewInt(appealChallengeVoteDispensationPct),
+		big.NewInt(pDeposit),
+		big.NewInt(pCommitStageLength),
+		big.NewInt(pRevealStageLength),
 		[32]byte{},
 		"http://madeupURL.com",
 	)
@@ -297,7 +338,8 @@ func setupTestGovernmentContract(client bind.ContractBackend, auth *bind.Transac
 // setupTestCivilTCRContract deploys a test Civil TCR contract to the given ContractBackend.
 func setupTestCivilTCRContract(client bind.ContractBackend, auth *bind.TransactOpts,
 	tokenAddr common.Address, plcrAddr common.Address, paramAddr common.Address,
-	govtAddr common.Address) (common.Address, *contract.CivilTCRContract, error) {
+	govtAddr common.Address, tokenTeleAddr common.Address) (common.Address,
+	*contract.CivilTCRContract, error) {
 	address, _, contract, err := contract.DeployCivilTCRContract(
 		auth,
 		client,
@@ -305,6 +347,7 @@ func setupTestCivilTCRContract(client bind.ContractBackend, auth *bind.TransactO
 		plcrAddr,
 		paramAddr,
 		govtAddr,
+		tokenTeleAddr,
 	)
 	if err != nil {
 		return common.Address{}, nil, err

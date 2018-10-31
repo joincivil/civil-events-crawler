@@ -202,10 +202,14 @@ func (p *PostgresPersister) getLatestEvents(tableName string) ([]postgres.Event,
 // retrieveLatestEventsQueryString queries for the events with the latest timestamp given an event type and contract address
 func (p *PostgresPersister) retrieveLatestEventsQueryString(tableName string) string {
 	// Query for the latest timestamp.
-	return fmt.Sprintf(`SELECT e.event_type, e.log_payload, e.payload, e.hash, e.contract_address, e.contract_name, max_e.timestamp
+	return fmt.Sprintf( // nolint: gosec
+		`SELECT e.event_type, e.log_payload, e.payload, e.hash, e.contract_address, e.contract_name, max_e.timestamp
 		FROM (SELECT event_type, contract_address, MAX(timestamp) AS timestamp FROM %s GROUP BY event_type, contract_address) max_e
 		JOIN %s e ON e.event_type = max_e.event_type AND e.timestamp = max_e.timestamp AND e.contract_address = max_e.contract_address;
-        `, tableName, tableName)
+        `,
+		tableName,
+		tableName,
+	)
 }
 
 func (p *PostgresPersister) parseEventToPersist(event *model.Event) error {

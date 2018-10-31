@@ -102,7 +102,7 @@ var (
 			Removed:     false,
 		},
 	}
-	testPLCRPollCreatedEvent = &contract.PLCRVotingContractPollCreated{
+	testPLCRPollCreatedEvent = &contract.CivilPLCRVotingContractPollCreated{
 		VoteQuorum:    big.NewInt(50),
 		CommitEndDate: big.NewInt(1653860890),
 		RevealEndDate: big.NewInt(1653860900),
@@ -172,7 +172,7 @@ func setupPLCRVotingContractPollCreated(rand bool) (*model.Event, error) {
 		randString, _ := randomHex(32)
 		testPLCRPollCreatedEvent.Raw.TxHash = common.HexToHash(randString)
 	}
-	return model.NewEventFromContractEvent("PollCreated", "PLCRVotingContract", common.HexToAddress(plcrcontractAddress),
+	return model.NewEventFromContractEvent("PollCreated", "CivilPLCRVotingContract", common.HexToAddress(plcrcontractAddress),
 		testPLCRPollCreatedEvent, utils.CurrentEpochSecsInInt64(), model.Filterer)
 }
 
