@@ -128,21 +128,21 @@ func TestGenerateWatchersForNewsroom(t *testing.T) {
 
 func TestGenerateWatchersForPLCRVoting(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateEventHandlers(buf, model.PLCRVotingContractType, "watcher", "watcher")
+	err := gen.GenerateEventHandlers(buf, model.CivilPLCRVotingContractType, "watcher", "watcher")
 	if err != nil {
 		t.Errorf("Error generating watchers for the PLCRVoting contract: err: %v", err)
 	}
 
 	// TODO(PN): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
-	if !strings.Contains(code, "func (w *PLCRVotingContractWatchers) StartWatchers") {
+	if !strings.Contains(code, "func (w *CivilPLCRVotingContractWatchers) StartWatchers") {
 		t.Error("Did not see expected StartWatchers in the generated watcher code")
 	}
-	if !strings.Contains(code, "func (w *PLCRVotingContractWatchers) StartPLCRVotingContractWatchers") {
-		t.Error("Did not see expected StartNewsroomContractWatchers in the generated code")
+	if !strings.Contains(code, "func (w *CivilPLCRVotingContractWatchers) StartCivilPLCRVotingContractWatchers") {
+		t.Error("Did not see expected StartCivilPLCRVotingContractWatchers in the generated code")
 	}
-	if !strings.Contains(code, "func (w *PLCRVotingContractWatchers) startWatchPollCreated") {
-		t.Error("Did not see expected startWatchRevisionUpdated in the generated code")
+	if !strings.Contains(code, "func (w *CivilPLCRVotingContractWatchers) startWatchPollCreated") {
+		t.Error("Did not see expected startWatchPollCreated in the generated code")
 	}
 }
 
@@ -185,20 +185,20 @@ func TestGenerateFilterersForNewsroom(t *testing.T) {
 
 func TestGenerateFilterersForPLCRVoting(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateEventHandlers(buf, model.PLCRVotingContractType, "filterer", "filterer")
+	err := gen.GenerateEventHandlers(buf, model.CivilPLCRVotingContractType, "filterer", "filterer")
 	if err != nil {
 		t.Errorf("Error generating filterers for the PLCRVoting contract: err: %v", err)
 	}
 
 	// TODO(IS): Do some sanity check tests.  ADD MORE!
 	code := buf.String()
-	if !strings.Contains(code, "func (f *PLCRVotingContractFilterers) StartFilterers") {
+	if !strings.Contains(code, "func (f *CivilPLCRVotingContractFilterers) StartFilterers") {
 		t.Error("Did not see expected StartFilterers in the generated code")
 	}
-	if !strings.Contains(code, "func (f *PLCRVotingContractFilterers) startFilterPollCreated") {
+	if !strings.Contains(code, "func (f *CivilPLCRVotingContractFilterers) startFilterPollCreated") {
 		t.Error("Did not see expected startFilterPollCreated in the generated code")
 	}
-	if !strings.Contains(code, "func (f *PLCRVotingContractFilterers) startFilterVotingRightsWithdrawn") {
+	if !strings.Contains(code, "func (f *CivilPLCRVotingContractFilterers) startFilterVotingRightsWithdrawn") {
 		t.Error("Did not see expected startFilterVotingRightsWithdrawn in the generated code")
 	}
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	// "github.com/ethereum/go-ethereum/ethclient"
-	"fmt"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 )
 
@@ -69,11 +68,10 @@ func SetupSimulatedClient(gasLimit uint64) (*backends.SimulatedBackend, *bind.Tr
 
 // AllTestContracts contains the values returned from SetupAllTestContracts
 type AllTestContracts struct {
-	TokenAddr     common.Address
-	TokenContract *contract.EIP20Contract
-	PlcrAddr      common.Address
-	PlcrContract  *contract.CivilPLCRVotingContract
-	// PlcrContract      *contract.PLCRVotingContract
+	TokenAddr         common.Address
+	TokenContract     *contract.EIP20Contract
+	PlcrAddr          common.Address
+	PlcrContract      *contract.CivilPLCRVotingContract
 	ParamAddr         common.Address
 	ParamContract     *contract.ParameterizerContract
 	GovtAddr          common.Address
@@ -92,23 +90,19 @@ type AllTestContracts struct {
 // simulated backend.
 func SetupAllTestContracts() (*AllTestContracts, error) {
 	client, auth := SetupSimulatedClient(gasLimit)
-	fmt.Printf("setup eip20\n")
+
 	tokenAddr, eip20, err := setupTestEIP20Contract(client, auth)
 	if err != nil {
 		log.Fatalf("Unable to deploy a test token: %v", err)
 	}
-	fmt.Printf("setup eip20 done\n")
 
 	client.Commit()
 
-	fmt.Printf("setup eip20\n")
 	balance, _ := eip20.BalanceOf(&bind.CallOpts{}, auth.From) // nolint: gosec
 	approveOpts := &bind.TransactOpts{
 		From:   auth.From,
 		Signer: auth.Signer,
 	}
-	fmt.Printf("balance = %v\n", balance)
-	fmt.Printf("tokenAddress = %v\n", tokenAddr.Hex())
 
 	tokenTeleAddr, tokenTele, err := setupTestDummyTokenTelemetryContract(client, auth)
 	if err != nil {
@@ -123,11 +117,8 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 	}
 
 	client.Commit()
-	fmt.Printf("tele = %v\n", tokenTeleAddr.Hex())
-	fmt.Printf("tokenAddr = %v\n", tokenAddr.Hex())
 
 	plcrAddr, plcr, err := setupTestCivilPLCRVotingContract(client, auth, tokenAddr, tokenTeleAddr)
-	// plcrAddr, plcr, err := setupTestPLCRVotingContract(client, auth, tokenAddr)
 	if err != nil {
 		log.Fatalf("Unable to deploy a test Civil PLCR voting contract: err: %v", err)
 		return nil, err
@@ -252,21 +243,6 @@ func setupTestEIP20Contract(client bind.ContractBackend, auth *bind.TransactOpts
 	}
 	return address, contract, nil
 }
-
-// setupTestPLCRVotingContract deploys a test PLCR voting contract to the given ContractBackend.
-// func setupTestPLCRVotingContract(client bind.ContractBackend, auth *bind.TransactOpts,
-// 	tokenAddr common.Address) (common.Address, *contract.PLCRVotingContract, error) {
-// 	address, _, contract, err := contract.DeployPLCRVotingContract(
-// 		auth,
-// 		client,
-// 		tokenAddr,
-// 	)
-// 	if err != nil {
-// 		return common.Address{}, nil, err
-// 	}
-
-// 	return address, contract, nil
-// }
 
 // setupTestCivilPLCRVotingContract deploys a test Civil PLCR voting contract to the given ContractBackend.
 func setupTestCivilPLCRVotingContract(client bind.ContractBackend, auth *bind.TransactOpts,
