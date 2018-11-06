@@ -1017,6 +1017,27 @@ func TestRetrieveEvents(t *testing.T) {
 	}
 
 	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
+		Offset:  0,
+		Count:   3,
+		Reverse: false,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 3 {
+		t.Errorf("Should have seen only 2 event: %v", len(events))
+	}
+	if events[0].Hash() != civilEventsFromContract[0].Hash() {
+		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
+	}
+	if events[1].Hash() != civilEventsFromContract[1].Hash() {
+		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
+	}
+	if events[2].Hash() != civilEventsFromContract[2].Hash() {
+		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
+	}
+
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
 		Offset:    0,
 		Count:     10,
 		EventType: "Application",
