@@ -35,6 +35,7 @@ GENERATED_HANDLER_LIST_DIR=$(GENERATED_DIR)/handlerlist
 ## Civil specific commands
 EVENTHANDLER_GEN_MAIN=cmd/eventhandlergen/main.go
 HANDLERLIST_GEN_MAIN=cmd/handlerlistgen/main.go
+LIB_GEN_MAIN=cmd/libgen/main.go
 
 ## Reliant on go and $GOPATH being set.
 .PHONY: check-go-env
@@ -159,15 +160,30 @@ generate-civil-handler-lists: ## Runs handlerlistgen to generate handler list wr
 generate-civil-contracts: ## Builds the contract wrapper code from the ABIs in /abi for Civil.
 ifneq ("$(wildcard $(ABI_DIR)/*.abi)", "")
 	@mkdir -p $(GENERATED_CONTRACT_DIR)
+
+	@# Produce the contract bin/abi and binding files
 	@$(ABIGEN) -abi ./$(ABI_DIR)/CivilTCR.abi -bin ./$(ABI_DIR)/CivilTCR.bin -type CivilTCRContract -out ./$(GENERATED_CONTRACT_DIR)/CivilTCRContract.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/Newsroom.abi -bin ./$(ABI_DIR)/Newsroom.bin -type NewsroomContract -out ./$(GENERATED_CONTRACT_DIR)/NewsroomContract.go -pkg contract
-	@# @$(ABIGEN) -abi ./$(ABI_DIR)/AttributeStore.abi -bin ./$(ABI_DIR)/AttributeStore.bin -type AttributeStoreContract -out ./$(GENERATED_CONTRACT_DIR)/AttributeStoreContract.go -pkg contract
-	@# @$(ABIGEN) -abi ./$(ABI_DIR)/DLL.abi -bin ./$(ABI_DIR)/DLL.bin -type DLLContract -out ./$(GENERATED_CONTRACT_DIR)/DLLContract.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/CivilPLCRVoting.abi -bin ./$(ABI_DIR)/CivilPLCRVoting.bin -type CivilPLCRVotingContract -out ./$(GENERATED_CONTRACT_DIR)/CivilPLCRVotingContract.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/Parameterizer.abi -bin ./$(ABI_DIR)/Parameterizer.bin -type ParameterizerContract -out ./$(GENERATED_CONTRACT_DIR)/ParameterizerContract.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/Government.abi -bin ./$(ABI_DIR)/Government.bin -type GovernmentContract -out ./$(GENERATED_CONTRACT_DIR)/GovernmentContract.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/EIP20.abi -bin ./$(ABI_DIR)/EIP20.bin -type EIP20Contract -out ./$(GENERATED_CONTRACT_DIR)/EIP20.go -pkg contract
 	@$(ABIGEN) -abi ./$(ABI_DIR)/DummyTokenTelemetry.abi -bin ./$(ABI_DIR)/DummyTokenTelemetry.bin -type DummyTokenTelemetryContract -out ./$(GENERATED_CONTRACT_DIR)/DummyTokenTelemetry.go -pkg contract
+
+	@# Produce the bin/abi files
+	@# NOTE(PN): The ABIs for these need to have the Data types replaced with "string" before this will successfully work.
+	@# This is due to abigen no being able to handle user defined structs, but not needed
+	@# for our purposes
+	@cp ./$(ABI_DIR)/AttributeStore.abi ./$(ABI_DIR)/AttributeStore.abi.bak
+	@sed -i "" 's/AttributeStore\.Data\ storage/string/g' ./$(ABI_DIR)/AttributeStore.abi
+	@$(GORUN) $(LIB_GEN_MAIN) -abi ./$(ABI_DIR)/AttributeStore.abi -bin ./$(ABI_DIR)/AttributeStore.bin -type AttributeStoreContract -out ./$(GENERATED_CONTRACT_DIR)/AttributeStoreContract.go -pkg contract
+	@mv ./$(ABI_DIR)/AttributeStore.abi.bak ./$(ABI_DIR)/AttributeStore.abi
+
+	@cp ./$(ABI_DIR)/DLL.abi ./$(ABI_DIR)/DLL.abi.bak
+	@sed -i "" 's/DLL\.Data\ storage/string/g' ./$(ABI_DIR)/DLL.abi
+	@$(GORUN) $(LIB_GEN_MAIN) -abi ./$(ABI_DIR)/DLL.abi -bin ./$(ABI_DIR)/DLL.bin -type DLLContract -out ./$(GENERATED_CONTRACT_DIR)/DLLContract.go -pkg contract
+	@mv ./$(ABI_DIR)/DLL.abi.bak ./$(ABI_DIR)/DLL.abi
+
 else
 	$(error No abi files found; copy them to /abi after generation)
 endif
