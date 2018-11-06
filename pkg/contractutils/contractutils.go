@@ -6,15 +6,20 @@ package contractutils
 
 import (
 	"math/big"
+	"regexp"
+	"strings"
 
 	log "github.com/golang/glog"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	// "github.com/ethereum/go-ethereum/ethclient"
+	// "fmt"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 )
 
@@ -91,6 +96,20 @@ type AllTestContracts struct {
 func SetupAllTestContracts() (*AllTestContracts, error) {
 	client, auth := SetupSimulatedClient(gasLimit)
 
+	// Deploy the required libraries
+	asAddr, err := setupAttributeStoreContract(client, auth)
+	if err != nil {
+		log.Fatalf("Unable to deploy the attribute store lib: %v", err)
+	}
+	client.Commit()
+
+	dllAddr, err := setupDLLContract(client, auth)
+	if err != nil {
+		log.Fatalf("Unable to deploy the DLL library: %v", err)
+	}
+	client.Commit()
+
+	// Setup the TESTCVL token
 	tokenAddr, eip20, err := setupTestEIP20Contract(client, auth)
 	if err != nil {
 		log.Fatalf("Unable to deploy a test token: %v", err)
@@ -118,7 +137,7 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 
 	client.Commit()
 
-	plcrAddr, plcr, err := setupTestCivilPLCRVotingContract(client, auth, tokenAddr, tokenTeleAddr)
+	plcrAddr, plcr, err := setupTestCivilPLCRVotingContract(client, auth, tokenAddr, tokenTeleAddr, dllAddr, asAddr)
 	if err != nil {
 		log.Fatalf("Unable to deploy a test Civil PLCR voting contract: err: %v", err)
 		return nil, err
@@ -244,14 +263,68 @@ func setupTestEIP20Contract(client bind.ContractBackend, auth *bind.TransactOpts
 	return address, contract, nil
 }
 
+// modifyByteCodeWithDllAttrStore replaces references to the dll/addr store library
+// with the actual addresses to those library contracts
+func modifyByteCodeWithDllAttrStore(bin string, dllAddr common.Address,
+	attrStoreAddr common.Address) string {
+	// To add the DLL and AttributeStore addresses, replace occurrances of
+	// _DLL__________ and _AttributeStore__________ with the respective contract addresses
+	ddlRexp := regexp.MustCompile("_+DLL_+")
+	asRexp := regexp.MustCompile("_+AttributeStore_+")
+
+	// Remove the 0x prefix from those addresses, just need the actual hex string
+	cleanDllAddr := strings.Replace(dllAddr.Hex(), "0x", "", -1)
+	cleanAttrStoreAddr := strings.Replace(attrStoreAddr.Hex(), "0x", "", -1)
+
+	modifiedBin := ddlRexp.ReplaceAllString(contract.CivilPLCRVotingContractBin, cleanDllAddr)
+	modifiedBin = asRexp.ReplaceAllString(modifiedBin, cleanAttrStoreAddr)
+	return modifiedBin
+}
+
+// deployCivilPLCRVotingContractModified deploys a new Ethereum contract, binding an instance of CivilPLCRVotingContract to it.
+// Hacking this to modify the BIN to add the DLL and AttributeStore addresses.
+func deployCivilPLCRVotingContractModified(auth *bind.TransactOpts, backend bind.ContractBackend,
+	tokenAddr common.Address, telemetryAddr common.Address, dllAddr common.Address,
+	attrStoreAddr common.Address) (common.Address, *types.Transaction, *contract.CivilPLCRVotingContract, error) {
+	parsed, err := abi.JSON(strings.NewReader(contract.CivilPLCRVotingContractABI))
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+
+	address, tx, _, err := bind.DeployContract(
+		auth,
+		parsed,
+		common.FromHex(modifyByteCodeWithDllAttrStore(
+			contract.CivilPLCRVotingContractBin,
+			dllAddr,
+			attrStoreAddr,
+		)),
+		backend,
+		tokenAddr,
+		telemetryAddr,
+	)
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+
+	newContract, err := contract.NewCivilPLCRVotingContract(address, backend)
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+	return address, tx, newContract, nil
+}
+
 // setupTestCivilPLCRVotingContract deploys a test Civil PLCR voting contract to the given ContractBackend.
 func setupTestCivilPLCRVotingContract(client bind.ContractBackend, auth *bind.TransactOpts,
-	tokenAddr common.Address, teleAddr common.Address) (common.Address, *contract.CivilPLCRVotingContract, error) {
-	address, _, contract, err := contract.DeployCivilPLCRVotingContract(
+	tokenAddr common.Address, teleAddr common.Address, dllAddr common.Address,
+	attributeStoreAddr common.Address) (common.Address, *contract.CivilPLCRVotingContract, error) {
+	address, _, contract, err := deployCivilPLCRVotingContractModified(
 		auth,
 		client,
 		tokenAddr,
 		teleAddr,
+		dllAddr,
+		attributeStoreAddr,
 	)
 	if err != nil {
 		return common.Address{}, nil, err
@@ -272,6 +345,32 @@ func setupTestDummyTokenTelemetryContract(client bind.ContractBackend, auth *bin
 	}
 
 	return address, contract, nil
+}
+
+// setupAttributeStoreContract deploys the required AttributeStore contract
+func setupAttributeStoreContract(client bind.ContractBackend, auth *bind.TransactOpts) (common.Address, error) {
+	address, _, _, err := contract.DeployAttributeStoreContract(
+		auth,
+		client,
+	)
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	return address, nil
+}
+
+// setupDLLContract deploys the required DLL contract
+func setupDLLContract(client bind.ContractBackend, auth *bind.TransactOpts) (common.Address, error) {
+	address, _, _, err := contract.DeployDLLContract(
+		auth,
+		client,
+	)
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	return address, nil
 }
 
 // setupTestParameterizerContract deploys a test parameterizer voting contract to the given ContractBackend.
