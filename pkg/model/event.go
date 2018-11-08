@@ -42,8 +42,8 @@ func ReturnEventsFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
 }
 
 // NewEventFromContractEvent creates a new event after converting eventData to interface{}
-func NewEventFromContractEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
-	timestamp int64, retrievalMethod RetrievalMethod) (*Event, error) {
+func NewEventFromContractEvent(eventType string, contractName string, contractAddress common.Address,
+	eventData interface{}, timestamp int64, retrievalMethod RetrievalMethod) (*Event, error) {
 	event := &Event{}
 
 	payload := NewEventPayload(eventData)
@@ -158,6 +158,7 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 
 // AbiJSON returns parsed abi of this particular contract.
 func AbiJSON(contractName string) (abi.ABI, error) {
+	fmt.Printf("contract name = %v\n", contractName)
 	contractType, ok := NameToContractTypes.GetFromContractName(contractName)
 	if !ok {
 		return abi.ABI{}, errors.New("Contract Name does not exist")

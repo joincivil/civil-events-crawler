@@ -3,12 +3,14 @@ package postgres // import "github.com/joincivil/civil-events-crawler/pkg/persis
 import (
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/joincivil/civil-events-crawler/pkg/model"
+	log "github.com/golang/glog"
 	"math/big"
 	"strconv"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
 const (
@@ -38,8 +40,8 @@ func CreateEventTableQueryString(tableName string) string {
 	return queryString
 }
 
-// EventTableIndices returns the query to create indices for this table
-func EventTableIndices() string {
+// CreateEventTableIndices returns the query to create indices for this table
+func CreateEventTableIndices() string {
 	return CreateEventTableIndicesString(eventTableName)
 }
 
@@ -161,13 +163,22 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 			}
 			eventPayload[eventFieldName] = str
 		default:
-			return event, fmt.Errorf("unsupported type in %v field encountered in %v event", eventFieldName, c.EventHash)
+			return event, fmt.Errorf("unsupported type in %v field encountered in %v event",
+				eventFieldName, c.EventHash)
 		}
 	}
+
 	logPayload := c.DBToEventLogData()
 	contractAddress := common.HexToAddress(c.ContractAddress)
-	event, err = model.NewEvent(c.EventType, c.ContractName, contractAddress, c.Timestamp, model.RetrievalMethod(c.RetrievalMethod), eventPayload,
-		logPayload)
+	event, err = model.NewEvent(
+		c.EventType,
+		c.ContractName,
+		contractAddress,
+		c.Timestamp,
+		model.RetrievalMethod(c.RetrievalMethod),
+		eventPayload,
+		logPayload,
+	)
 
 	return event, err
 
@@ -193,30 +204,92 @@ func (c *Event) EventLogDataToDB(payload *types.Log) {
 }
 
 // DBToEventLogData converts the DB raw log payload back to types.Log
-// NOTE(IS): because jsonb payloads are stored in DB as a map[string]interface{}, Postgres converts some fields, see notes in function.
+// NOTE(IS): because jsonb payloads are stored in DB as a map[string]interface{},
+// Postgres converts some fields, see notes in function.
 func (c *Event) DBToEventLogData() *types.Log {
-	log := &types.Log{}
-	log.Address = common.HexToAddress(c.LogPayload["Address"].(string))
+	tlog := &types.Log{}
+	tlog.Address = common.HexToAddress(c.LogPayload["Address"].(string))
 
-	topics := c.LogPayload["Topics"].([]interface{})
-	newTopics := make([]common.Hash, len(topics))
-	for i, topic := range topics {
-		topicString := topic.(string)
-		newTopics[i] = common.HexToHash(topicString)
+	tlog.Topics = c.typeInferTopics(c.LogPayload["Topics"])
+	tlog.Data = c.typeInferData(c.LogPayload["Data"])
+
+	// BlockNumber is stored in DB as float64
+	tlog.BlockNumber = c.typeInferBlockNumber(c.LogPayload["BlockNumber"])
+	tlog.TxHash = common.HexToHash(c.LogPayload["TxHash"].(string))
+	// TxIndex is stored in DB as float64
+	tlog.TxIndex = c.typeInferIndex(c.LogPayload["TxIndex"])
+	tlog.BlockHash = common.HexToHash(c.LogPayload["BlockHash"].(string))
+	// Index is stored in DB as float64
+	tlog.Index = c.typeInferIndex(c.LogPayload["Index"])
+	tlog.Removed = c.LogPayload["Removed"].(bool)
+
+	return tlog
+}
+
+func (c *Event) typeInferIndex(txIndexInterface interface{}) uint {
+	var returnTxIndex uint
+	switch val := txIndexInterface.(type) {
+	case float64:
+		returnTxIndex = uint(val)
+	case uint:
+		returnTxIndex = val
+	default:
+		log.Errorf("Index type not supported: %T", val)
 	}
-	log.Topics = newTopics
-	// NOTE: Data is stored in DB as a string
-	log.Data = []byte(c.LogPayload["Data"].(string))
-	// NOTE: BlockNumber is stored in DB as float64
-	log.BlockNumber = uint64(c.LogPayload["BlockNumber"].(float64))
-	log.TxHash = common.HexToHash(c.LogPayload["TxHash"].(string))
-	// NOTE: TxIndex is stored in DB as float64
-	log.TxIndex = uint(c.LogPayload["TxIndex"].(float64))
-	log.BlockHash = common.HexToHash(c.LogPayload["BlockHash"].(string))
-	// NOTE: Index is stored in DB as float64
-	log.Index = uint(c.LogPayload["Index"].(float64))
-	log.Removed = c.LogPayload["Removed"].(bool)
-	return log
+	return returnTxIndex
+}
+
+func (c *Event) typeInferBlockNumber(blockInterface interface{}) uint64 {
+	var returnBlockNumber uint64
+	switch val := blockInterface.(type) {
+	case float64:
+		returnBlockNumber = uint64(val)
+	case uint64:
+		returnBlockNumber = val
+	default:
+		log.Errorf("Block num type not supported: %T", val)
+	}
+	return returnBlockNumber
+}
+
+func (c *Event) typeInferData(dataInterface interface{}) []byte {
+	var returnData []byte
+	switch data := dataInterface.(type) {
+	case []byte:
+		returnData = data
+	case []int8:
+		bys := make([]byte, len(data))
+		for i, val := range data {
+			bys[i] = byte(val)
+		}
+		returnData = bys
+	case string:
+		returnData = []byte(data)
+	default:
+		log.Errorf("Data type not supported: %T", data)
+	}
+	return returnData
+}
+
+func (c *Event) typeInferTopics(topicsInterface interface{}) []common.Hash {
+	var theTopics []common.Hash
+	switch topics := topicsInterface.(type) {
+	case []string:
+		theTopics = make([]common.Hash, len(topics))
+		for i, topic := range topics {
+			topicString := topic
+			theTopics[i] = common.HexToHash(topicString)
+		}
+	case []interface{}:
+		theTopics = make([]common.Hash, len(topics))
+		for i, topic := range topics {
+			topicString := topic.(string)
+			theTopics[i] = common.HexToHash(topicString)
+		}
+	default:
+		log.Errorf("Topic type not supported: %T", topics)
+	}
+	return theTopics
 }
 
 // parseEventPayload() parses and converts payloads from event to store in DB

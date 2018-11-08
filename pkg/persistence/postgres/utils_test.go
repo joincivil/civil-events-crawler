@@ -59,15 +59,6 @@ func TestInsertIntoDBQueryString(t *testing.T) {
 	}
 }
 
-type testStructPayload struct {
-	field1        string         `db:"field1"` // nolint: megacheck
-	field2        int            `db:"field2"` // nolint: megacheck
-	field4Ignored string         `db:"-"`      // nolint: megacheck
-	field4        int            `db:"field4"` // nolint: megacheck
-	field5Ignored bool           `db:"-"`      // nolint: megacheck
-	field6        common.Address `db:"field6"` // nolint: megacheck
-}
-
 func TestJsonPayload(t *testing.T) {
 	payload := &postgres.JsonbPayload{
 		"key1": "value1",
