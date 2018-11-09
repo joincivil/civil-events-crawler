@@ -25,28 +25,44 @@ var (
 		Data:           "DATA",
 		Applicant:      common.HexToAddress(testAddress),
 		Raw: types.Log{
-			Address:     common.HexToAddress(testAddress),
-			Topics:      []common.Hash{},
-			Data:        []byte{},
+			Address: common.HexToAddress(testAddress),
+			Topics: []common.Hash{
+				common.HexToHash("0x98c8cf45bd844627e84e1c506ca87cc9436317d0"),
+			},
+			Data:        []byte("data"),
 			BlockNumber: 8888888,
 			Index:       2,
+			TxIndex:     3,
+			TxHash:      common.HexToHash("0x98c8cf45bd844627e84e1c506ca87cc9436317d0"),
+			Removed:     true,
 		},
 	}
 	testEvent2 = &contract.CivilTCRContractApplicationWhitelisted{
 		ListingAddress: common.HexToAddress(testAddress),
 		Raw: types.Log{
-			Address:     common.HexToAddress(testAddress),
-			Topics:      []common.Hash{},
-			Data:        []byte{},
+			Address: common.HexToAddress(testAddress),
+			Topics: []common.Hash{
+				common.HexToHash("0x98c8cf45bd844627e84e1c506ca87cc9436317d0"),
+			},
+			Data:        []byte("data"),
 			BlockNumber: 8888888,
 			Index:       1,
+			TxIndex:     4,
+			TxHash:      common.HexToHash("0x98c8cf45bd844627e84e1c506ca87cc9436317d0"),
+			Removed:     false,
 		},
 	}
 )
 
 func setupEvent() (*model.Event, error) {
-	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochSecsInInt64(), model.Filterer)
+	return model.NewEventFromContractEvent(
+		"Application",
+		"CivilTCRContract",
+		common.HexToAddress(contractAddress),
+		testEvent,
+		utils.CurrentEpochSecsInInt64(),
+		model.Filterer,
+	)
 }
 
 func TestEventSetup(t *testing.T) {
@@ -179,7 +195,6 @@ func TestEventPayloadStructValues(t *testing.T) {
 	if toStr == "" {
 		t.Errorf("ToString is returning an empty string")
 	}
-	t.Logf("payload string: %v", toStr)
 
 	value, ok := payload.Value("ListingAddress")
 	if !ok {
@@ -263,7 +278,7 @@ func TestEventLogToString(t *testing.T) {
 		t.Errorf("setupEvent should have succeeded: err: %v", err)
 	}
 	logString := event.LogPayloadToString()
-	logStringTrue := "log: addr: 0xDFe273082089bB7f70Ee36Eebcde64832FE97E55, blknum: 8888888, txhash: 0x0000000000000000000000000000000000000000000000000000000000000000, txidx: 0, blkhash: 0x0000000000000000000000000000000000000000000000000000000000000000, idx: 2, rem: false"
+	logStringTrue := "log: addr: 0xDFe273082089bB7f70Ee36Eebcde64832FE97E55, blknum: 8888888, txhash: 0x00000000000000000000000098c8cf45bd844627e84e1c506ca87cc9436317d0, txidx: 3, blkhash: 0x0000000000000000000000000000000000000000000000000000000000000000, idx: 2, rem: true"
 	if logString != logStringTrue {
 		t.Errorf("logString is not what it should be %v", logString)
 	}
@@ -279,5 +294,74 @@ func TestEventLogPayloadImmutability(t *testing.T) {
 	logPayload.BlockNumber = newBlockNo
 	if newBlockNo == event.LogPayload().BlockNumber {
 		t.Errorf("these should not be equal")
+	}
+}
+
+func TestEventGettersMutators(t *testing.T) {
+	event, err := setupEvent()
+	if err != nil {
+		t.Errorf("setupEvent should have succeeded: err: %v", err)
+	}
+
+	if event.Hash() == "" {
+		t.Errorf("hash should have returned a valid hash: %v", event.Hash())
+	}
+
+	if event.EventType() != "Application" {
+		t.Errorf("hash should have returned the valid event: %v", event.EventType())
+	}
+
+	normalizedAddress := common.HexToAddress(contractAddress)
+	if event.ContractAddress().Hex() != normalizedAddress.Hex() {
+		t.Errorf("contract address should have matched: %v, %v", event.ContractAddress().Hex(), normalizedAddress.Hex())
+	}
+
+	if event.Timestamp() == 0 {
+		t.Errorf("timestamp should have been > 0: %v", event.Timestamp())
+	}
+
+	event.SetTimestamp(1024)
+	if event.Timestamp() != 1024 {
+		t.Errorf("timestamp should have been 1024: %v", event.Timestamp())
+	}
+
+	if event.RetrievalMethod() != model.Filterer {
+		t.Errorf("retrieval method should have been filterer: %v", event.RetrievalMethod())
+	}
+
+	if event.ContractName() != "CivilTCRContract" {
+		t.Errorf("contract name should have been civiltcrcontract: %v", event.ContractName())
+	}
+
+	if event.LogTopics()[0].Hex() != common.HexToHash("0x98c8cf45bd844627e84e1c506ca87cc9436317d0").Hex() {
+		t.Errorf("should have had correct topic: %v", event.LogTopics()[0].Hex())
+	}
+
+	if string(event.LogData()) != "data" {
+		t.Errorf("should have had correct data: %v", event.LogData())
+	}
+
+	if event.BlockNumber() != uint64(8888888) {
+		t.Errorf("should have had correct blocknumber: %v", event.BlockNumber())
+	}
+
+	if event.TxIndex() != 3 {
+		t.Errorf("should have had correct txindex: %v", event.TxIndex())
+	}
+
+	if event.TxHash().Hex() != common.HexToHash("0x98c8cf45bd844627e84e1c506ca87cc9436317d0").Hex() {
+		t.Errorf("should have had correct txHash: %v", event.TxHash())
+	}
+
+	if event.BlockHash().Hex() == "" {
+		t.Errorf("should have had correct block hash: %v", event.BlockHash().Hex())
+	}
+
+	if !event.LogRemoved() {
+		t.Errorf("should have been the correct log removed bool: %v", event.LogRemoved())
+	}
+
+	if event.LogIndex() != 2 {
+		t.Errorf("should have been the correct log index: %v", event.LogIndex())
 	}
 }

@@ -158,7 +158,6 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 
 // AbiJSON returns parsed abi of this particular contract.
 func AbiJSON(contractName string) (abi.ABI, error) {
-	fmt.Printf("contract name = %v\n", contractName)
 	contractType, ok := NameToContractTypes.GetFromContractName(contractName)
 	if !ok {
 		return abi.ABI{}, errors.New("Contract Name does not exist")
@@ -190,8 +189,12 @@ func extractRawFieldFromEvent(payload *EventPayload) (*types.Log, error) {
 func (e *Event) hashEvent() string {
 	logIndex := int(e.logPayload.Index)
 	txHash := e.logPayload.TxHash.Hex()
-	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType, // nolint: gas, gosec
-		strconv.Itoa(logIndex), txHash})
+	eventBytes, _ := rlp.EncodeToBytes([]interface{}{
+		e.contractAddress.Hex(),
+		e.eventType, // nolint: gas, gosec
+		strconv.Itoa(logIndex),
+		txHash,
+	})
 	h := crypto.Keccak256Hash(eventBytes)
 	return h.Hex()
 }
