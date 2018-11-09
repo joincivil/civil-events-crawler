@@ -42,5 +42,5 @@ func GenerateContractABIBIN(writer io.Writer, abi string, bin string, theType st
 		BinString:        bin,
 	}
 
-	return generate(writer, "libgen.tmpl", libgenTmpl, tmplData, true)
+	return OutputTemplatedData(writer, "libgen.tmpl", libgenTmpl, tmplData, true)
 }

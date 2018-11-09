@@ -9,7 +9,9 @@ import (
 	"text/template"
 )
 
-func generate(writer io.Writer, tmplName string, tmpl string,
+// OutputTemplatedData is a shared function to output templated data given
+// the template and template data to the writer.
+func OutputTemplatedData(writer io.Writer, tmplName string, tmpl string,
 	tmplData interface{}, gofmt bool) error {
 	t := template.Must(template.New(tmplName).Parse(tmpl))
 	buf := &bytes.Buffer{}
@@ -21,7 +23,7 @@ func generate(writer io.Writer, tmplName string, tmpl string,
 	if gofmt {
 		output, err = format.Source(buf.Bytes())
 		if err != nil {
-			log.Errorf("ERROR Gofmt: err:%v\ntemplate generated code:\n%v", err, buf.String())
+			log.Errorf("ERROR Gofmt: err:%v\ntemplate generated:\n%v", err, buf.String())
 			return err
 		}
 	}
