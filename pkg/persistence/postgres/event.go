@@ -184,21 +184,23 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 
 }
 
-// EventLogDataToDB converts the raw log data to Postgresql types
+// EventLogDataToDB explicitly converts the raw log data to Postgresql types
 func (c *Event) EventLogDataToDB(payload *types.Log) {
 	c.LogPayload["Address"] = payload.Address.Hex()
 
-	topics := make([]string, len(payload.Topics))
-	for _, topic := range payload.Topics {
-		topics = append(topics, topic.Hex())
+	topics := make([]interface{}, len(payload.Topics))
+
+	for index, topic := range payload.Topics {
+		topics[index] = topic.Hex()
 	}
+
 	c.LogPayload["Topics"] = topics
-	c.LogPayload["Data"] = payload.Data
-	c.LogPayload["BlockNumber"] = payload.BlockNumber
+	c.LogPayload["Data"] = string(payload.Data)
+	c.LogPayload["BlockNumber"] = float64(payload.BlockNumber)
 	c.LogPayload["TxHash"] = payload.TxHash.Hex()
-	c.LogPayload["TxIndex"] = payload.TxIndex
+	c.LogPayload["TxIndex"] = float64(payload.TxIndex)
 	c.LogPayload["BlockHash"] = payload.BlockHash.Hex()
-	c.LogPayload["Index"] = payload.Index
+	c.LogPayload["Index"] = float64(payload.Index)
 	c.LogPayload["Removed"] = payload.Removed
 
 }
@@ -231,10 +233,8 @@ func (c *Event) typeInferIndex(txIndexInterface interface{}) uint {
 	switch val := txIndexInterface.(type) {
 	case float64:
 		returnTxIndex = uint(val)
-	case uint:
-		returnTxIndex = val
 	default:
-		log.Errorf("Index type not supported: %T", val)
+		log.Errorf("DB Index type expected as float64, instead is %T", val)
 	}
 	return returnTxIndex
 }
@@ -244,10 +244,8 @@ func (c *Event) typeInferBlockNumber(blockInterface interface{}) uint64 {
 	switch val := blockInterface.(type) {
 	case float64:
 		returnBlockNumber = uint64(val)
-	case uint64:
-		returnBlockNumber = val
 	default:
-		log.Errorf("Block num type not supported: %T", val)
+		log.Errorf("DB Block number type expected as float64, instead is %T", val)
 	}
 	return returnBlockNumber
 }
@@ -255,18 +253,10 @@ func (c *Event) typeInferBlockNumber(blockInterface interface{}) uint64 {
 func (c *Event) typeInferData(dataInterface interface{}) []byte {
 	var returnData []byte
 	switch data := dataInterface.(type) {
-	case []byte:
-		returnData = data
-	case []int8:
-		bys := make([]byte, len(data))
-		for i, val := range data {
-			bys[i] = byte(val)
-		}
-		returnData = bys
 	case string:
 		returnData = []byte(data)
 	default:
-		log.Errorf("Data type not supported: %T", data)
+		log.Errorf("DB Data type expected as string, instead is %T", data)
 	}
 	return returnData
 }
@@ -274,20 +264,18 @@ func (c *Event) typeInferData(dataInterface interface{}) []byte {
 func (c *Event) typeInferTopics(topicsInterface interface{}) []common.Hash {
 	var theTopics []common.Hash
 	switch topics := topicsInterface.(type) {
-	case []string:
-		theTopics = make([]common.Hash, len(topics))
-		for i, topic := range topics {
-			topicString := topic
-			theTopics[i] = common.HexToHash(topicString)
-		}
 	case []interface{}:
 		theTopics = make([]common.Hash, len(topics))
-		for i, topic := range topics {
-			topicString := topic.(string)
-			theTopics[i] = common.HexToHash(topicString)
+		for i, topicInterface := range topics {
+			switch topic := topicInterface.(type) {
+			case string:
+				theTopics[i] = common.HexToHash(topic)
+			default:
+				log.Errorf("DB Topic type expected as string, instead is %T", topic)
+			}
 		}
 	default:
-		log.Errorf("Topic type not supported: %T", topics)
+		log.Errorf("DB Topics type expected as []interface{}, instead is %T", topics)
 	}
 	return theTopics
 }

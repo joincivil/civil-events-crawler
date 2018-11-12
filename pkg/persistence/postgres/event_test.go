@@ -128,23 +128,13 @@ func TestDBToEventLogData(t *testing.T) {
 
 	tLog := dbEvent.DBToEventLogData()
 	if tLog == nil {
-		t.Errorf("Should have received type.Log")
+		t.Errorf("Should have received valid type.Log")
 	}
 
 	dbEvent = setupDBEvent(t)
-	dbEvent.LogPayload["Topics"] = []interface{}{
-		"0x98c8cf45bd844627e84e1c506ca87cc9436317d0",
+	dbEvent.LogPayload["Topics"] = []common.Hash{
+		common.HexToHash("0x98c8cf45bd844627e84e1c506ca87cc9436317d0"),
 	}
-	tLog = dbEvent.DBToEventLogData()
-	if tLog == nil {
-		t.Errorf("Should have received type.Log")
-	}
-	if tLog.Topics == nil {
-		t.Errorf("Should have received topics")
-	}
-
-	dbEvent = setupDBEvent(t)
-	dbEvent.LogPayload["Topics"] = []int{64}
 	tLog = dbEvent.DBToEventLogData()
 	if tLog == nil {
 		t.Errorf("Should have received type.Log")
@@ -159,42 +149,12 @@ func TestDBToEventLogData(t *testing.T) {
 	if tLog == nil {
 		t.Errorf("Should have received non-nil type.Log")
 	}
-	if tLog.Data == nil {
-		t.Errorf("Should have received data")
-	}
-
-	dbEvent = setupDBEvent(t)
-	dbEvent.LogPayload["Data"] = "data"
-	tLog = dbEvent.DBToEventLogData()
-	if tLog == nil {
-		t.Errorf("Should have received type.Log")
-	}
-	if tLog.Data == nil {
-		t.Errorf("Should have received data")
-	}
-
-	dbEvent = setupDBEvent(t)
-	dbEvent.LogPayload["Data"] = []int{64}
-	tLog = dbEvent.DBToEventLogData()
-	if tLog == nil {
-		t.Errorf("Should have received type.Log")
-	}
 	if tLog.Data != nil {
 		t.Errorf("Should not have received data")
 	}
 
 	dbEvent = setupDBEvent(t)
-	dbEvent.LogPayload["BlockNumber"] = float64(64)
-	tLog = dbEvent.DBToEventLogData()
-	if tLog == nil {
-		t.Errorf("Should have received type.Log")
-	}
-	if tLog.BlockNumber == 0 {
-		t.Errorf("Should have received block number")
-	}
-
-	dbEvent = setupDBEvent(t)
-	dbEvent.LogPayload["BlockNumber"] = int64(64)
+	dbEvent.LogPayload["BlockNumber"] = uint64(64)
 	tLog = dbEvent.DBToEventLogData()
 	if tLog == nil {
 		t.Errorf("Should have received type.Log")
@@ -204,17 +164,7 @@ func TestDBToEventLogData(t *testing.T) {
 	}
 
 	dbEvent = setupDBEvent(t)
-	dbEvent.LogPayload["TxIndex"] = float64(64)
-	tLog = dbEvent.DBToEventLogData()
-	if tLog == nil {
-		t.Errorf("Should have received type.Log")
-	}
-	if tLog.TxIndex == 0 {
-		t.Errorf("Should have received tx index")
-	}
-
-	dbEvent = setupDBEvent(t)
-	dbEvent.LogPayload["TxIndex"] = int64(64)
+	dbEvent.LogPayload["TxIndex"] = uint(64)
 	tLog = dbEvent.DBToEventLogData()
 	if tLog == nil {
 		t.Errorf("Should have received type.Log")
@@ -222,6 +172,7 @@ func TestDBToEventLogData(t *testing.T) {
 	if tLog.TxIndex != 0 {
 		t.Errorf("Should not have received tx index")
 	}
+
 }
 
 func TestEventDataToDB(t *testing.T) {
