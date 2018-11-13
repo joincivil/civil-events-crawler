@@ -41,5 +41,5 @@ func GenerateEventHandlerLists(writer io.Writer, packageName string) error {
 		Contracts:   contracts,
 		GenTime:     time.Now().UTC(),
 	}
-	return generate(writer, "handlerlist.tmpl", handlerListTmpl, tmplData, true)
+	return OutputTemplatedData(writer, "handlerlist.tmpl", handlerListTmpl, tmplData, true)
 }

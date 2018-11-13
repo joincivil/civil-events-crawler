@@ -111,7 +111,7 @@ func (p *PostgresPersister) CreateTables() error {
 
 // CreateIndices creates the indices for DB if they don't exist
 func (p *PostgresPersister) CreateIndices() error {
-	indexQuery := postgres.EventTableIndices()
+	indexQuery := postgres.CreateEventTableIndices()
 	_, err := p.db.Exec(indexQuery)
 	return err
 }

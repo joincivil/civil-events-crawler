@@ -64,7 +64,7 @@ func GenerateEventHandlersFromTemplate(writer io.Writer, tmplData *EventHandlerC
 	if !ok {
 		return errors.New("Invalid handlerName")
 	}
-	return generate(writer, tmpData.tmplName, tmpData.tmplVar, tmplData, gofmt)
+	return OutputTemplatedData(writer, tmpData.tmplName, tmpData.tmplVar, tmplData, gofmt)
 }
 
 // EventHandlerMethodParam represents a value to be passed into the

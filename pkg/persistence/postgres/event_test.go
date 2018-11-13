@@ -1,14 +1,17 @@
 package postgres_test
 
 import (
+	"math/big"
+	"strings"
+	"testing"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
-	"math/big"
-	"testing"
 )
 
 var (
@@ -21,8 +24,12 @@ var (
 		Data:           "DATA",
 		Applicant:      common.HexToAddress(testAddress),
 		Raw: types.Log{
-			Address:     common.HexToAddress(testAddress),
-			Topics:      []common.Hash{},
+			Address: common.HexToAddress(testAddress),
+			Topics: []common.Hash{
+				common.HexToHash("0x09cd8dcaf170a50a26316b5fe0727dd9fb9581a688d65e758b16a1650da65c0b"),
+				common.HexToHash("0x0000000000000000000000002652c60cf04bbf6bb6cc8a5e6f1c18143729d440"),
+				common.HexToHash("0x00000000000000000000000025bf9a1595d6f6c70e6848b60cba2063e4d9e552"),
+			},
 			Data:        []byte{},
 			BlockNumber: 8888888,
 			TxHash:      common.Hash{},
@@ -39,8 +46,14 @@ func setupDBEventFromEvent(civilEvent *model.Event) (*postgres.Event, error) {
 }
 
 func setupEvent() (*model.Event, error) {
-	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
-		testEvent, utils.CurrentEpochSecsInInt64(), model.Filterer)
+	return model.NewEventFromContractEvent(
+		"Application",
+		"CivilTCRContract",
+		common.HexToAddress(contractAddress),
+		testEvent,
+		utils.CurrentEpochSecsInInt64(),
+		model.Filterer,
+	)
 }
 
 func setupDBEvent(t *testing.T) *postgres.Event {
@@ -85,7 +98,113 @@ func TestDBEventSetup(t *testing.T) {
 	if len(dbEvent.LogPayload) != 9 {
 		t.Errorf("EventPayload was not init correctly: %v", dbEvent.EventPayload)
 	}
+}
 
+func TestDBToEventData(t *testing.T) {
+	dbEvent := setupDBEvent(t)
+	contractName := dbEvent.ContractName
+
+	_, err := dbEvent.DBToEventData()
+	if err != nil {
+		t.Errorf("Should have not received error when converted to model event: err: %v", err)
+	}
+
+	dbEvent.ContractName = ""
+	_, err = dbEvent.DBToEventData()
+	if err == nil {
+		t.Errorf("Should have received error with no contract name: err: %v", err)
+	}
+
+	dbEvent.ContractName = contractName
+	dbEvent.EventType = ""
+	_, err = dbEvent.DBToEventData()
+	if err == nil {
+		t.Errorf("Should have received error with no event type: err: %v", err)
+	}
+}
+
+func TestDBToEventLogData(t *testing.T) {
+	dbEvent := setupDBEvent(t)
+
+	tLog := dbEvent.DBToEventLogData()
+	if tLog == nil {
+		t.Errorf("Should have received valid type.Log")
+	}
+
+	dbEvent = setupDBEvent(t)
+	dbEvent.LogPayload["Topics"] = []common.Hash{
+		common.HexToHash("0x98c8cf45bd844627e84e1c506ca87cc9436317d0"),
+	}
+	tLog = dbEvent.DBToEventLogData()
+	if tLog == nil {
+		t.Errorf("Should have received type.Log")
+	}
+	if tLog.Topics != nil {
+		t.Errorf("Should not have received topics")
+	}
+
+	dbEvent = setupDBEvent(t)
+	dbEvent.LogPayload["Data"] = []int8{1, 2, 3}
+	tLog = dbEvent.DBToEventLogData()
+	if tLog == nil {
+		t.Errorf("Should have received non-nil type.Log")
+	}
+	if tLog.Data != nil {
+		t.Errorf("Should not have received data")
+	}
+
+	dbEvent = setupDBEvent(t)
+	dbEvent.LogPayload["BlockNumber"] = uint64(64)
+	tLog = dbEvent.DBToEventLogData()
+	if tLog == nil {
+		t.Errorf("Should have received type.Log")
+	}
+	if tLog.BlockNumber != 0 {
+		t.Errorf("Should not have received block number")
+	}
+
+	dbEvent = setupDBEvent(t)
+	dbEvent.LogPayload["TxIndex"] = uint(64)
+	tLog = dbEvent.DBToEventLogData()
+	if tLog == nil {
+		t.Errorf("Should have received type.Log")
+	}
+	if tLog.TxIndex != 0 {
+		t.Errorf("Should not have received tx index")
+	}
+
+}
+
+func TestEventDataToDB(t *testing.T) {
+	modelEvent, err := setupEvent()
+	if err != nil {
+		t.Errorf("Should not have received error setting up event: err: %v", err)
+	}
+	t.Logf("event payload = %v, %v", modelEvent.EventPayload(), modelEvent.ContractName())
+	dbEvent := &postgres.Event{
+		ContractName: modelEvent.ContractName(),
+		EventType:    modelEvent.EventType(),
+	}
+	err = dbEvent.EventDataToDB(modelEvent.EventPayload())
+	if err != nil {
+		t.Errorf("Should not have received error converting event data: err: %v", err)
+	}
+
+	dbEvent = &postgres.Event{
+		EventType: modelEvent.EventType(),
+	}
+	err = dbEvent.EventDataToDB(modelEvent.EventPayload())
+	if err == nil {
+		t.Errorf("Should have received error with no contract name in event: err: %v", err)
+	}
+
+	dbEvent = &postgres.Event{
+		ContractName: modelEvent.ContractName(),
+	}
+	err = dbEvent.EventDataToDB(modelEvent.EventPayload())
+	if err == nil {
+		t.Errorf("Should have received error with no event name in event: err: %v", err)
+	}
 }
 
 func TestInt64Overflow(t *testing.T) {
@@ -97,6 +216,26 @@ func TestInt64Overflow(t *testing.T) {
 	depositFloat, _ := new(big.Float).SetInt(deposit).Float64()
 	if dbEvent.EventPayload["Deposit"] != depositFloat {
 		t.Errorf("Wrong value, %v, %v", dbEvent.EventPayload["Deposit"], depositFloat)
+	}
+}
+
+func TestCreateTableQuery(t *testing.T) {
+	query := postgres.CreateEventTableQuery()
+	if query == "" {
+		t.Errorf("Should have returned a value for query")
+	}
+	if !strings.Contains(query, "CREATE TABLE") {
+		t.Errorf("Should have returned CREATE TABLE values")
+	}
+}
+
+func TestCreateEventTableIndices(t *testing.T) {
+	query := postgres.CreateEventTableIndices()
+	if query == "" {
+		t.Errorf("Should have returned a value for query")
+	}
+	if !strings.Contains(query, "CREATE INDEX IF NOT EXISTS") {
+		t.Errorf("Should have returned CREATE TABLE values")
 	}
 
 }

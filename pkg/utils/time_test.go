@@ -70,3 +70,10 @@ func TestSecsToNanosecsInInt64(t *testing.T) {
 		t.Error("Should have had the same sec in comparison")
 	}
 }
+
+func TestCurrentEpochNanoSecsInInt64(t *testing.T) {
+	tnsecs := utils.CurrentEpochNanoSecsInInt64()
+	if tnsecs <= 0 {
+		t.Error("Should have returned a valid value for nano secs from epoch")
+	}
+}

@@ -4,6 +4,7 @@ package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 import (
 	"errors"
 	"fmt"
+	log "github.com/golang/glog"
 	"math/big"
 	"reflect"
 	"strconv"
@@ -42,8 +43,8 @@ func ReturnEventsFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
 }
 
 // NewEventFromContractEvent creates a new event after converting eventData to interface{}
-func NewEventFromContractEvent(eventType string, contractName string, contractAddress common.Address, eventData interface{},
-	timestamp int64, retrievalMethod RetrievalMethod) (*Event, error) {
+func NewEventFromContractEvent(eventType string, contractName string, contractAddress common.Address,
+	eventData interface{}, timestamp int64, retrievalMethod RetrievalMethod) (*Event, error) {
 	event := &Event{}
 
 	payload := NewEventPayload(eventData)
@@ -189,8 +190,16 @@ func extractRawFieldFromEvent(payload *EventPayload) (*types.Log, error) {
 func (e *Event) hashEvent() string {
 	logIndex := int(e.logPayload.Index)
 	txHash := e.logPayload.TxHash.Hex()
-	eventBytes, _ := rlp.EncodeToBytes([]interface{}{e.contractAddress.Hex(), e.eventType, // nolint: gas, gosec
-		strconv.Itoa(logIndex), txHash})
+	eventBytes, err := rlp.EncodeToBytes([]interface{}{
+		e.contractAddress.Hex(),
+		e.eventType, // nolint: gas, gosec
+		strconv.Itoa(logIndex),
+		txHash,
+	})
+	if err != nil {
+		log.Errorf("Error encoding to bytes: err: %v", err)
+		return ""
+	}
 	h := crypto.Keccak256Hash(eventBytes)
 	return h.Hex()
 }
