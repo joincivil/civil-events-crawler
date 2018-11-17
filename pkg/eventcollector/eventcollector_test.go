@@ -180,15 +180,17 @@ func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.Even
 	}
 
 	collector := eventcollector.NewEventCollector(
-		&testChainReader{},
-		contracts.Client,
-		filterers,
-		watchers,
-		persister,
-		persister,
-		persister,
-		triggers,
-		0,
+		&eventcollector.Config{
+			Chain:              &testChainReader{},
+			Client:             contracts.Client,
+			Filterers:          filterers,
+			Watchers:           watchers,
+			RetrieverPersister: persister,
+			ListenerPersister:  persister,
+			EventDataPersister: persister,
+			Triggers:           triggers,
+			StartBlock:         0,
+		},
 	)
 	return collector
 }
@@ -209,15 +211,17 @@ func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*event
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
 	collector := eventcollector.NewEventCollector(
-		&testChainReader{},
-		contracts.Client,
-		filterers,
-		watchers,
-		persister,
-		persister,
-		persister,
-		triggers,
-		0,
+		&eventcollector.Config{
+			Chain:              &testChainReader{},
+			Client:             contracts.Client,
+			Filterers:          filterers,
+			Watchers:           watchers,
+			RetrieverPersister: persister,
+			ListenerPersister:  persister,
+			EventDataPersister: persister,
+			Triggers:           triggers,
+			StartBlock:         0,
+		},
 	)
 	return collector, persister
 }
@@ -239,15 +243,17 @@ func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContr
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
 	collector := eventcollector.NewEventCollector(
-		&testChainReader{},
-		contracts.Client,
-		filterers,
-		watchers,
-		goodPersister,
-		goodPersister,
-		badPersister,
-		triggers,
-		0,
+		&eventcollector.Config{
+			Chain:              &testChainReader{},
+			Client:             contracts.Client,
+			Filterers:          filterers,
+			Watchers:           watchers,
+			RetrieverPersister: goodPersister,
+			ListenerPersister:  goodPersister,
+			EventDataPersister: badPersister,
+			Triggers:           triggers,
+			StartBlock:         0,
+		},
 	)
 	return collector, badPersister
 }
@@ -269,15 +275,17 @@ func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTest
 		&testTrigger{shouldRun: true, runErr: nil},
 	}
 	collector := eventcollector.NewEventCollector(
-		&testChainReader{},
-		contracts.Client,
-		filterers,
-		watchers,
-		goodPersister,
-		goodPersister,
-		badPersister,
-		triggers,
-		0,
+		&eventcollector.Config{
+			Chain:              &testChainReader{},
+			Client:             contracts.Client,
+			Filterers:          filterers,
+			Watchers:           watchers,
+			RetrieverPersister: badPersister,
+			ListenerPersister:  badPersister,
+			EventDataPersister: goodPersister,
+			Triggers:           triggers,
+			StartBlock:         0,
+		},
 	)
 	return collector, badPersister
 }
@@ -297,15 +305,17 @@ func setupTestCollectorBadWatcher(contracts *cutils.AllTestContracts) *eventcoll
 	}
 
 	collector := eventcollector.NewEventCollector(
-		&testChainReader{},
-		contracts.Client,
-		filterers,
-		watchers,
-		persister,
-		persister,
-		persister,
-		triggers,
-		0,
+		&eventcollector.Config{
+			Chain:              &testChainReader{},
+			Client:             contracts.Client,
+			Filterers:          filterers,
+			Watchers:           watchers,
+			RetrieverPersister: persister,
+			ListenerPersister:  persister,
+			EventDataPersister: persister,
+			Triggers:           triggers,
+			StartBlock:         0,
+		},
 	)
 	return collector
 }
@@ -349,6 +359,8 @@ func TestEventCollectorStopCollection(t *testing.T) {
 	errChan := make(chan error)
 	go collectionStart(collector, t, errChan)
 
+	<-collector.StartChan()
+
 	err = collector.StopCollection()
 	if err != nil {
 		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
@@ -365,7 +377,7 @@ func TestEventCollectorAddRemoveWatchers(t *testing.T) {
 	errChan := make(chan error)
 	go collectionStart(collector, t, errChan)
 
-	time.Sleep(3 * time.Second)
+	<-collector.StartChan()
 
 	err = collector.RemoveWatchers(
 		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
@@ -380,6 +392,11 @@ func TestEventCollectorAddRemoveWatchers(t *testing.T) {
 	if err != nil {
 		t.Errorf("Should not have returned an error when adding watcher: err: %v", err)
 	}
+
+	err = collector.StopCollection()
+	if err != nil {
+		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
+	}
 }
 
 func TestEventCollectorCollection(t *testing.T) {
@@ -391,6 +408,8 @@ func TestEventCollectorCollection(t *testing.T) {
 
 	errChan := make(chan error)
 	go collectionStart(collector, t, errChan)
+
+	<-collector.StartChan()
 
 	_, err = contracts.CivilTcrContract.Apply(contracts.Auth, contracts.NewsroomAddr, big.NewInt(400), "")
 	if err != nil {
@@ -413,7 +432,8 @@ func TestEventCollectorCollection(t *testing.T) {
 
 	contracts.Client.Commit()
 
-	time.Sleep(3 * time.Second)
+	// Sleep for a bit to make sure all the events gets handled and stored
+	time.Sleep(4 * time.Second)
 
 	events, _ := persister.RetrieveEvents(&model.RetrieveEventsCriteria{
 		Offset:  0,
@@ -425,7 +445,12 @@ func TestEventCollectorCollection(t *testing.T) {
 		t.Error("Should have seen some events in the persister")
 	}
 	if len(events) != 6 {
-		t.Error("Should have seen 6 events in the persister")
+		t.Errorf("Should have seen 6 events in the persister, saw %v instead", len(events))
+	}
+
+	err = collector.StopCollection()
+	if err != nil {
+		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
 	}
 }
 
@@ -446,12 +471,19 @@ func TestNewEventCollectorBadEventSave(t *testing.T) {
 		}
 	}()
 
+	<-collector.StartChan()
+
 	_, err = contracts.CivilTcrContract.Apply(contracts.Auth, contracts.NewsroomAddr, big.NewInt(400), "")
 	if err != nil {
 		t.Errorf("Application failed: err: %v", err)
 	}
 	contracts.Client.Commit()
 	wg.Wait()
+
+	err = collector.StopCollection()
+	if err != nil {
+		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
+	}
 }
 
 func TestNewEventCollectorBadUpdateBlockData(t *testing.T) {
@@ -468,11 +500,18 @@ func TestNewEventCollectorBadUpdateBlockData(t *testing.T) {
 		}
 	}()
 
+	<-collector.StartChan()
+
 	_, err = contracts.CivilTcrContract.Apply(contracts.Auth, contracts.NewsroomAddr, big.NewInt(400), "")
 	if err != nil {
 		t.Errorf("Application failed: err: %v", err)
 	}
 	contracts.Client.Commit()
+
+	err = collector.StopCollection()
+	if err != nil {
+		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
+	}
 }
 
 func TestCheckRetrievedEventsForNewsroom(t *testing.T) {

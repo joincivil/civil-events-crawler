@@ -189,7 +189,7 @@ func (p *PostgresPersister) saveEventToTable(query string, event *model.Event) e
 	}
 	_, err = p.db.NamedExec(query, dbEvent)
 	if err != nil {
-		return fmt.Errorf("Error saving event to table %v", err)
+		return fmt.Errorf("Error saving event to table: err %v: event: %T", err, dbEvent.LogPayload["Data"])
 	}
 	return nil
 }

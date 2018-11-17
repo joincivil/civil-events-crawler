@@ -28,18 +28,18 @@ const (
 // RetrievalMethod is the enum for the type of retrieval method
 type RetrievalMethod int
 
-// ReturnEventsFromABI returns abi.Event struct from the ABI
-func ReturnEventsFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
+// ReturnEventFromABI returns abi.Event struct from the ABI
+func ReturnEventFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
 	// Some contracts have an underscore prefix on their events. Handle both
 	// non-underscore/underscore cases here.
-	events, ok := _abi.Events[eventType]
+	event, ok := _abi.Events[eventType]
 	if !ok {
-		events, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
+		event, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
 		if !ok {
-			return events, fmt.Errorf("No event type %v in contract", eventType)
+			return abi.Event{}, fmt.Errorf("No event type %v in contract", eventType)
 		}
 	}
-	return events, nil
+	return event, nil
 }
 
 // NewEventFromContractEvent creates a new event after converting eventData to interface{}
@@ -117,12 +117,12 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 		return eventPayload, err
 	}
 
-	events, err := ReturnEventsFromABI(_abi, eventType)
+	abiEvent, err := ReturnEventFromABI(_abi, eventType)
 	if err != nil {
 		return eventPayload, err
 	}
 
-	for _, input := range events.Inputs {
+	for _, input := range abiEvent.Inputs {
 		eventFieldName := strings.Title(input.Name)
 		eventField, ok := payload.Value(eventFieldName)
 		if !ok {

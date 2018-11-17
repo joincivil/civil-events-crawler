@@ -29,23 +29,35 @@ const (
 	blockHeaderExpirySecs = 60 * 5 // 5 mins
 )
 
+// Config contains the configuration dependencies for the EventCollector
+type Config struct {
+	Chain              ethereum.ChainReader
+	Client             bind.ContractBackend
+	Filterers          []model.ContractFilterers
+	Watchers           []model.ContractWatchers
+	RetrieverPersister model.RetrieverMetaDataPersister
+	ListenerPersister  model.ListenerMetaDataPersister
+	EventDataPersister model.EventDataPersister
+	Triggers           []Trigger
+	StartBlock         uint64
+	DisableListener    bool
+}
+
 // NewEventCollector creates a new event collector
-func NewEventCollector(chain ethereum.ChainReader, client bind.ContractBackend,
-	filterers []model.ContractFilterers, watchers []model.ContractWatchers,
-	retrieverPersister model.RetrieverMetaDataPersister,
-	listenerPersister model.ListenerMetaDataPersister,
-	eventDataPersister model.EventDataPersister, triggers []Trigger,
-	startBlock uint64) *EventCollector {
+func NewEventCollector(config *Config) *EventCollector {
 	eventcollector := &EventCollector{
-		chain:              chain,
-		client:             client,
-		filterers:          filterers,
-		watchers:           watchers,
-		retrieverPersister: retrieverPersister,
-		listenerPersister:  listenerPersister,
-		eventDataPersister: eventDataPersister,
-		triggers:           triggers,
-		startBlock:         startBlock,
+		chain:              config.Chain,
+		client:             config.Client,
+		filterers:          config.Filterers,
+		watchers:           config.Watchers,
+		retrieverPersister: config.RetrieverPersister,
+		listenerPersister:  config.ListenerPersister,
+		eventDataPersister: config.EventDataPersister,
+		triggers:           config.Triggers,
+		startBlock:         config.StartBlock,
+		startChan:          make(chan bool),
+		quitChan:           make(chan bool),
+		disableListener:    config.DisableListener,
 	}
 	return eventcollector
 }
@@ -74,12 +86,19 @@ type EventCollector struct {
 
 	startBlock uint64
 
-	// quitChan is created in StartCollection() and stops the goroutine listening for events.
-	quitChan chan interface{}
+	// startChan is closed when the event collector has started
+	startChan chan bool
+
+	// quitChan is closed to stop goroutines and the event collector
+	quitChan chan bool
+
+	errorsChan chan error
 
 	mutex sync.Mutex
 
 	headerCache *utils.BlockHeaderCache
+
+	disableListener bool
 }
 
 type handleEventInputs struct {
@@ -122,8 +141,42 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	return nil
 }
 
+// StartChan returns the channel will send a "event collector started" signal
+func (c *EventCollector) StartChan() chan bool {
+	return c.startChan
+}
+
 // StartCollection contains logic to run retriever and listener.
 func (c *EventCollector) StartCollection() error {
+	err := c.runRetriever()
+	if err != nil {
+		c.sendStartSignal()
+		return err
+	}
+
+	if c.disableListener {
+		log.Infof("Listener is disabled, not starting")
+		c.sendStartSignal()
+		return nil
+	}
+
+	err = c.startListener()
+	if err != nil {
+		c.sendStartSignal()
+		return fmt.Errorf("Error starting listener: err: %v", err)
+	}
+
+	c.sendStartSignal()
+
+	select {
+	case err = <-c.errorsChan:
+		return fmt.Errorf("Error during event handling: err: %v", err)
+	case <-c.quitChan:
+		return nil
+	}
+}
+
+func (c *EventCollector) runRetriever() error {
 	err := c.retrieveEvents(c.filterers)
 	if err != nil {
 		return fmt.Errorf("Error retrieving events: err: %v", err)
@@ -151,23 +204,24 @@ func (c *EventCollector) StartCollection() error {
 	if err != nil {
 		return fmt.Errorf("Error persisting last block data: err: %v", err)
 	}
+	return nil
+}
 
-	err = c.startListener()
-	if err != nil {
-		return fmt.Errorf("Error starting listener: err: %v", err)
+func (c *EventCollector) startListener() error {
+	defer c.mutex.Unlock()
+	c.mutex.Lock()
+
+	c.listen = listener.NewEventListener(c.client, c.watchers)
+	if c.listen == nil {
+		return errors.New("Listener should not be nil")
 	}
-	defer func() {
-		err = c.StopCollection()
-		if err != nil {
-			log.Errorf("Error stopping collection: err: %v", err)
-		}
-	}()
 
-	c.quitChan = make(chan interface{})
-	// errors channel to catch persistence errors
-	errorsChan := make(chan error)
+	err := c.listen.Start()
+	if err != nil {
+		return fmt.Errorf("Listener should have started with no errors: %v", err)
+	}
 
-	go func(quit <-chan interface{}, errors chan<- error) {
+	go func(quit <-chan bool, errors chan<- error) {
 		multiplier := 1
 		numCPUs := runtime.NumCPU() * multiplier
 		pool := tunny.NewFunc(numCPUs, c.handleEvent)
@@ -197,14 +251,9 @@ func (c *EventCollector) StartCollection() error {
 				return
 			}
 		}
-	}(c.quitChan, errorsChan)
+	}(c.quitChan, c.errorsChan)
 
-	select {
-	case err = <-errorsChan:
-		return fmt.Errorf("Error during event handling: err: %v", err)
-	case <-c.quitChan:
-		return nil
-	}
+	return nil
 }
 
 // StopCollection is for stopping the listener
@@ -231,6 +280,12 @@ func (c *EventCollector) RemoveWatchers(w model.ContractWatchers) error {
 	defer c.mutex.Unlock()
 	c.mutex.Lock()
 	return c.listen.RemoveWatchers(w)
+}
+
+func (c *EventCollector) sendStartSignal() {
+	if c.startChan != nil {
+		close(c.startChan)
+	}
 }
 
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
@@ -304,8 +359,6 @@ func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers) err
 // CheckRetrievedEventsForNewsroom checks pastEvents for TCR events that may include new newsroom events,
 // creates new Newsroom filterers and watchers upon valid events, filters for events, and then returns those events
 func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Event) ([]*model.Event, error) {
-	log.Infof("Checking for new newsrooms in filterer")
-
 	existingFiltererNewsroomAddr := c.getExistingNewsroomFilterers()
 	existingWatcherNewsroomAddr := c.getExistingNewsroomWatchers()
 	watchersToAdd := map[common.Address]*watcher.NewsroomContractWatchers{}
@@ -377,20 +430,6 @@ func (c *EventCollector) getExistingNewsroomWatchers() map[common.Address]bool {
 		}
 	}
 	return existingNewsroomAddr
-}
-
-func (c *EventCollector) startListener() error {
-	defer c.mutex.Unlock()
-	c.mutex.Lock()
-	c.listen = listener.NewEventListener(c.client, c.watchers)
-	if c.listen == nil {
-		return errors.New("Listener should not be nil")
-	}
-	err := c.listen.Start()
-	if err != nil {
-		return fmt.Errorf("Listener should have started with no errors: %v", err)
-	}
-	return nil
 }
 
 func (c *EventCollector) callTriggers(event *model.Event) error {
