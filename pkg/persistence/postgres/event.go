@@ -1,6 +1,7 @@
 package postgres // import "github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	log "github.com/golang/glog"
@@ -195,7 +196,8 @@ func (c *Event) EventLogDataToDB(payload *types.Log) {
 	}
 
 	c.LogPayload["Topics"] = topics
-	c.LogPayload["Data"] = string(payload.Data)
+	// Store data field as a base64 encoded string to retain valid []byte.
+	c.LogPayload["Data"] = base64.StdEncoding.EncodeToString(payload.Data)
 	c.LogPayload["BlockNumber"] = float64(payload.BlockNumber)
 	c.LogPayload["TxHash"] = payload.TxHash.Hex()
 	c.LogPayload["TxIndex"] = float64(payload.TxIndex)
@@ -213,6 +215,7 @@ func (c *Event) DBToEventLogData() *types.Log {
 	tlog.Address = common.HexToAddress(c.LogPayload["Address"].(string))
 
 	tlog.Topics = c.typeInferTopics(c.LogPayload["Topics"])
+	// Data is a base64 encoded string from []byte. Convert this back to []byte.
 	tlog.Data = c.typeInferData(c.LogPayload["Data"])
 
 	// BlockNumber is stored in DB as float64
@@ -253,8 +256,14 @@ func (c *Event) typeInferBlockNumber(blockInterface interface{}) uint64 {
 func (c *Event) typeInferData(dataInterface interface{}) []byte {
 	var returnData []byte
 	switch data := dataInterface.(type) {
+	// Decode base64 encoded string back to []byte
 	case string:
-		returnData = []byte(data)
+		bys, err := base64.StdEncoding.DecodeString(data)
+		if err != nil {
+			log.Errorf("Error decoding base64 data field: err: %v", err)
+		} else {
+			returnData = bys
+		}
 	default:
 		log.Errorf("DB Data type expected as string, instead is %T", data)
 	}
