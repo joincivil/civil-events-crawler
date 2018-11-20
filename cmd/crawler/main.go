@@ -5,9 +5,11 @@ import (
 	"context"
 	"flag"
 	log "github.com/golang/glog"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 
@@ -16,6 +18,10 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
+)
+
+const (
+	websocketPingDelaySecs = 60 * 30 // 30 mins
 )
 
 func contractFilterers(config *utils.CrawlerConfig) []model.ContractFilterers {
@@ -88,58 +94,123 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 	return persister
 }
 
-func setupKillNotify(eventCol *eventcollector.EventCollector) {
+func cleanup(eventCol *eventcollector.EventCollector, killChan chan<- bool) {
+	log.Info("Stopping crawler...")
+	err := eventCol.StopCollection()
+	if err != nil {
+		log.Errorf("Error stopping collection: err: %v", err)
+	}
+	close(killChan)
+	log.Info("Crawler stopped")
+}
+
+func setupKillNotify(eventCol *eventcollector.EventCollector, killChan chan<- bool) {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		log.Info("Stopping collector...")
-		err := eventCol.StopCollection()
-		if err != nil {
-			log.Errorf("Error stopping collection: err: %v", err)
-		}
-		log.Info("Crawler stopped")
+		cleanup(eventCol, killChan)
 		os.Exit(1)
 	}()
 }
 
-func startUp(config *utils.CrawlerConfig) error {
-	log.Info("Setting up ethclient")
+// websocketPing periodically makes a call over the websocket conn
+// to the Eth node to ensure the connection stays alive.
+// Since there is no built in facility to do pings with the go-eth lib,
+// need to do this ourselves by making a eth_getBlockByNumber RPC call.
+// NOTE(PN): Need to ensure the client passed in is a websocket client.
+// XXX(PN): Need to replace this someday with something better.
+func websocketPing(client *ethclient.Client, killChan <-chan bool) {
+Loop:
+	for {
+		select {
+		case <-time.After(websocketPingDelaySecs * time.Second):
+			header, err := client.HeaderByNumber(context.TODO(), nil)
+			if err != nil {
+				log.Errorf("Ping header by number failed: err: %v", err)
+			}
+			log.Infof("Ping success: block number: %v", header.Number)
+
+		case <-killChan:
+			log.Infof("Closing websocket ping")
+			break Loop
+		}
+	}
+}
+
+func isWebsocketURL(rawurl string) bool {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		log.Infof("Unable to parse URL: err: %v", err)
+		return false
+	}
+	if u.Scheme == "ws" || u.Scheme == "wss" {
+		return true
+	}
+	return false
+}
+
+func setupWebsocketPing(config *utils.CrawlerConfig, client *ethclient.Client,
+	killChan <-chan bool) error {
+	// If websocket connection, setup "ping"
+	// otherwise, ignore this
+	if isWebsocketURL(config.EthAPIURL) {
+		go websocketPing(client, killChan)
+	}
+	return nil
+}
+
+func setupEthClient(config *utils.CrawlerConfig, killChan <-chan bool) (*ethclient.Client, error) {
 	client, err := ethclient.Dial(config.EthAPIURL)
+	if err != nil {
+		return nil, err
+	}
+	err = setupWebsocketPing(config, client, killChan)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+func startUp(config *utils.CrawlerConfig) error {
+	killChan := make(chan bool)
+
+	client, err := setupEthClient(config, killChan)
 	if err != nil {
 		return err
 	}
 
+	log.Infof("Starting to filter at block number %v", config.EthStartBlock)
 	if log.V(2) {
 		header, logErr := client.HeaderByNumber(context.TODO(), nil)
 		if logErr == nil {
 			log.Infof("Latest block number is: %v", header.Number)
 		}
-		log.Infof("Starting to filter at block number %v", config.EthStartBlock)
 	}
 
-	log.Info("Setting up event collector")
 	eventCol := eventcollector.NewEventCollector(
-		client,
-		client,
-		contractFilterers(config),
-		contractWatchers(config),
-		listenerMetaDataPersister(config),
-		retrieverMetaDataPersister(config),
-		eventDataPersister(config),
-		eventTriggers(config),
-		config.EthStartBlock,
+		&eventcollector.Config{
+			Chain:              client,
+			Client:             client,
+			Filterers:          contractFilterers(config),
+			Watchers:           contractWatchers(config),
+			RetrieverPersister: retrieverMetaDataPersister(config),
+			ListenerPersister:  listenerMetaDataPersister(config),
+			EventDataPersister: eventDataPersister(config),
+			Triggers:           eventTriggers(config),
+			StartBlock:         config.EthStartBlock,
+			DisableListener:    !isWebsocketURL(config.EthAPIURL),
+		},
 	)
 
-	setupKillNotify(eventCol)
+	// Setup shutdown/cleanup hooks
+	setupKillNotify(eventCol, killChan)
 	defer func() {
-		err := eventCol.StopCollection()
-		if err != nil {
-			log.Errorf("Error stopping collection: err: %v", err)
-		}
+		cleanup(eventCol, killChan)
 	}()
 
 	log.Info("Crawler starting...")
+
 	// Will block here while handling collection
 	return eventCol.StartCollection()
 }

@@ -44,9 +44,10 @@ var (
 		Data:           "DATA",
 		Applicant:      common.HexToAddress(testAddress),
 		Raw: types.Log{
-			Address:     common.HexToAddress(testAddress),
-			Topics:      []common.Hash{},
-			Data:        []byte{},
+			Address: common.HexToAddress(testAddress),
+			Topics:  []common.Hash{},
+			// Simulating some non-char data in the data payload here
+			Data:        []byte("\u0000`[�c[�5ipfs://QmStDCuCeS6BfXiDRCkqGPvjRxgku79tzFfAfhUHFEFDhq"),
 			BlockNumber: 8888888,
 			TxHash:      common.Hash{},
 			TxIndex:     2,
@@ -79,7 +80,7 @@ var (
 		Raw: types.Log{
 			Address:     common.HexToAddress(testAddress),
 			Topics:      []common.Hash{},
-			Data:        []byte{},
+			Data:        []byte("thisisdata1"),
 			BlockNumber: 8888887,
 			TxHash:      common.Hash{},
 			TxIndex:     4,
@@ -93,7 +94,7 @@ var (
 		Raw: types.Log{
 			Address:     common.HexToAddress(testAddress),
 			Topics:      []common.Hash{},
-			Data:        []byte{},
+			Data:        []byte("thisisdata2"),
 			BlockNumber: 8888889,
 			TxHash:      common.Hash{},
 			TxIndex:     4,
@@ -111,7 +112,7 @@ var (
 		Raw: types.Log{
 			Address:     common.HexToAddress(testAddress),
 			Topics:      []common.Hash{},
-			Data:        []byte{},
+			Data:        []byte("thisisdata3"),
 			BlockNumber: 8898889,
 			TxHash:      common.Hash{},
 			TxIndex:     4,
@@ -289,9 +290,23 @@ func setupTestTable() (*PostgresPersister, error) {
 func deleteTestTable(persister *PostgresPersister) error {
 	_, err := persister.db.Query("DROP TABLE event_test;")
 	if err != nil {
-		return fmt.Errorf("Couldn't delete test table %v", err)
+		return err
 	}
 	return nil
+}
+
+func deleteTestTableForTesting(t *testing.T, persister *PostgresPersister) {
+	err := deleteTestTable(persister)
+	if err != nil {
+		t.Errorf("Couldn't delete test table %v", err)
+	}
+}
+
+func deleteTestTableForBenchmarks(b *testing.B, persister *PostgresPersister) {
+	err := deleteTestTable(persister)
+	if err != nil {
+		b.Errorf("Couldn't delete test table %v", err)
+	}
 }
 
 /*
@@ -358,7 +373,7 @@ func TestIndexCreationTestTable(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
 
 	indexCreationQuery := postgres.CreateEventTableIndicesString(eventTestTableName)
 	_, err = persister.db.Query(indexCreationQuery)
@@ -378,7 +393,8 @@ func TestDuplicateEvents(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
+
 	// create 2 events w same payload hash
 	event1, err := setupApplicationEvent(false)
 	if err != nil {
@@ -397,42 +413,7 @@ func TestDuplicateEvents(t *testing.T) {
 	if !strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
 		t.Errorf("Error for duplicate key value should have been thrown")
 	}
-
-	err = deleteTestTable(persister)
-	if err != nil {
-		t.Error(err)
-	}
 }
-
-// Test saving the same list of events twice to ensure that start block for filterers is being updated w persistence
-func TestStartBlockUpdate(t *testing.T) {
-	persister, err := setupTestTable()
-	if err != nil {
-		t.Error(err)
-	}
-	defer deleteTestTable(persister)
-	events, err := setupEvents(false)
-	if err != nil {
-		t.Errorf("Couldn't setup civilEvent from contract %v", err)
-	}
-	err = persister.saveEventsToTable(events, eventTestTableName)
-	if err != nil {
-		fmt.Errorf("Error saving events to table, %v", err)
-	}
-	err = persister.saveEventsToTable(events, eventTestTableName)
-	if err != nil {
-		fmt.Errorf("Error saving same events to table, %v", err)
-	}
-
-	err = deleteTestTable(persister)
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-/*
-event table tests
-*/
 
 // TestMultipleQueries tests that all queries can be performed w the instance of db, i.e. connection pools are being returned
 func TestMultipleQueries(t *testing.T) {
@@ -440,7 +421,8 @@ func TestMultipleQueries(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
+
 	// save each type of test event to table
 	// save many events
 	for i := 1; i <= 100; i++ {
@@ -470,11 +452,6 @@ func TestMultipleQueries(t *testing.T) {
 			t.Errorf("Couldn't populate block data %v", err)
 		}
 	}
-
-	err = deleteTestTable(persister)
-	if err != nil {
-		t.Error(err)
-	}
 }
 
 func TestSaveEvents(t *testing.T) {
@@ -482,7 +459,7 @@ func TestSaveEvents(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
 
 	events, err := setupEvents(true)
 	if err != nil {
@@ -502,11 +479,6 @@ func TestSaveEvents(t *testing.T) {
 	if len(civilEventsDB) != 5 {
 		t.Errorf("expected there to be 5 events in table but there are %v events", len(civilEventsDB))
 	}
-
-	err = deleteTestTable(persister)
-	if err != nil {
-		t.Error(err)
-	}
 }
 
 // TODO (IS): fix this test. this isn't true benchmark of saving events bc of the hashing function on creation
@@ -516,7 +488,7 @@ func BenchmarkSavingManyEventsToEventTestTable(b *testing.B) {
 	if err != nil {
 		b.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForBenchmarks(b, persister)
 
 	numEvents := 100
 	numEventTypes := 5
@@ -536,13 +508,11 @@ func BenchmarkSavingManyEventsToEventTestTable(b *testing.B) {
 	var numRows int
 	err = persister.db.QueryRow(`SELECT COUNT(*) FROM
                                         event_test`).Scan(&numRows)
+	if err != nil {
+		b.Errorf("Error querying count: err: %v", err)
+	}
 	if numRows != numEvents*numEventTypes {
 		b.Errorf("Number of rows in event_test table should be %v but it is %v", numEvents, numRows)
-	}
-
-	err = deleteTestTable(persister)
-	if err != nil {
-		b.Error(err)
 	}
 }
 
@@ -596,7 +566,7 @@ func TestLatestEventsQuery(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
 
 	testEvents, err := setupEvents(true)
 	if err != nil {
@@ -638,10 +608,6 @@ func TestLatestEventsQuery(t *testing.T) {
 		}
 
 	}
-	err = deleteTestTable(persister)
-	if err != nil {
-		t.Error(err)
-	}
 }
 
 func TestPopulateBlockDataFromDB(t *testing.T) {
@@ -649,7 +615,7 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
 
 	// create test events, fill test block data
 	numEvents := 3
@@ -715,10 +681,6 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 			persister.eventToBlockData)
 	}
 
-	err = deleteTestTable(persister)
-	if err != nil {
-		t.Error(err)
-	}
 }
 
 // Two events with the same timestamp
@@ -728,7 +690,7 @@ func TestSameTimestampEvents(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
 
 	// setup 2 challenge events (same contract address) with the same timestamp..
 	// 2 cases
@@ -800,11 +762,6 @@ func TestSameTimestampEvents(t *testing.T) {
 		persister.eventToBlockData[common.HexToAddress(contractAddress)]["Application"].BlockNumber {
 		t.Errorf("Block number is not what it should be")
 	}
-
-	err = deleteTestTable(persister)
-	if err != nil {
-		t.Error(err)
-	}
 }
 
 // This conversion needs to be here, bc we need the actual event after being saved in DB.
@@ -813,7 +770,7 @@ func TestDBToEvent(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
 
 	appEvent, err := setupApplicationEvent(true)
 	if err != nil {
@@ -828,6 +785,9 @@ func TestDBToEvent(t *testing.T) {
 	}
 
 	appEventDB, err := allEventsFromTable(persister, eventTestTableName)
+	if err != nil {
+		t.Errorf("Cannot retrieve events from table: err: %v", err)
+	}
 
 	dbEvent := appEventDB[0]
 
@@ -889,11 +849,6 @@ func TestDBToEvent(t *testing.T) {
 	if civilLogPayload.Removed != civilLogFromDBPayload.Removed {
 		t.Errorf("Removed in Log not equal: %v %v", civilLogPayload.Removed, civilLogFromDBPayload.Removed)
 	}
-	err = deleteTestTable(persister)
-	if err != nil {
-		t.Error(err)
-	}
-
 }
 
 func TestUint256Float64Conversion(t *testing.T) {
@@ -905,7 +860,7 @@ func TestUint256Float64Conversion(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
 
 	appEvent, err := setupApplicationEvent(true)
 	if err != nil {
@@ -919,6 +874,9 @@ func TestUint256Float64Conversion(t *testing.T) {
 	}
 
 	appEventDB, err := allEventsFromTable(persister, eventTestTableName)
+	if err != nil {
+		t.Errorf("Cannot retrieve events from table: err: %v", err)
+	}
 
 	dbEvent := appEventDB[0]
 
@@ -943,7 +901,7 @@ func TestRetrieveEvents(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer deleteTestTable(persister)
+	defer deleteTestTableForTesting(t, persister)
 
 	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
@@ -1080,10 +1038,5 @@ func TestRetrieveEvents(t *testing.T) {
 	}
 	if events[0].EventType() != "Application" {
 		t.Errorf("Should have seen the type application")
-	}
-
-	err = deleteTestTable(persister)
-	if err != nil {
-		t.Error(err)
 	}
 }

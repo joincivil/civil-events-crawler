@@ -86,21 +86,21 @@ func NewDbEventFromEvent(event *model.Event) (*Event, error) {
 	return dbEvent, nil
 }
 
-// EventDataToDB converts event types so they can be stored in the DB
-func (c *Event) EventDataToDB(event map[string]interface{}) error {
+// EventDataToDB converts event data payload types so they can be stored in the DB
+func (c *Event) EventDataToDB(eventData map[string]interface{}) error {
 	abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
 		return fmt.Errorf("Error getting ABI from contract name: %v", err)
 	}
-	events, err := model.ReturnEventsFromABI(abi, c.EventType)
+	abiEvent, err := model.ReturnEventFromABI(abi, c.EventType)
 	if err != nil {
 		return fmt.Errorf("Error parsing ABI to get events, err: %v", err)
 	}
 	eventPayload := make(JsonbPayload)
 
-	for _, input := range events.Inputs {
+	for _, input := range abiEvent.Inputs {
 		eventFieldName := strings.Title(input.Name)
-		eventField := event[eventFieldName]
+		eventField := eventData[eventFieldName]
 		switch input.Type.String() {
 		case "address":
 			eventPayload[eventFieldName] = eventField.(common.Address).Hex()
@@ -114,7 +114,6 @@ func (c *Event) EventDataToDB(event map[string]interface{}) error {
 			eventPayload[eventFieldName] = eventField.(string)
 		case "default":
 			return fmt.Errorf("unsupported type")
-
 		}
 	}
 	c.EventPayload = eventPayload
@@ -130,12 +129,12 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 		return event, fmt.Errorf("Error getting abi from contract name: %v", err)
 	}
 	eventPayload := make(map[string]interface{})
-	events, err := model.ReturnEventsFromABI(abi, c.EventType)
+	abiEvent, err := model.ReturnEventFromABI(abi, c.EventType)
 	if err != nil {
 		return event, err
 	}
 
-	for _, input := range events.Inputs {
+	for _, input := range abiEvent.Inputs {
 		eventFieldName := strings.Title(input.Name)
 		eventField, ok := c.EventPayload[eventFieldName]
 		if !ok {
@@ -217,7 +216,6 @@ func (c *Event) DBToEventLogData() *types.Log {
 	tlog.Topics = c.typeInferTopics(c.LogPayload["Topics"])
 	// Data is a base64 encoded string from []byte. Convert this back to []byte.
 	tlog.Data = c.typeInferData(c.LogPayload["Data"])
-
 	// BlockNumber is stored in DB as float64
 	tlog.BlockNumber = c.typeInferBlockNumber(c.LogPayload["BlockNumber"])
 	tlog.TxHash = common.HexToHash(c.LogPayload["TxHash"].(string))
@@ -237,7 +235,7 @@ func (c *Event) typeInferIndex(txIndexInterface interface{}) uint {
 	case float64:
 		returnTxIndex = uint(val)
 	default:
-		log.Errorf("DB Index type expected as float64, instead is %T", val)
+		log.Errorf("DB Index type infer expected as float64, instead is %T", val)
 	}
 	return returnTxIndex
 }
@@ -248,7 +246,7 @@ func (c *Event) typeInferBlockNumber(blockInterface interface{}) uint64 {
 	case float64:
 		returnBlockNumber = uint64(val)
 	default:
-		log.Errorf("DB Block number type expected as float64, instead is %T", val)
+		log.Errorf("DB Block number type infer expected as float64, instead is %T", val)
 	}
 	return returnBlockNumber
 }
@@ -265,7 +263,7 @@ func (c *Event) typeInferData(dataInterface interface{}) []byte {
 			returnData = bys
 		}
 	default:
-		log.Errorf("DB Data type expected as string, instead is %T", data)
+		log.Errorf("DB Data type infer expected as []byte, instead is %T", data)
 	}
 	return returnData
 }
@@ -280,7 +278,7 @@ func (c *Event) typeInferTopics(topicsInterface interface{}) []common.Hash {
 			case string:
 				theTopics[i] = common.HexToHash(topic)
 			default:
-				log.Errorf("DB Topic type expected as string, instead is %T", topic)
+				log.Errorf("DB Topic type infer expected as string, instead is %T", topic)
 			}
 		}
 	default:

@@ -12,7 +12,9 @@
         "unconvert",
         "gosec",
         "errcheck",
-        "staticcheck"
+        "staticcheck",
+        "ineffassign",
+        "misspell"
     ],
     "Vendor": true,
     "Concurrency": 2,

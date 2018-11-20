@@ -267,7 +267,7 @@ func setupTestEIP20Contract(client bind.ContractBackend, auth *bind.TransactOpts
 // with the actual addresses to those library contracts
 func modifyByteCodeWithDllAttrStore(bin string, dllAddr common.Address,
 	attrStoreAddr common.Address) string {
-	// To add the DLL and AttributeStore addresses, replace occurrances of
+	// To add the DLL and AttributeStore addresses, replace occurrences of
 	// _DLL__________ and _AttributeStore__________ with the respective contract addresses
 	ddlRexp := regexp.MustCompile("_+DLL_+")
 	asRexp := regexp.MustCompile("_+AttributeStore_+")

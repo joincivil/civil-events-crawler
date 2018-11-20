@@ -30,7 +30,7 @@ var (
 				common.HexToHash("0x0000000000000000000000002652c60cf04bbf6bb6cc8a5e6f1c18143729d440"),
 				common.HexToHash("0x00000000000000000000000025bf9a1595d6f6c70e6848b60cba2063e4d9e552"),
 			},
-			Data:        []byte{},
+			Data:        []byte("thisisadatastring"),
 			BlockNumber: 8888888,
 			TxHash:      common.Hash{},
 			TxIndex:     2,
