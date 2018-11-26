@@ -5,4 +5,4 @@ ADD build/crawler /crawler
 RUN chmod u+x /crawler
 
 EXPOSE 9000
-CMD ["/crawler", "-logtostderr=true", "-stderrthreshold=INFO"]
+CMD ["/crawler", "-logtostderr=true", "-stderrthreshold=INFO", "-v=2"]
