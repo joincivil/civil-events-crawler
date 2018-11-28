@@ -8,20 +8,19 @@
 package persistence
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
+	"math/big"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
-	"math/big"
-	"reflect"
-	"strings"
-	"testing"
-	"time"
 )
 
 const (
@@ -130,7 +129,7 @@ Helpers for tests
 // Sets up an Application event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
 func setupApplicationEvent(rand bool) (*model.Event, error) {
 	if rand {
-		randString, _ := randomHex(32)
+		randString, _ := utils.RandomHexStr(32)
 		testApplicationEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
@@ -140,7 +139,7 @@ func setupApplicationEvent(rand bool) (*model.Event, error) {
 // Sets up an ApplicationWhitelisted event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
 func setupApplicationWhitelistedEvent(rand bool) (*model.Event, error) {
 	if rand {
-		randString, _ := randomHex(32)
+		randString, _ := utils.RandomHexStr(32)
 		testApplicationWhitelistedEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("ApplicationWhitelisted", "CivilTCRContract", common.HexToAddress(contractAddress),
@@ -150,7 +149,7 @@ func setupApplicationWhitelistedEvent(rand bool) (*model.Event, error) {
 // Sets up an Challenge event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
 func setupChallengeEvent(rand bool) (*model.Event, error) {
 	if rand {
-		randString, _ := randomHex(32)
+		randString, _ := utils.RandomHexStr(32)
 		testChallengeEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("Challenge", "CivilTCRContract", common.HexToAddress(contractAddress),
@@ -160,7 +159,7 @@ func setupChallengeEvent(rand bool) (*model.Event, error) {
 // Sets up a Newsroom Name Changed event and if rand=true, generates a random hash for transaction hash so that the hash in DB is unique.
 func setupNewsroomNameChanged(rand bool) (*model.Event, error) {
 	if rand {
-		randString, _ := randomHex(32)
+		randString, _ := utils.RandomHexStr(32)
 		testNwsrmNameChangedEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("NameChanged", "NewsroomContract", common.HexToAddress(contractAddress),
@@ -170,7 +169,7 @@ func setupNewsroomNameChanged(rand bool) (*model.Event, error) {
 // Sets up a PLCRVotingContractPollCreated event
 func setupPLCRVotingContractPollCreated(rand bool) (*model.Event, error) {
 	if rand {
-		randString, _ := randomHex(32)
+		randString, _ := utils.RandomHexStr(32)
 		testPLCRPollCreatedEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("PollCreated", "CivilPLCRVotingContract", common.HexToAddress(plcrcontractAddress),
@@ -180,7 +179,7 @@ func setupPLCRVotingContractPollCreated(rand bool) (*model.Event, error) {
 // specify fields for testing purposes
 func setupApplicationEventWithParams(rand bool, contractAddress string, timestamp int64) (*model.Event, error) {
 	if rand {
-		randString, _ := randomHex(32)
+		randString, _ := utils.RandomHexStr(32)
 		testApplicationEvent.Raw.TxHash = common.HexToHash(randString)
 	}
 	return model.NewEventFromContractEvent("Application", "CivilTCRContract", common.HexToAddress(contractAddress),
@@ -243,15 +242,6 @@ func setupEventsDifferentTimes(rand bool) ([]*model.Event, error) {
 		return nil, fmt.Errorf("Cannot setup PollCreated event: %v", err)
 	}
 	return []*model.Event{appEvent, appWhitelisted, challenge, nameChanged, pollCreated}, nil
-}
-
-// random hex string generation
-func randomHex(n int) (string, error) {
-	bytes := make([]byte, n)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
 }
 
 // Change block number of events for tests
@@ -643,7 +633,7 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 	}
 
 	// add events with a different contract address
-	contractAddress, _ = randomHex(42)
+	contractAddress, _ = utils.RandomHexStr(42)
 
 	for i := 1; i <= numEvents; i++ {
 		events, err := setupEvents(true)
@@ -701,7 +691,7 @@ func TestSameTimestampEvents(t *testing.T) {
 	numEvents := 2
 	civilEventsFromContract := make([]*model.Event, numEvents)
 	timestamp := utils.CurrentEpochSecsInInt64()
-	contractAddress, _ := randomHex(42)
+	contractAddress, _ := utils.RandomHexStr(42)
 
 	for i := 0; i < numEvents; i++ {
 		event, err := setupApplicationEventWithParams(true, contractAddress, timestamp)

@@ -61,5 +61,30 @@ func TestIsValidContractAddress(t *testing.T) {
 	if !utils.IsValidContractAddress("0xdfe273082089bb7f70ee36eebcde64832fe97e55") {
 		t.Error("Should have not have failed on an valid contract address")
 	}
+}
 
+func TestRandomHex(t *testing.T) {
+	s, err := utils.RandomHexStr(32)
+	if err != nil {
+		t.Errorf("Should not have failed on call to random hex str: err: %v", err)
+	}
+	if len(s) != 64 {
+		t.Errorf("Should have been a 64 char hex string: %v", len(s))
+	}
+
+	s, err = utils.RandomHexStr(10)
+	if err != nil {
+		t.Errorf("Should not have failed on call to random hex str: err: %v", err)
+	}
+	if len(s) != 20 {
+		t.Errorf("Should have been a 20 char hex string: %v", len(s))
+	}
+
+	s, err = utils.RandomHexStr(0)
+	if err != nil {
+		t.Errorf("Should not have failed on call to random hex str: err: %v", err)
+	}
+	if len(s) != 0 {
+		t.Errorf("Should have been a 0 char hex string: %v", len(s))
+	}
 }
