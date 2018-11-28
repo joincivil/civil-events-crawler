@@ -2,8 +2,11 @@
 package utils
 
 import (
-	"github.com/ethereum/go-ethereum/common"
+	"crypto/rand"
+	"encoding/hex"
 	"regexp"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
@@ -20,4 +23,13 @@ func IsValidEthAPIURL(url string) bool {
 // smart contract address
 func IsValidContractAddress(address string) bool {
 	return common.IsHexAddress(address)
+}
+
+// RandomHexStr generates a hex string from a byte slice of n random numbers.
+func RandomHexStr(n int) (string, error) {
+	bys := make([]byte, n)
+	if _, err := rand.Read(bys); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bys), nil
 }
