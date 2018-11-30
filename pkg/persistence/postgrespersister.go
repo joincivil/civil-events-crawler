@@ -5,11 +5,13 @@ package persistence // import "github.com/joincivil/civil-events-crawler/pkg/per
 import (
 	"bytes"
 	"fmt"
-	log "github.com/golang/glog"
 	"strings"
+
+	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/jmoiron/sqlx"
+
 	// driver for postgresql
 	_ "github.com/lib/pq"
 
@@ -124,6 +126,7 @@ func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName s
 		if err != nil {
 			return err
 		}
+		log.Infof("saveEventsToTable: saved: %v, %v", event.EventType(), event.TxHash().Hex()) // Debug, remove later
 	}
 	return nil
 }
@@ -191,6 +194,7 @@ func (p *PostgresPersister) saveEventToTable(query string, event *model.Event) e
 	if err != nil {
 		return fmt.Errorf("Error saving event to table: err %v: event: %T", err, dbEvent.LogPayload["Data"])
 	}
+	log.Infof("saveEventToTable: done") // Debug, remove later
 	return nil
 }
 

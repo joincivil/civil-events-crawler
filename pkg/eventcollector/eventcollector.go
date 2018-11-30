@@ -5,10 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	log "github.com/golang/glog"
 	"math/big"
 	"runtime"
 	"sync"
+
+	log "github.com/golang/glog"
 
 	"github.com/Jeffail/tunny"
 
@@ -110,6 +111,9 @@ type handleEventInputs struct {
 // incoming events fromt the watchers
 func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	inputs := payload.(handleEventInputs)
+	eventType := inputs.event.EventType()                                     // Debug, remove later
+	txHash := inputs.event.TxHash()                                           // Debug, remove later
+	log.Infof("handleEvent: handling event: %v, %v", eventType, txHash.Hex()) // Debug, remove later
 	event := inputs.event
 	errors := inputs.errors
 
@@ -119,6 +123,8 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		errors <- err
 		return nil
 	}
+	log.Infof("handleEvent: updated event time from block header: %v, %v", eventType, txHash.Hex()) // Debug, remove later
+
 	// Save event to persister
 	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
 	if err != nil {
@@ -126,6 +132,8 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		errors <- err
 		return nil
 	}
+	log.Infof("handleEvent: events saved") // Debug, remove later
+
 	// Update last block in persistence in case of error
 	err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
 	if err != nil {
@@ -133,11 +141,14 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		errors <- err
 		return nil
 	}
+	log.Infof("handleEvent: updated last block data: %v, %v", eventType, txHash.Hex()) // Debug, remove later
+
 	// Call event triggers
 	err = c.callTriggers(event)
 	if err != nil {
 		log.Errorf("Error calling triggers: err: %v", err)
 	}
+	log.Infof("handleEvent: done: %v, %v", eventType, txHash.Hex()) // Debug, remove later
 	return nil
 }
 
@@ -247,7 +258,9 @@ func (c *EventCollector) startListener() error {
 						},
 					)
 				}(event, errors)
+				log.Infof("startListener: started process from pool") // Debug, remove later
 			case <-quit:
+				log.Infof("startListener: quit") // Debug, remove later
 				return
 			}
 		}

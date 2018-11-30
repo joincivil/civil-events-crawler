@@ -42,7 +42,7 @@ func (n *AddNewsroomWatchersTrigger) Run(collector *EventCollector,
 	if err != nil {
 		return fmt.Errorf("Error adding watchers: err: %v", err)
 	}
-	log.Infof("Adding watchers for newsroom at address: %v", newsroomAddr)
+	log.Infof("Adding watchers for newsroom at address: %v", newsroomAddr.Hex())
 	return nil
 }
 
@@ -74,6 +74,6 @@ func (n *RemoveNewsroomWatchersTrigger) Run(collector *EventCollector,
 	if err != nil {
 		return fmt.Errorf("Error removing watchers: err: %v", err)
 	}
-	log.Infof("Removing watchers for newsroom at address: %v", newsroomAddr)
+	log.Infof("Removing watchers for newsroom at address: %v", newsroomAddr.Hex())
 	return nil
 }
