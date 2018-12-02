@@ -17,12 +17,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/joincivil/civil-events-crawler/pkg/eth"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 // Config contains the configuration dependencies for the EventCollector
 type Config struct {
 	Chain              ethereum.ChainReader
-	RetryChain         utils.RetryChainReader
+	RetryChain         eth.RetryChainReader
 	Client             bind.ContractBackend
 	Filterers          []model.ContractFilterers
 	Watchers           []model.ContractWatchers
@@ -48,7 +48,7 @@ type Config struct {
 func NewEventCollector(config *Config) *EventCollector {
 	eventcollector := &EventCollector{
 		chain:              config.Chain,
-		retryChain:         utils.RetryChainReader{ChainReader: config.Chain},
+		retryChain:         eth.RetryChainReader{ChainReader: config.Chain},
 		client:             config.Client,
 		filterers:          config.Filterers,
 		watchers:           config.Watchers,
@@ -68,7 +68,7 @@ func NewEventCollector(config *Config) *EventCollector {
 type EventCollector struct {
 	chain ethereum.ChainReader
 
-	retryChain utils.RetryChainReader
+	retryChain eth.RetryChainReader
 
 	client bind.ContractBackend
 
@@ -100,7 +100,7 @@ type EventCollector struct {
 
 	mutex sync.Mutex
 
-	headerCache *utils.BlockHeaderCache
+	headerCache *eth.BlockHeaderCache
 
 	disableListener bool
 }
@@ -347,7 +347,7 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 
 	inCache := false
 	if c.headerCache == nil {
-		c.headerCache = utils.NewBlockHeaderCache(blockHeaderExpirySecs)
+		c.headerCache = eth.NewBlockHeaderCache(blockHeaderExpirySecs)
 	} else {
 		header = c.headerCache.HeaderByBlockNumber(event.BlockNumber())
 		if header != nil {
@@ -362,12 +362,12 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 			"updateEventTimeFromBlockHeader: calling headerbynumber: %v, %v",
 			event.BlockNumber(),
 			blockNum.Int64(),
-		)
+		) // Debug, remove later
 		header, err = c.retryChain.HeaderByNumberWithRetry(event.BlockNumber(), 10, 500)
 		log.Infof(
 			"updateEventTimeFromBlockHeader: done calling headerbynumber: %v",
 			header.TxHash.Hex(),
-		)
+		) // Debug, remove later
 
 		c.headerCache.AddHeader(event.BlockNumber(), header)
 	}
