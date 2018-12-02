@@ -2,7 +2,6 @@
 package eventcollector // import "github.com/joincivil/civil-events-crawler/pkg/eventcollector"
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"math/big"
@@ -33,6 +32,7 @@ const (
 // Config contains the configuration dependencies for the EventCollector
 type Config struct {
 	Chain              ethereum.ChainReader
+	RetryChain         utils.RetryChainReader
 	Client             bind.ContractBackend
 	Filterers          []model.ContractFilterers
 	Watchers           []model.ContractWatchers
@@ -48,6 +48,7 @@ type Config struct {
 func NewEventCollector(config *Config) *EventCollector {
 	eventcollector := &EventCollector{
 		chain:              config.Chain,
+		retryChain:         utils.RetryChainReader{ChainReader: config.Chain},
 		client:             config.Client,
 		filterers:          config.Filterers,
 		watchers:           config.Watchers,
@@ -66,6 +67,8 @@ func NewEventCollector(config *Config) *EventCollector {
 // EventCollector handles logic for getting historical and live events
 type EventCollector struct {
 	chain ethereum.ChainReader
+
+	retryChain utils.RetryChainReader
 
 	client bind.ContractBackend
 
@@ -120,6 +123,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	err := c.updateEventTimeFromBlockHeader(event)
 	if err != nil {
 		err = fmt.Errorf("Error updating date for event: err: %v", err)
+		log.Errorf("%v", err)
 		errors <- err
 		return nil
 	}
@@ -129,6 +133,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
 	if err != nil {
 		err = fmt.Errorf("Error saving events: err: %v", err)
+		log.Errorf("%v", err)
 		errors <- err
 		return nil
 	}
@@ -138,6 +143,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
 	if err != nil {
 		err = fmt.Errorf("Error updating last block: err: %v", err)
+		log.Errorf("%v", err)
 		errors <- err
 		return nil
 	}
@@ -251,12 +257,18 @@ func (c *EventCollector) startListener() error {
 					)
 				}
 				go func(e *model.Event, errs chan<- error) {
+					log.Infof(
+						"startListener go func: pool.Process start: queued: %v, queue_size: %v",
+						pool.QueueLength(),
+						pool.GetSize(),
+					) // Debug, remove later
 					pool.Process(
 						handleEventInputs{
 							event:  e,
 							errors: errs,
 						},
 					)
+					log.Infof("startListener go func: pool.Process done") // Debug, remove later
 				}(event, errors)
 				log.Infof("startListener: started process from pool") // Debug, remove later
 			case <-quit:
@@ -345,10 +357,18 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 	if !inCache {
 		blockNum := big.NewInt(0)
 		blockNum.SetUint64(event.BlockNumber())
-		header, err = c.chain.HeaderByNumber(context.Background(), blockNum)
-		if err != nil {
-			return err
-		}
+
+		log.Infof(
+			"updateEventTimeFromBlockHeader: calling headerbynumber: %v, %v",
+			event.BlockNumber(),
+			blockNum.Int64(),
+		)
+		header, err = c.retryChain.HeaderByNumberWithRetry(event.BlockNumber(), 10, 500)
+		log.Infof(
+			"updateEventTimeFromBlockHeader: done calling headerbynumber: %v",
+			header.TxHash.Hex(),
+		)
+
 		c.headerCache.AddHeader(event.BlockNumber(), header)
 	}
 	if err != nil {
