@@ -379,7 +379,8 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 	additionalEvents := []*model.Event{}
 
 	for _, event := range pastEvents {
-		if event.EventType() == "ApplicationWhitelisted" {
+		// NOTE(IS): We should track events from "Application" so we don't miss the charter.
+		if event.EventType() == "Application" {
 			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
 			if !ok {
 				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
