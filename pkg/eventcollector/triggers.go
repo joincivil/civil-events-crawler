@@ -26,7 +26,7 @@ func (n *AddNewsroomWatchersTrigger) Description() string {
 // ShouldRun returns true or false on whether this trigger should be run
 func (n *AddNewsroomWatchersTrigger) ShouldRun(collector *EventCollector,
 	event *model.Event) bool {
-	return event.EventType() == "ApplicationWhiteListed"
+	return event.EventType() == "Application"
 }
 
 // Run returns the triggered code
