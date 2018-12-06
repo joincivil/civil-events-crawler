@@ -406,6 +406,7 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
 			}
 			if _, ok := existingFiltererNewsroomAddr[newsroomAddr]; !ok {
+				log.Infof("Adding Newsroom filterer for %v", newsroomAddr.Hex())
 				newFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
 				additionalNewsroomFilterers = append(additionalNewsroomFilterers, newFilterer)
 			}
