@@ -3,10 +3,11 @@ package utils
 import (
 	"context"
 	"errors"
-	log "github.com/golang/glog"
 	"os"
 	"sync"
 	"time"
+
+	log "github.com/golang/glog"
 
 	"cloud.google.com/go/pubsub"
 )
@@ -64,11 +65,16 @@ type GooglePubSub struct {
 	publishMutex      sync.Mutex
 
 	SubscribeChan          chan *pubsub.Message
-	subscriptionName       string
+	subscribeConfig        SubscribeConfig
 	subscribeContext       context.Context
 	subscribeContextCancel context.CancelFunc
 	subscribeStarted       bool
 	numRunningSubscribe    int
+}
+
+type SubscribeConfig struct {
+	Name    string
+	AutoAck bool
 }
 
 // StartPublishers starts up a pool of PubSub publishers.
@@ -168,9 +174,9 @@ func (g *GooglePubSub) StopPublishers() error {
 	return nil
 }
 
-// StartSubscribers starts up a pool of PubSub publishers.
-func (g *GooglePubSub) StartSubscribers(subscriptionName string) error {
-	ok, err := g.SubscriptionExists(subscriptionName)
+// StartSubscribersWithConfig starts up a pool of PubSub publishers.
+func (g *GooglePubSub) StartSubscribersWithConfig(config SubscribeConfig) error {
+	ok, err := g.SubscriptionExists(config.Name)
 	if err != nil {
 		return err
 	}
@@ -179,8 +185,8 @@ func (g *GooglePubSub) StartSubscribers(subscriptionName string) error {
 	}
 
 	ctx := context.Background()
+	g.subscribeConfig = config
 	g.subscribeContext, g.subscribeContextCancel = context.WithCancel(ctx)
-	g.subscriptionName = subscriptionName
 	g.SubscribeChan = make(chan *pubsub.Message)
 	g.subscribeStarted = false
 	g.numRunningSubscribe = 0
@@ -209,18 +215,34 @@ func (g *GooglePubSub) StartSubscribers(subscriptionName string) error {
 	return nil
 }
 
-// CreateSubscription creates a new subscription
-func (g *GooglePubSub) CreateSubscription(topicName string, subName string) error {
+// StartSubscribers starts up a pool of PubSub publishers using a default config
+func (g *GooglePubSub) StartSubscribers(subscriptionName string) error {
+	return g.StartSubscribersWithConfig(
+		SubscribeConfig{
+			Name:    subscriptionName,
+			AutoAck: true,
+		},
+	)
+}
+
+// CreateSubscriptionWithConfig creates a new subscription
+func (g *GooglePubSub) CreateSubscriptionWithConfig(topicName string, subName string, config pubsub.SubscriptionConfig) error {
 	topic := g.client.Topic(topicName)
-	subConfig := pubsub.SubscriptionConfig{
-		Topic: topic,
-	}
-	_, err := g.client.CreateSubscription(g.ctx, subName, subConfig)
+	config.Topic = topic
+	_, err := g.client.CreateSubscription(g.ctx, subName, config)
 	if err != nil {
 		log.Errorf("Failed to create subscription: %v", err)
 		return err
 	}
 	return err
+}
+
+// CreateSubscription creates a new subscription with a default config
+func (g *GooglePubSub) CreateSubscription(topicName string, subName string) error {
+	subConfig := pubsub.SubscriptionConfig{
+		AckDeadline: 10 * time.Second,
+	}
+	return g.CreateSubscriptionWithConfig(topicName, subName, subConfig)
 }
 
 // DeleteSubscription deletes an existing subscription
@@ -247,7 +269,7 @@ func (g *GooglePubSub) SubscriptionExists(subName string) (bool, error) {
 
 // SubscribersStarted returns true if the subscribers are running, false if not.
 func (g *GooglePubSub) SubscribersStarted() bool {
-	return g.publishStarted
+	return g.subscribeStarted
 }
 
 // NumSubscribersRunning return the number of subscriber goroutines running.
@@ -257,7 +279,7 @@ func (g *GooglePubSub) NumSubscribersRunning() int {
 
 // SubscriptionName returns the name of the subscription to track.
 func (g *GooglePubSub) SubscriptionName() string {
-	return g.subscriptionName
+	return g.subscribeConfig.Name
 }
 
 // StopSubscribers will stop the subscriber goroutines
@@ -318,11 +340,13 @@ func (g *GooglePubSub) subscriber(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	g.numRunningSubscribe++
-	sub := g.client.Subscription(g.subscriptionName)
+	sub := g.client.Subscription(g.subscribeConfig.Name)
 	err := sub.Receive(g.subscribeContext, func(ctx context.Context, msg *pubsub.Message) {
-		msg.Ack()
 		log.Infof("Got message: %v: %v\n", msg.ID, msg)
 		g.SubscribeChan <- msg
+		if g.subscribeConfig.AutoAck {
+			msg.Ack()
+		}
 	})
 	g.numRunningSubscribe--
 	if err != nil {
