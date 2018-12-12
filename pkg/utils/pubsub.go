@@ -72,6 +72,7 @@ type GooglePubSub struct {
 	numRunningSubscribe    int
 }
 
+// SubscribeConfig is a config for the wrapper around a Google Pubsub Subscription
 type SubscribeConfig struct {
 	Name    string
 	AutoAck bool
