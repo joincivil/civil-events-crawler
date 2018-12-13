@@ -156,7 +156,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		errors <- err
 	}
 
-	// We need to get past events for this newsroom contractls
+	// We need to get past newsroom events for the newsroom contract of a newly added watcher
 	if event.EventType() == "Application" {
 		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
 		// Check in persistence to see if events exist for this newsroom and update starting blocks
@@ -166,7 +166,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 			errors <- err
 			return nil
 		}
-		log.Infof("Found %v past newsroom events at address %v", len(nwsrmEvents), newsroomAddr.Hex())
+		log.Infof("Found %v newsroom events for address %v after filtering", len(nwsrmEvents), newsroomAddr.Hex())
 		// Save events
 		err = c.eventDataPersister.SaveEvents(nwsrmEvents)
 		if err != nil {
