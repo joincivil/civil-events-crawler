@@ -153,9 +153,44 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	err = c.callTriggers(event)
 	if err != nil {
 		log.Errorf("Error calling triggers: err: %v", err)
+		errors <- err
 	}
+
+	// We need to get past events for this newsroom contract
+	// NOTE(IS): If this is a newsroom that's reapplying after being removed we will get repeated events
+	if event.EventType() == "Application" {
+		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
+		nwsrmEvents, err := c.FilterNewsroomContract(newsroomAddr)
+		if err != nil {
+			err = fmt.Errorf("Error filtering new newsroom contract: err: %v", err)
+			errors <- err
+			return nil
+		}
+		log.Infof("Found %v past newsroom events at address %v", len(nwsrmEvents), newsroomAddr.Hex())
+		// Save events
+		err = c.eventDataPersister.SaveEvents(nwsrmEvents)
+		if err != nil {
+			err = fmt.Errorf("Error saving events %v", err)
+			errors <- err
+			return nil
+		}
+		log.Infof("Saved newsroom events at address %v", newsroomAddr.Hex())
+	}
+
 	log.Infof("handleEvent: done: %v, %v", eventType, txHash.Hex()) // Debug, remove later
 	return nil
+}
+
+// FilterNewsroomContract runs a filterer on the new newsroom contract to ensure we have all events.
+func (c *EventCollector) FilterNewsroomContract(newsroomAddr common.Address) ([]*model.Event, error) {
+	nwsrmFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
+	retrieve := retriever.NewEventRetriever(c.client, []model.ContractFilterers{nwsrmFilterer})
+	err := retrieve.Retrieve()
+	if err != nil {
+		return nil, err
+	}
+	nwsrmEvents := retrieve.PastEvents
+	return nwsrmEvents, nil
 }
 
 // StartChan returns the channel will send a "event collector started" signal
@@ -208,7 +243,10 @@ func (c *EventCollector) runRetriever() error {
 	if len(additionalEvents) > 0 {
 		pastEvents = append(pastEvents, additionalEvents...)
 	}
-
+	err = c.retrieve.SortEventsByBlock(pastEvents)
+	if err != nil {
+		return fmt.Errorf("Error sorting retrieved events: %v", err)
+	}
 	err = c.updateEventTimesFromBlockHeaders(pastEvents)
 	if err != nil {
 		return fmt.Errorf("Error updating dates for events: err: %v", err)
@@ -381,12 +419,7 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers) error {
 	c.updateRetrieverStartingBlocks()
 	c.retrieve = retriever.NewEventRetriever(c.client, filterers)
-	err := c.retrieve.Retrieve()
-	if err != nil {
-		return err
-	}
-	err = c.retrieve.SortEventsByBlock()
-	return err
+	return c.retrieve.Retrieve()
 }
 
 // CheckRetrievedEventsForNewsroom checks pastEvents for TCR events that may include new newsroom events,
@@ -399,7 +432,7 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 	additionalEvents := []*model.Event{}
 
 	for _, event := range pastEvents {
-		// NOTE(IS): We should track events from "Application" so we don't miss the charter.
+		// NOTE(IS): We should track events from "Application" so we don't miss other events.
 		if event.EventType() == "Application" {
 			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
 			if !ok {

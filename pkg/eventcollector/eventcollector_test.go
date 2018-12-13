@@ -444,8 +444,9 @@ func TestEventCollectorCollection(t *testing.T) {
 	if len(events) == 0 {
 		t.Error("Should have seen some events in the persister")
 	}
-	if len(events) != 6 {
-		t.Errorf("Should have seen 6 events in the persister, saw %v instead", len(events))
+
+	if len(events) != 9 {
+		t.Errorf("Should have seen 9 events in the persister, saw %v instead", len(events))
 	}
 
 	err = collector.StopCollection()
