@@ -48,11 +48,14 @@ func (r *EventRetriever) Retrieve() error {
 
 // SortEventsByBlock sorts events in PastEvents by block number
 // NOTE(IS): This is not optimal, but for now checking that values exist outside of sort
-func (r *EventRetriever) SortEventsByBlock() error {
-	pastEvents := r.PastEvents
-	sort.Slice(pastEvents, func(i, j int) bool {
-		blockNumber1 := pastEvents[i].BlockNumber()
-		blockNumber2 := pastEvents[j].BlockNumber()
+// Pass in nil if you want to sort retriever.PastEvents
+func (r *EventRetriever) SortEventsByBlock(events []*model.Event) error {
+	if events == nil {
+		events = r.PastEvents
+	}
+	sort.Slice(events, func(i, j int) bool {
+		blockNumber1 := events[i].BlockNumber()
+		blockNumber2 := events[j].BlockNumber()
 		return blockNumber1 < blockNumber2
 	})
 	return nil

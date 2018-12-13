@@ -2,20 +2,22 @@
 package retriever_test
 
 import (
-	// "fmt"
 	"math/big"
+	"math/rand"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-
+	"github.com/ethereum/go-ethereum/core/types"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	commongen "github.com/joincivil/civil-events-crawler/pkg/generated/common"
+	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 const (
@@ -181,19 +183,68 @@ func TestSorting(t *testing.T) {
 	}
 
 	pastEvents := retriever.PastEvents
-
 	if len(pastEvents) != numEvents {
 		t.Fatalf("Should have collected %v events but collected %v", numEvents, len(pastEvents))
 	}
 
-	err = retriever.SortEventsByBlock()
+	err = retriever.SortEventsByBlock(nil)
 	if err != nil {
 		t.Errorf("Error sorting events: %v", err)
 	}
-	sortedEvents := retriever.PastEvents
 
 	blockNumbers := make([]int, numEvents)
-	for idx, event := range sortedEvents {
+	for idx, event := range pastEvents {
+		blockNumbers[idx] = int(event.BlockNumber())
+	}
+	if !sort.IntsAreSorted(blockNumbers) {
+		t.Error("Events are not sorted")
+	}
+}
+
+func TestSortingExternalEvents(t *testing.T) {
+	events := []*model.Event{}
+	_, retriever, _ := setupTestRetriever(t)
+	testAddress := "0xDFe273082089bB7f70Ee36Eebcde64832FE97E55"
+	for i := 0; i < 5; i++ {
+		r := rand.Intn(10)
+		testChallengeEvent := &contract.CivilTCRContractChallenge{
+			ListingAddress: common.HexToAddress(testAddress),
+			ChallengeID:    big.NewInt(8),
+			Data:           "DATA",
+			CommitEndDate:  big.NewInt(1653860896),
+			RevealEndDate:  big.NewInt(1653860896),
+			Challenger:     common.HexToAddress(testAddress),
+			Raw: types.Log{
+				Address:     common.HexToAddress(testAddress),
+				Topics:      []common.Hash{},
+				Data:        []byte("thisisdata1"),
+				BlockNumber: uint64(r),
+				TxHash:      common.Hash{},
+				TxIndex:     4,
+				BlockHash:   common.Hash{},
+				Index:       2,
+				Removed:     false,
+			},
+		}
+		event, err := model.NewEventFromContractEvent(
+			"Challenge",
+			"CivilTCRContract",
+			common.HexToAddress(testAddress),
+			testChallengeEvent,
+			utils.CurrentEpochSecsInInt64(),
+			model.Filterer)
+		if err != nil {
+			t.Errorf("Error creating event: %v", err)
+		}
+		events = append(events, event)
+	}
+
+	err := retriever.SortEventsByBlock(events)
+	if err != nil {
+		t.Errorf("Error sorting events %v", err)
+	}
+	blockNumbers := make([]int, len(events))
+	for idx, event := range events {
 		blockNumbers[idx] = int(event.BlockNumber())
 	}
 	if !sort.IntsAreSorted(blockNumbers) {
