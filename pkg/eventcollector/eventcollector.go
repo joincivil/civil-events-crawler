@@ -156,11 +156,11 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		errors <- err
 	}
 
-	// We need to get past events for this newsroom contract
-	// NOTE(IS): If this is a newsroom that's reapplying after being removed we will get repeated events
+	// We need to get past events for this newsroom contractls
 	if event.EventType() == "Application" {
 		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
-		nwsrmEvents, err := c.FilterNewsroomContract(newsroomAddr)
+		// Check in persistence to see if events exist for this newsroom and update starting blocks
+		nwsrmEvents, err := c.FilterAddedNewsroomContract(newsroomAddr)
 		if err != nil {
 			err = fmt.Errorf("Error filtering new newsroom contract: err: %v", err)
 			errors <- err
@@ -181,9 +181,10 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	return nil
 }
 
-// FilterNewsroomContract runs a filterer on the new newsroom contract to ensure we have all events.
-func (c *EventCollector) FilterNewsroomContract(newsroomAddr common.Address) ([]*model.Event, error) {
+// FilterAddedNewsroomContract runs a filterer on the newly watched newsroom contract to ensure we have all events.
+func (c *EventCollector) FilterAddedNewsroomContract(newsroomAddr common.Address) ([]*model.Event, error) {
 	nwsrmFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
+	c.updateFiltererStartingBlock(nwsrmFilterer)
 	retrieve := retriever.NewEventRetriever(c.client, []model.ContractFilterers{nwsrmFilterer})
 	err := retrieve.Retrieve()
 	if err != nil {
@@ -354,18 +355,22 @@ func (c *EventCollector) sendStartSignal() {
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
 func (c *EventCollector) updateRetrieverStartingBlocks() {
 	for _, filter := range c.filterers {
-		contractAddress := filter.ContractAddress()
-		eventTypes := filter.EventTypes()
-		for _, eventType := range eventTypes {
-			lastBlock := c.retrieverPersister.LastBlockNumber(eventType, contractAddress)
-			// If lastBlock is 0, assume it has never been set, so set to default
-			// start block value.
-			if lastBlock == 0 {
-				lastBlock = c.startBlock
-			}
-			// NOTE (IS): Starting at lastBlock+1. There could be a scenario where this could miss the rest of events in prev block?
-			filter.UpdateStartBlock(eventType, lastBlock+1)
+		c.updateFiltererStartingBlock(filter)
+	}
+}
+
+func (c *EventCollector) updateFiltererStartingBlock(filter model.ContractFilterers) {
+	contractAddress := filter.ContractAddress()
+	eventTypes := filter.EventTypes()
+	for _, eventType := range eventTypes {
+		lastBlock := c.retrieverPersister.LastBlockNumber(eventType, contractAddress)
+		// If lastBlock is 0, assume it has never been set, so set to default
+		// start block value.
+		if lastBlock == 0 {
+			lastBlock = c.startBlock
 		}
+		// NOTE (IS): Starting at lastBlock+1. There could be a scenario where this could miss the rest of events in prev block?
+		filter.UpdateStartBlock(eventType, lastBlock+1)
 	}
 }
 

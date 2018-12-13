@@ -410,6 +410,72 @@ func TestEventCollectorCollection(t *testing.T) {
 	go collectionStart(collector, t, errChan)
 
 	<-collector.StartChan()
+	_, err = contracts.CivilTcrContract.Apply(contracts.Auth, contracts.NewsroomAddr, big.NewInt(400), "")
+	if err != nil {
+		t.Fatalf("Application failed: err: %v", err)
+	}
+
+	contracts.Client.Commit()
+
+	_, err = contracts.CivilTcrContract.Withdraw(contracts.Auth, contracts.NewsroomAddr, big.NewInt(50))
+	if err != nil {
+		t.Fatalf("Withdrawal failed: err: %v", err)
+	}
+
+	contracts.Client.Commit()
+
+	_, err = contracts.CivilTcrContract.Deposit(contracts.Auth, contracts.NewsroomAddr, big.NewInt(50))
+	if err != nil {
+		t.Fatalf("Deposit failed: err: %v", err)
+	}
+
+	contracts.Client.Commit()
+
+	// Sleep for a bit to make sure all the events gets handled and stored
+	time.Sleep(4 * time.Second)
+
+	events, _ := persister.RetrieveEvents(&model.RetrieveEventsCriteria{
+		Offset:  0,
+		Count:   10,
+		Reverse: false,
+	})
+
+	if len(events) == 0 {
+		t.Error("Should have seen some events in the persister")
+	}
+
+	if len(events) != 6 {
+		t.Errorf("Should have seen 6 events in the persister, saw %v instead", len(events))
+	}
+
+	err = collector.StopCollection()
+	if err != nil {
+		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
+	}
+}
+
+func TestEventCollectorWithOldNewsroomEvents(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: %v", err)
+	}
+	collector, persister := setupTestCollectorTestPersister(contracts)
+
+	errChan := make(chan error)
+	go collectionStart(collector, t, errChan)
+
+	<-collector.StartChan()
+	_, err = contracts.NewsroomContract.SetName(contracts.Auth, "NameChangedAgain")
+	if err != nil {
+		t.Fatalf("Name Changed failed: err: %v", err)
+	}
+	contracts.Client.Commit()
+
+	_, err = contracts.NewsroomContract.SetName(contracts.Auth, "NameChangedOnceAgain")
+	if err != nil {
+		t.Fatalf("Name Changed failed: err: %v", err)
+	}
+	contracts.Client.Commit()
 
 	_, err = contracts.CivilTcrContract.Apply(contracts.Auth, contracts.NewsroomAddr, big.NewInt(400), "")
 	if err != nil {
@@ -445,8 +511,8 @@ func TestEventCollectorCollection(t *testing.T) {
 		t.Error("Should have seen some events in the persister")
 	}
 
-	if len(events) != 9 {
-		t.Errorf("Should have seen 9 events in the persister, saw %v instead", len(events))
+	if len(events) != 8 {
+		t.Errorf("Should have seen 8 events in the persister, saw %v instead", len(events))
 	}
 
 	err = collector.StopCollection()
