@@ -154,6 +154,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	if err != nil {
 		log.Errorf("Error calling triggers: err: %v", err)
 		errors <- err
+		return nil
 	}
 
 	// We need to get past newsroom events for the newsroom contract of a newly added watcher
