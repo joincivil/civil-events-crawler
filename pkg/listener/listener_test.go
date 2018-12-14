@@ -13,12 +13,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 
+	ctime "github.com/joincivil/go-common/pkg/time"
+
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 func TestListener(t *testing.T) {
@@ -150,7 +151,7 @@ func TestListenerEventChan(t *testing.T) {
 		},
 	}
 	newEvent, _ := model.NewEventFromContractEvent("Application", "CivilTCRContract", contracts.CivilTcrAddr, tempPayload,
-		utils.CurrentEpochSecsInInt64(), model.Filterer)
+		ctime.CurrentEpochSecsInInt64(), model.Filterer)
 	listener.EventRecvChan <- newEvent
 
 	select {
