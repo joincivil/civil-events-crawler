@@ -48,6 +48,10 @@
   name = "gopkg.in/alecthomas/kingpin.v2"
   version = "2.2.6"
 
+[[constraint]]
+  branch = "master"
+  name = "github.com/joincivil/go-common"
+
 [prune]
   go-tests = true
   unused-packages = true

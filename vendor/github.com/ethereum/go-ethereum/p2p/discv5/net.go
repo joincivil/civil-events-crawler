@@ -567,12 +567,11 @@ loop:
 			net.ticketStore.searchLookupDone(res.target, res.nodes, func(n *Node, topic Topic) []byte {
 				if n.state != nil && n.state.canQuery {
 					return net.conn.send(n, topicQueryPacket, topicQuery{Topic: topic}) // TODO: set expiration
-				} else {
-					if n.state == unknown {
-						net.ping(n, n.addr())
-					}
-					return nil
 				}
+				if n.state == unknown {
+					net.ping(n, n.addr())
+				}
+				return nil
 			})
 
 		case <-statsDump.C:
@@ -1228,7 +1227,7 @@ func (net *Network) checkTopicRegister(data *topicRegister) (*pong, error) {
 	if rlpHash(data.Topics) != pongpkt.data.(*pong).TopicHash {
 		return nil, errors.New("topic hash mismatch")
 	}
-	if int(data.Idx) < 0 || int(data.Idx) >= len(data.Topics) {
+	if data.Idx >= uint(len(data.Topics)) {
 		return nil, errors.New("topic index out of range")
 	}
 	return pongpkt.data.(*pong), nil

@@ -23,14 +23,16 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"hash"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/protocols"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/swarm/log"
@@ -70,7 +72,7 @@ type pssCacheEntry struct {
 // abstraction to enable access to p2p.protocols.Peer.Send
 type senderPeer interface {
 	Info() *p2p.PeerInfo
-	ID() discover.NodeID
+	ID() enode.ID
 	Address() []byte
 	Send(context.Context, interface{}) error
 }
@@ -110,10 +112,10 @@ func (params *PssParams) WithPrivateKey(privatekey *ecdsa.PrivateKey) *PssParams
 //
 // Implements node.Service
 type Pss struct {
-	network.Overlay                   // we can get the overlayaddress from this
-	privateKey      *ecdsa.PrivateKey // pss can have it's own independent key
-	w               *whisper.Whisper  // key and encryption backend
-	auxAPIs         []rpc.API         // builtins (handshake, test) can add APIs
+	*network.Kademlia                   // we can get the Kademlia address from this
+	privateKey        *ecdsa.PrivateKey // pss can have it's own independent key
+	w                 *whisper.Whisper  // key and encryption backend
+	auxAPIs           []rpc.API         // builtins (handshake, test) can add APIs
 
 	// sending and forwarding
 	fwdPool         map[string]*protocols.Peer // keep track of all peers sitting on the pssmsg routing layer
@@ -136,10 +138,10 @@ type Pss struct {
 	symKeyDecryptCacheCapacity int       // max amount of symkeys to keep.
 
 	// message handling
-	handlers   map[Topic]map[*Handler]bool // topic and version based pss payload handlers. See pss.Handle()
-	handlersMu sync.RWMutex
-	allowRaw   bool
-	hashPool   sync.Pool
+	handlers         map[Topic]map[*handler]bool // topic and version based pss payload handlers. See pss.Handle()
+	handlersMu       sync.RWMutex
+	hashPool         sync.Pool
+	topicHandlerCaps map[Topic]*handlerCaps // caches capabilities of each topic's handlers (see handlerCap* consts in types.go)
 
 	// process
 	quitC chan struct{}
@@ -151,9 +153,9 @@ func (p *Pss) String() string {
 
 // Creates a new Pss instance.
 //
-// In addition to params, it takes a swarm network overlay
+// In addition to params, it takes a swarm network Kademlia
 // and a FileStore storage for message cache storage.
-func NewPss(k network.Overlay, params *PssParams) (*Pss, error) {
+func NewPss(k *network.Kademlia, params *PssParams) (*Pss, error) {
 	if params.privateKey == nil {
 		return nil, errors.New("missing private key for pss")
 	}
@@ -162,7 +164,7 @@ func NewPss(k network.Overlay, params *PssParams) (*Pss, error) {
 		Version: pssVersion,
 	}
 	ps := &Pss{
-		Overlay:    k,
+		Kademlia:   k,
 		privateKey: params.privateKey,
 		w:          whisper.New(&whisper.DefaultConfig),
 		quitC:      make(chan struct{}),
@@ -180,11 +182,12 @@ func NewPss(k network.Overlay, params *PssParams) (*Pss, error) {
 		symKeyDecryptCache:         make([]*string, params.SymKeyCacheCapacity),
 		symKeyDecryptCacheCapacity: params.SymKeyCacheCapacity,
 
-		handlers: make(map[Topic]map[*Handler]bool),
-		allowRaw: params.AllowRaw,
+		handlers:         make(map[Topic]map[*handler]bool),
+		topicHandlerCaps: make(map[Topic]*handlerCaps),
+
 		hashPool: sync.Pool{
 			New: func() interface{} {
-				return storage.MakeHashFunc(storage.DefaultHash)()
+				return sha3.NewKeccak256()
 			},
 		},
 	}
@@ -290,9 +293,9 @@ func (p *Pss) addAPI(api rpc.API) {
 	p.auxAPIs = append(p.auxAPIs, api)
 }
 
-// Returns the swarm overlay address of the pss node
+// Returns the swarm Kademlia address of the pss node
 func (p *Pss) BaseAddr() []byte {
-	return p.Overlay.BaseAddr()
+	return p.Kademlia.BaseAddr()
 }
 
 // Returns the pss node's public key
@@ -313,30 +316,54 @@ func (p *Pss) PublicKey() *ecdsa.PublicKey {
 //
 // Returns a deregister function which needs to be called to
 // deregister the handler,
-func (p *Pss) Register(topic *Topic, handler Handler) func() {
+func (p *Pss) Register(topic *Topic, hndlr *handler) func() {
 	p.handlersMu.Lock()
 	defer p.handlersMu.Unlock()
 	handlers := p.handlers[*topic]
 	if handlers == nil {
-		handlers = make(map[*Handler]bool)
+		handlers = make(map[*handler]bool)
 		p.handlers[*topic] = handlers
+		log.Debug("registered handler", "caps", hndlr.caps)
 	}
-	handlers[&handler] = true
-	return func() { p.deregister(topic, &handler) }
+	if hndlr.caps == nil {
+		hndlr.caps = &handlerCaps{}
+	}
+	handlers[hndlr] = true
+	if _, ok := p.topicHandlerCaps[*topic]; !ok {
+		p.topicHandlerCaps[*topic] = &handlerCaps{}
+	}
+	if hndlr.caps.raw {
+		p.topicHandlerCaps[*topic].raw = true
+	}
+	if hndlr.caps.prox {
+		p.topicHandlerCaps[*topic].prox = true
+	}
+	return func() { p.deregister(topic, hndlr) }
 }
-func (p *Pss) deregister(topic *Topic, h *Handler) {
+func (p *Pss) deregister(topic *Topic, hndlr *handler) {
 	p.handlersMu.Lock()
 	defer p.handlersMu.Unlock()
 	handlers := p.handlers[*topic]
-	if len(handlers) == 1 {
+	if len(handlers) > 1 {
 		delete(p.handlers, *topic)
+		// topic caps might have changed now that a handler is gone
+		caps := &handlerCaps{}
+		for h := range handlers {
+			if h.caps.raw {
+				caps.raw = true
+			}
+			if h.caps.prox {
+				caps.prox = true
+			}
+		}
+		p.topicHandlerCaps[*topic] = caps
 		return
 	}
-	delete(handlers, h)
+	delete(handlers, hndlr)
 }
 
 // get all registered handlers for respective topics
-func (p *Pss) getHandlers(topic Topic) map[*Handler]bool {
+func (p *Pss) getHandlers(topic Topic) map[*handler]bool {
 	p.handlersMu.RLock()
 	defer p.handlersMu.RUnlock()
 	return p.handlers[topic]
@@ -348,30 +375,50 @@ func (p *Pss) getHandlers(topic Topic) map[*Handler]bool {
 // Only passes error to pss protocol handler if payload is not valid pssmsg
 func (p *Pss) handlePssMsg(ctx context.Context, msg interface{}) error {
 	metrics.GetOrRegisterCounter("pss.handlepssmsg", nil).Inc(1)
-
 	pssmsg, ok := msg.(*PssMsg)
-
 	if !ok {
 		return fmt.Errorf("invalid message type. Expected *PssMsg, got %T ", msg)
 	}
+	log.Trace("handler", "self", label(p.Kademlia.BaseAddr()), "topic", label(pssmsg.Payload.Topic[:]))
 	if int64(pssmsg.Expire) < time.Now().Unix() {
 		metrics.GetOrRegisterCounter("pss.expire", nil).Inc(1)
-		log.Warn("pss filtered expired message", "from", common.ToHex(p.Overlay.BaseAddr()), "to", common.ToHex(pssmsg.To))
+		log.Warn("pss filtered expired message", "from", common.ToHex(p.Kademlia.BaseAddr()), "to", common.ToHex(pssmsg.To))
 		return nil
 	}
 	if p.checkFwdCache(pssmsg) {
-		log.Trace("pss relay block-cache match (process)", "from", common.ToHex(p.Overlay.BaseAddr()), "to", (common.ToHex(pssmsg.To)))
+		log.Trace("pss relay block-cache match (process)", "from", common.ToHex(p.Kademlia.BaseAddr()), "to", (common.ToHex(pssmsg.To)))
 		return nil
 	}
 	p.addFwdCache(pssmsg)
 
-	if !p.isSelfPossibleRecipient(pssmsg) {
-		log.Trace("pss was for someone else :'( ... forwarding", "pss", common.ToHex(p.BaseAddr()))
+	psstopic := Topic(pssmsg.Payload.Topic)
+
+	// raw is simplest handler contingency to check, so check that first
+	var isRaw bool
+	if pssmsg.isRaw() {
+		if !p.topicHandlerCaps[psstopic].raw {
+			log.Debug("No handler for raw message", "topic", psstopic)
+			return nil
+		}
+		isRaw = true
+	}
+
+	// check if we can be recipient:
+	// - no prox handler on message and partial address matches
+	// - prox handler on message and we are in prox regardless of partial address match
+	// store this result so we don't calculate again on every handler
+	var isProx bool
+	if _, ok := p.topicHandlerCaps[psstopic]; ok {
+		isProx = p.topicHandlerCaps[psstopic].prox
+	}
+	isRecipient := p.isSelfPossibleRecipient(pssmsg, isProx)
+	if !isRecipient {
+		log.Trace("pss was for someone else :'( ... forwarding", "pss", common.ToHex(p.BaseAddr()), "prox", isProx)
 		return p.enqueue(pssmsg)
 	}
 
-	log.Trace("pss for us, yay! ... let's process!", "pss", common.ToHex(p.BaseAddr()))
-	if err := p.process(pssmsg); err != nil {
+	log.Trace("pss for us, yay! ... let's process!", "pss", common.ToHex(p.BaseAddr()), "prox", isProx, "raw", isRaw, "topic", label(pssmsg.Payload.Topic[:]))
+	if err := p.process(pssmsg, isRaw, isProx); err != nil {
 		qerr := p.enqueue(pssmsg)
 		if qerr != nil {
 			return fmt.Errorf("process fail: processerr %v, queueerr: %v", err, qerr)
@@ -384,7 +431,7 @@ func (p *Pss) handlePssMsg(ctx context.Context, msg interface{}) error {
 // Entry point to processing a message for which the current node can be the intended recipient.
 // Attempts symmetric and asymmetric decryption with stored keys.
 // Dispatches message to all handlers matching the message topic
-func (p *Pss) process(pssmsg *PssMsg) error {
+func (p *Pss) process(pssmsg *PssMsg, raw bool, prox bool) error {
 	metrics.GetOrRegisterCounter("pss.process", nil).Inc(1)
 
 	var err error
@@ -397,10 +444,8 @@ func (p *Pss) process(pssmsg *PssMsg) error {
 
 	envelope := pssmsg.Payload
 	psstopic := Topic(envelope.Topic)
-	if pssmsg.isRaw() {
-		if !p.allowRaw {
-			return errors.New("raw message support disabled")
-		}
+
+	if raw {
 		payload = pssmsg.Payload.Data
 	} else {
 		if pssmsg.isSym() {
@@ -422,33 +467,54 @@ func (p *Pss) process(pssmsg *PssMsg) error {
 			return err
 		}
 	}
-	p.executeHandlers(psstopic, payload, from, asymmetric, keyid)
+	p.executeHandlers(psstopic, payload, from, raw, prox, asymmetric, keyid)
 
 	return nil
 
 }
 
-func (p *Pss) executeHandlers(topic Topic, payload []byte, from *PssAddress, asymmetric bool, keyid string) {
+func (p *Pss) executeHandlers(topic Topic, payload []byte, from *PssAddress, raw bool, prox bool, asymmetric bool, keyid string) {
 	handlers := p.getHandlers(topic)
-	nid, _ := discover.HexID("0x00") // this hack is needed to satisfy the p2p method
-	peer := p2p.NewPeer(nid, fmt.Sprintf("%x", from), []p2p.Cap{})
-	for f := range handlers {
-		err := (*f)(payload, peer, asymmetric, keyid)
+	peer := p2p.NewPeer(enode.ID{}, fmt.Sprintf("%x", from), []p2p.Cap{})
+	for h := range handlers {
+		if !h.caps.raw && raw {
+			log.Warn("norawhandler")
+			continue
+		}
+		if !h.caps.prox && prox {
+			log.Warn("noproxhandler")
+			continue
+		}
+		err := (h.f)(payload, peer, asymmetric, keyid)
 		if err != nil {
-			log.Warn("Pss handler %p failed: %v", f, err)
+			log.Warn("Pss handler failed", "err", err)
 		}
 	}
 }
 
 // will return false if using partial address
 func (p *Pss) isSelfRecipient(msg *PssMsg) bool {
-	return bytes.Equal(msg.To, p.Overlay.BaseAddr())
+	return bytes.Equal(msg.To, p.Kademlia.BaseAddr())
 }
 
-// test match of leftmost bytes in given message to node's overlay address
-func (p *Pss) isSelfPossibleRecipient(msg *PssMsg) bool {
-	local := p.Overlay.BaseAddr()
-	return bytes.Equal(msg.To[:], local[:len(msg.To)])
+// test match of leftmost bytes in given message to node's Kademlia address
+func (p *Pss) isSelfPossibleRecipient(msg *PssMsg, prox bool) bool {
+	local := p.Kademlia.BaseAddr()
+
+	// if a partial address matches we are possible recipient regardless of prox
+	// if not and prox is not set, we are surely not
+	if bytes.Equal(msg.To, local[:len(msg.To)]) {
+
+		return true
+	} else if !prox {
+		return false
+	}
+
+	depth := p.Kademlia.NeighbourhoodDepth()
+	po, _ := p.Kademlia.Pof(p.Kademlia.BaseAddr(), msg.To, 0)
+	log.Trace("selfpossible", "po", po, "depth", depth)
+
+	return depth <= po
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -685,9 +751,6 @@ func (p *Pss) enqueue(msg *PssMsg) error {
 //
 // Will fail if raw messages are disallowed
 func (p *Pss) SendRaw(address PssAddress, topic Topic, msg []byte) error {
-	if !p.allowRaw {
-		return errors.New("Raw messages not enabled")
-	}
 	pssMsgParams := &msgParams{
 		raw: true,
 	}
@@ -700,7 +763,17 @@ func (p *Pss) SendRaw(address PssAddress, topic Topic, msg []byte) error {
 	pssMsg.Expire = uint32(time.Now().Add(p.msgTTL).Unix())
 	pssMsg.Payload = payload
 	p.addFwdCache(pssMsg)
-	return p.enqueue(pssMsg)
+	err := p.enqueue(pssMsg)
+	if err != nil {
+		return err
+	}
+
+	// if we have a proxhandler on this topic
+	// also deliver message to ourselves
+	if p.isSelfPossibleRecipient(pssMsg, true) && p.topicHandlerCaps[topic].prox {
+		return p.process(pssMsg, true, true)
+	}
+	return nil
 }
 
 // Send a message using symmetric encryption
@@ -801,7 +874,16 @@ func (p *Pss) send(to []byte, topic Topic, msg []byte, asymmetric bool, key []by
 	pssMsg.To = to
 	pssMsg.Expire = uint32(time.Now().Add(p.msgTTL).Unix())
 	pssMsg.Payload = envelope
-	return p.enqueue(pssMsg)
+	err = p.enqueue(pssMsg)
+	if err != nil {
+		return err
+	}
+	if _, ok := p.topicHandlerCaps[topic]; ok {
+		if p.isSelfPossibleRecipient(pssMsg, true) && p.topicHandlerCaps[topic].prox {
+			return p.process(pssMsg, true, true)
+		}
+	}
+	return nil
 }
 
 // Forwards a pss message to the peer(s) closest to the to recipient address in the PssMsg struct
@@ -816,14 +898,7 @@ func (p *Pss) forward(msg *PssMsg) error {
 	// send with kademlia
 	// find the closest peer to the recipient and attempt to send
 	sent := 0
-	p.Overlay.EachConn(to, 256, func(op network.OverlayConn, po int, isproxbin bool) bool {
-		// we need p2p.protocols.Peer.Send
-		// cast and resolve
-		sp, ok := op.(senderPeer)
-		if !ok {
-			log.Crit("Pss cannot use kademlia peer type")
-			return false
-		}
+	p.Kademlia.EachConn(to, 256, func(sp *network.Peer, po int, isproxbin bool) bool {
 		info := sp.Info()
 
 		// check if the peer is running pss
@@ -840,7 +915,7 @@ func (p *Pss) forward(msg *PssMsg) error {
 		}
 
 		// get the protocol peer from the forwarding peer cache
-		sendMsg := fmt.Sprintf("MSG TO %x FROM %x VIA %x", to, p.BaseAddr(), op.Address())
+		sendMsg := fmt.Sprintf("MSG TO %x FROM %x VIA %x", to, p.BaseAddr(), sp.Address())
 		p.fwdPoolMu.RLock()
 		pp := p.fwdPool[sp.Info().ID]
 		p.fwdPoolMu.RUnlock()
@@ -859,11 +934,11 @@ func (p *Pss) forward(msg *PssMsg) error {
 		// - if the peer is end recipient but the full address has not been disclosed
 		// - if the peer address matches the partial address fully
 		// - if the peer is in proxbin
-		if len(msg.To) < addressLength && bytes.Equal(msg.To, op.Address()[:len(msg.To)]) {
+		if len(msg.To) < addressLength && bytes.Equal(msg.To, sp.Address()[:len(msg.To)]) {
 			log.Trace(fmt.Sprintf("Pss keep forwarding: Partial address + full partial match"))
 			return true
 		} else if isproxbin {
-			log.Trace(fmt.Sprintf("%x is in proxbin, keep forwarding", common.ToHex(op.Address())))
+			log.Trace(fmt.Sprintf("%x is in proxbin, keep forwarding", common.ToHex(sp.Address())))
 			return true
 		}
 		// at this point we stop forwarding, and the state is as follows:
@@ -901,6 +976,10 @@ func (p *Pss) cleanFwdCache() {
 			delete(p.fwdCache, k)
 		}
 	}
+}
+
+func label(b []byte) string {
+	return fmt.Sprintf("%04x", b[:2])
 }
 
 // add a message to the cache
@@ -942,10 +1021,14 @@ func (p *Pss) checkFwdCache(msg *PssMsg) bool {
 
 // Digest of message
 func (p *Pss) digest(msg *PssMsg) pssDigest {
-	hasher := p.hashPool.Get().(storage.SwarmHash)
+	return p.digestBytes(msg.serialize())
+}
+
+func (p *Pss) digestBytes(msg []byte) pssDigest {
+	hasher := p.hashPool.Get().(hash.Hash)
 	defer p.hashPool.Put(hasher)
 	hasher.Reset()
-	hasher.Write(msg.serialize())
+	hasher.Write(msg)
 	digest := pssDigest{}
 	key := hasher.Sum(nil)
 	copy(digest[:], key[:digestLength])

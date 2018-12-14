@@ -2,6 +2,8 @@
 package time
 
 import (
+	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -54,4 +56,18 @@ func ToSecsFromEpoch(t *time.Time) int64 {
 // ToNanoSecsFromEpoch converts a time.Time struct to nanoseconds from epoch.
 func ToNanoSecsFromEpoch(t *time.Time) int64 {
 	return t.UnixNano()
+}
+
+// TimestampToString converts an int64 timestamp to string
+func TimestampToString(timestamp int64) string {
+	return strconv.FormatInt(timestamp, 10)
+}
+
+// StringToTimestamp converts a string timestamp to int64
+func StringToTimestamp(timestamp string) (int64, error) {
+	i, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return i, fmt.Errorf("Could not convert timestamp from string to int64: %v", err)
+	}
+	return i, nil
 }
