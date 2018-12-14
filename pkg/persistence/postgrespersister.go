@@ -17,6 +17,8 @@ import (
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
+
+	cpostgres "github.com/joincivil/go-common/pkg/persistence/postgres"
 )
 
 const (
@@ -119,7 +121,7 @@ func (p *PostgresPersister) CreateIndices() error {
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {
-	queryString := postgres.InsertIntoDBQueryString(tableName, postgres.Event{})
+	queryString := cpostgres.InsertIntoDBQueryString(tableName, postgres.Event{})
 	// There is no way to batch insert using sqlx, so doing a loop here
 	for _, event := range events {
 		err := p.saveEventToTable(queryString, event)
@@ -156,7 +158,7 @@ func (p *PostgresPersister) retrieveEventsFromTable(tableName string, criteria *
 
 func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *model.RetrieveEventsCriteria) string {
 	queryBuf := bytes.NewBufferString("SELECT ")
-	fields, _ := postgres.StructFieldsForQuery(postgres.Event{}, false)
+	fields, _ := cpostgres.StructFieldsForQuery(postgres.Event{}, false, "")
 	queryBuf.WriteString(fields)    // nolint: gosec
 	queryBuf.WriteString(" FROM ")  // nolint: gosec
 	queryBuf.WriteString(tableName) // nolint: gosec

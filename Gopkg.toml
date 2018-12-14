@@ -49,7 +49,8 @@
   version = "2.2.6"
 
 [[constraint]]
-  branch = "master"
+  # branch = "master"
+  branch = "png/processor-functions"
   name = "github.com/joincivil/go-common"
 
 [prune]

@@ -172,16 +172,17 @@
   revision = "0dae4fefe7c0e190f7b5a78dac28a1c82cc8d849"
 
 [[projects]]
-  branch = "master"
-  digest = "1:b428b34baef6df0b253a36e446c663c5b1318a64bcf6799169be73c2451c7a18"
+  branch = "png/processor-functions"
+  digest = "1:dd6870791759cc4d61f8f38ca636bafe9accb37c4426cceba6de963a26f96e13"
   name = "github.com/joincivil/go-common"
   packages = [
     "pkg/eth",
+    "pkg/persistence/postgres",
     "pkg/strings",
     "pkg/time",
   ]
   pruneopts = "UT"
-  revision = "09dd7f0f91d6975deb16f44c6a2bb3c2a07ddd9e"
+  revision = "5cdf6dcaf4c0540128bd0c4a940df83e68d9edec"
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
@@ -333,6 +334,7 @@
     "github.com/golang/glog",
     "github.com/jmoiron/sqlx",
     "github.com/joincivil/go-common/pkg/eth",
+    "github.com/joincivil/go-common/pkg/persistence/postgres",
     "github.com/joincivil/go-common/pkg/strings",
     "github.com/joincivil/go-common/pkg/time",
     "github.com/kelseyhightower/envconfig",

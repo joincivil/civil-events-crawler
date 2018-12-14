@@ -4,14 +4,17 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	log "github.com/golang/glog"
 	"math/big"
 	"strconv"
 	"strings"
 
+	log "github.com/golang/glog"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+
+	cpostgres "github.com/joincivil/go-common/pkg/persistence/postgres"
 )
 
 const (
@@ -58,14 +61,14 @@ func CreateEventTableIndicesString(tableName string) string {
 
 // Event is the model for events table in DB
 type Event struct {
-	EventType       string       `db:"event_type"`
-	EventHash       string       `db:"hash"`
-	ContractAddress string       `db:"contract_address"`
-	ContractName    string       `db:"contract_name"`
-	Timestamp       int64        `db:"timestamp"`
-	RetrievalMethod int          `db:"retrieval_method"`
-	EventPayload    JsonbPayload `db:"payload"`
-	LogPayload      JsonbPayload `db:"log_payload"`
+	EventType       string                 `db:"event_type"`
+	EventHash       string                 `db:"hash"`
+	ContractAddress string                 `db:"contract_address"`
+	ContractName    string                 `db:"contract_name"`
+	Timestamp       int64                  `db:"timestamp"`
+	RetrievalMethod int                    `db:"retrieval_method"`
+	EventPayload    cpostgres.JsonbPayload `db:"payload"`
+	LogPayload      cpostgres.JsonbPayload `db:"log_payload"`
 }
 
 // NewDbEventFromEvent constructs an event for DB from a model.event
@@ -77,8 +80,8 @@ func NewDbEventFromEvent(event *model.Event) (*Event, error) {
 	dbEvent.ContractAddress = event.ContractAddress().Hex()
 	dbEvent.Timestamp = event.Timestamp()
 	dbEvent.RetrievalMethod = int(event.RetrievalMethod())
-	dbEvent.EventPayload = make(JsonbPayload)
-	dbEvent.LogPayload = make(JsonbPayload)
+	dbEvent.EventPayload = make(cpostgres.JsonbPayload)
+	dbEvent.LogPayload = make(cpostgres.JsonbPayload)
 	err := dbEvent.parseEventPayload(event)
 	if err != nil {
 		return nil, err
@@ -96,7 +99,7 @@ func (c *Event) EventDataToDB(eventData map[string]interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Error parsing ABI to get events, err: %v", err)
 	}
-	eventPayload := make(JsonbPayload)
+	eventPayload := make(cpostgres.JsonbPayload)
 
 	for _, input := range abiEvent.Inputs {
 		eventFieldName := strings.Title(input.Name)
