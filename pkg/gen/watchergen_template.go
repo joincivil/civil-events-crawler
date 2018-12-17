@@ -17,7 +17,8 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
+
+	ctime "github.com/joincivil/go-common/pkg/time"
 {{if .ContractImportPath -}}
 	"{{.ContractImportPath}}"
 {{- end}}
@@ -133,7 +134,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 		for {
 			select {
 			case event := <-recvChan:
-				modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", w.ContractName(), w.contractAddress, event, utils.CurrentEpochSecsInInt64(), model.Watcher)
+				modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", w.ContractName(), w.contractAddress, event, ctime.CurrentEpochSecsInInt64(), model.Watcher)
 				if err != nil {
 					log.Errorf("Error creating new event: event: %v, err: %v", event, err)
 					continue

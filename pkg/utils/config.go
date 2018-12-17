@@ -5,10 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	log "github.com/golang/glog"
 	"os"
 	"strings"
 	"text/tabwriter"
+
+	log "github.com/golang/glog"
+
+	cstrings "github.com/joincivil/go-common/pkg/strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/kelseyhightower/envconfig"
@@ -182,7 +185,7 @@ func (c *CrawlerConfig) validateContractAddresses() error {
 		}
 		addrs := splitStrByPipe(addrStr)
 		for _, addr := range addrs {
-			if !IsValidContractAddress(addr) {
+			if !cstrings.IsValidContractAddress(addr) {
 				return fmt.Errorf("Invalid contract address: '%v'", addr)
 			}
 		}
@@ -191,7 +194,7 @@ func (c *CrawlerConfig) validateContractAddresses() error {
 }
 
 func (c *CrawlerConfig) validateAPIURL() error {
-	if c.EthAPIURL == "" || !IsValidEthAPIURL(c.EthAPIURL) {
+	if c.EthAPIURL == "" || !cstrings.IsValidEthAPIURL(c.EthAPIURL) {
 		return fmt.Errorf("Invalid eth API URL: '%v'", c.EthAPIURL)
 	}
 	return nil
