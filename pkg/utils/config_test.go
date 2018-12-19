@@ -3,10 +3,11 @@ package utils_test
 
 import (
 	"context"
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
 	"net/http"
 	"os"
 	"testing"
+
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 // CRAWL_ETH_API_URL=http://ethaddress.com CRAWL_CONTRACT_ADDRESSES=civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55 CRAWL_PERSISTER_TYPE_NAME=postgresql CRAWL_PERSISTER_POSTGRES_ADDRESS=localhost CRAWL_PERSISTER_POSTGRES_PORT=5432 CRAWL_PERSISTER_POSTGRES_DBNAME=civil_crawler go run cmd/crawler/main.go
@@ -361,7 +362,7 @@ func testServer(t *testing.T, handler func(http.ResponseWriter, *http.Request)) 
 	go func() {
 		err := srv.ListenAndServe()
 		if err != nil {
-			t.Logf("Error starting test service: %s", err)
+			t.Logf("Error w test service: %s", err)
 		}
 	}()
 

@@ -16,10 +16,11 @@ import (
 	ctime "github.com/joincivil/go-common/pkg/time"
 
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+
+	"github.com/joincivil/go-common/pkg/generated/contract"
 )
 
 func TestListener(t *testing.T) {

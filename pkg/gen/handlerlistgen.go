@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	cgen "github.com/joincivil/go-common/pkg/gen"
 )
 
 // EventHandlerListContractTmplData represents the names of the contracts to
@@ -41,5 +42,5 @@ func GenerateEventHandlerLists(writer io.Writer, packageName string) error {
 		Contracts:   contracts,
 		GenTime:     time.Now().UTC(),
 	}
-	return OutputTemplatedData(writer, "handlerlist.tmpl", handlerListTmpl, tmplData, true)
+	return cgen.OutputTemplatedData(writer, "handlerlist.tmpl", handlerListTmpl, tmplData, true)
 }

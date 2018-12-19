@@ -1,8 +1,9 @@
 package model
 
 import (
-	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"sync"
+
+	"github.com/joincivil/go-common/pkg/generated/contract"
 )
 
 const (
@@ -34,21 +35,21 @@ var (
 				name:        "CivilTCRContract",
 				simpleName:  "civiltcr",
 				abiStr:      contract.CivilTCRContractABI,
-				importPath:  "github.com/joincivil/civil-events-crawler/pkg/generated/contract",
+				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
 				typePackage: "contract",
 			},
 			NewsroomContractType: {
 				name:        "NewsroomContract",
 				simpleName:  "newsroom",
 				abiStr:      contract.NewsroomContractABI,
-				importPath:  "github.com/joincivil/civil-events-crawler/pkg/generated/contract",
+				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
 				typePackage: "contract",
 			},
 			CivilPLCRVotingContractType: {
 				name:        "CivilPLCRVotingContract",
 				simpleName:  "civilplcrvoting",
 				abiStr:      contract.CivilPLCRVotingContractABI,
-				importPath:  "github.com/joincivil/civil-events-crawler/pkg/generated/contract",
+				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
 				typePackage: "contract",
 			},
 		},
