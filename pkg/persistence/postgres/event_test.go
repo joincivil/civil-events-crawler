@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/joincivil/go-common/pkg/generated/contract"
 	ctime "github.com/joincivil/go-common/pkg/time"
 
-	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 )

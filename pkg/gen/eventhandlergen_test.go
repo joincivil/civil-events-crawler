@@ -3,11 +3,12 @@ package gen_test
 
 import (
 	"bytes"
-	"github.com/joincivil/civil-events-crawler/pkg/gen"
-	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/joincivil/civil-events-crawler/pkg/gen"
+	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
 func TestGenerateEventHandlersFromTemplate(t *testing.T) {
@@ -30,7 +31,7 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 	}
 	testWatchers := &gen.EventHandlerContractTmplData{
 		PackageName:         "watcher",
-		ContractImportPath:  "github.com/joincivil/civil-events-crawler/pkg/generated/contract",
+		ContractImportPath:  "github.com/joincivil/go-common/pkg/generated/contract",
 		ContractTypePackage: "contract",
 		ContractTypeName:    "CivilTCRContract",
 		GenTime:             time.Now().UTC(),
@@ -41,7 +42,7 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 	}
 	testFilterers := &gen.EventHandlerContractTmplData{
 		PackageName:         "retrieve",
-		ContractImportPath:  "github.com/joincivil/civil-events-crawler/pkg/generated/contract",
+		ContractImportPath:  "github.com/joincivil/go-common/pkg/generated/contract",
 		ContractTypePackage: "contract",
 		ContractTypeName:    "CivilTCRContract",
 		GenTime:             time.Now().UTC(),

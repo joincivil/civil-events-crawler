@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+
+	cgen "github.com/joincivil/go-common/pkg/gen"
 )
 
 const (
@@ -64,7 +66,7 @@ func GenerateEventHandlersFromTemplate(writer io.Writer, tmplData *EventHandlerC
 	if !ok {
 		return errors.New("Invalid handlerName")
 	}
-	return OutputTemplatedData(writer, tmpData.tmplName, tmpData.tmplVar, tmplData, gofmt)
+	return cgen.OutputTemplatedData(writer, tmpData.tmplName, tmpData.tmplVar, tmplData, gofmt)
 }
 
 // EventHandlerMethodParam represents a value to be passed into the

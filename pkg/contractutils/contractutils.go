@@ -18,9 +18,10 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+
 	// "github.com/ethereum/go-ethereum/ethclient"
 	// "fmt"
-	"github.com/joincivil/civil-events-crawler/pkg/generated/contract"
+	"github.com/joincivil/go-common/pkg/generated/contract"
 )
 
 const (
