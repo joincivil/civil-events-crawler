@@ -5,12 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
-	"text/tabwriter"
 
 	log "github.com/golang/glog"
 
+	cconfig "github.com/joincivil/go-common/pkg/config"
 	cstrings "github.com/joincivil/go-common/pkg/strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -18,40 +17,8 @@ import (
 	"github.com/shurcooL/graphql"
 )
 
-// PersisterType is the type of persister to use.
-type PersisterType int
-
-const (
-	// PersisterTypeInvalid is an invalid persister value
-	PersisterTypeInvalid PersisterType = iota
-
-	// PersisterTypeNone is a persister that does nothing but return default values
-	PersisterTypeNone
-
-	// PersisterTypePostgresql is a persister that uses PostgreSQL as the backend
-	PersisterTypePostgresql
-)
-
-var (
-	// PersisterNameToType maps valid persister names to the types above
-	PersisterNameToType = map[string]PersisterType{
-		"none":       PersisterTypeNone,
-		"postgresql": PersisterTypePostgresql,
-	}
-)
-
 const (
 	envVarPrefix = "crawl"
-
-	usageListFormat = `The crawler is configured via environment vars only. The following environment variables can be used:
-{{range .}}
-{{usage_key .}}
-  description: {{usage_description .}}
-  type:        {{usage_type .}}
-  default:     {{usage_default .}}
-  required:    {{usage_required .}}
-{{end}}
-`
 )
 
 // NOTE(PN): After envconfig populates CrawlerConfig with the environment vars,
@@ -72,13 +39,13 @@ type CrawlerConfig struct {
 	ContractAddresses   map[string]string           `split_words:"true" required:"true" desc:"<contract name>:<contract addr>. Delimit contract address with '|' for multiple addresses"`
 	ContractAddressObjs map[string][]common.Address `ignored:"true"`
 
-	PersisterType            PersisterType `ignored:"true"`
-	PersisterTypeName        string        `split_words:"true" required:"true" desc:"Sets the persister type to use"`
-	PersisterPostgresAddress string        `split_words:"true" desc:"If persister type is Postgresql, sets the address"`
-	PersisterPostgresPort    int           `split_words:"true" desc:"If persister type is Postgresql, sets the port"`
-	PersisterPostgresDbname  string        `split_words:"true" desc:"If persister type is Postgresql, sets the database name"`
-	PersisterPostgresUser    string        `split_words:"true" desc:"If persister type is Postgresql, sets the database user"`
-	PersisterPostgresPw      string        `split_words:"true" desc:"If persister type is Postgresql, sets the database password"`
+	PersisterType            cconfig.PersisterType `ignored:"true"`
+	PersisterTypeName        string                `split_words:"true" required:"true" desc:"Sets the persister type to use"`
+	PersisterPostgresAddress string                `split_words:"true" desc:"If persister type is Postgresql, sets the address"`
+	PersisterPostgresPort    int                   `split_words:"true" desc:"If persister type is Postgresql, sets the port"`
+	PersisterPostgresDbname  string                `split_words:"true" desc:"If persister type is Postgresql, sets the database name"`
+	PersisterPostgresUser    string                `split_words:"true" desc:"If persister type is Postgresql, sets the database user"`
+	PersisterPostgresPw      string                `split_words:"true" desc:"If persister type is Postgresql, sets the database password"`
 }
 
 // FetchListingAddresses retrieves the list of Civil newsroom listings if given
@@ -122,9 +89,7 @@ func (c *CrawlerConfig) FetchListingAddresses() error {
 
 // OutputUsage prints the usage string to os.Stdout
 func (c *CrawlerConfig) OutputUsage() {
-	tabs := tabwriter.NewWriter(os.Stdout, 1, 0, 4, ' ', 0)
-	_ = envconfig.Usagef(envVarPrefix, c, tabs, usageListFormat) // nolint: gosec
-	_ = tabs.Flush()                                             // nolint: gosec
+	cconfig.OutputUsage(c, envVarPrefix, envVarPrefix)
 }
 
 // PopulateFromEnv processes the environment vars, populates CrawlerConfig
@@ -162,7 +127,7 @@ func (c *CrawlerConfig) PopulateFromEnv() error {
 
 func (c *CrawlerConfig) populatePersisterType() error {
 	var err error
-	c.PersisterType, err = PersisterTypeFromName(c.PersisterTypeName)
+	c.PersisterType, err = cconfig.PersisterTypeFromName(c.PersisterTypeName)
 	return err
 }
 
@@ -202,7 +167,7 @@ func (c *CrawlerConfig) validateAPIURL() error {
 
 func (c *CrawlerConfig) validatePersister() error {
 	var err error
-	if c.PersisterType == PersisterTypePostgresql {
+	if c.PersisterType == cconfig.PersisterTypePostgresql {
 		err = c.validatePostgresqlPersister()
 		if err != nil {
 			return err
@@ -222,22 +187,6 @@ func (c *CrawlerConfig) validatePostgresqlPersister() error {
 		return errors.New("Postgresql db name required")
 	}
 	return nil
-}
-
-// PersisterTypeFromName returns the correct persisterType from the string name
-func PersisterTypeFromName(typeStr string) (PersisterType, error) {
-	pType, ok := PersisterNameToType[typeStr]
-	if !ok {
-		validNames := make([]string, len(PersisterNameToType))
-		index := 0
-		for name := range PersisterNameToType {
-			validNames[index] = name
-			index++
-		}
-		return PersisterTypeInvalid,
-			fmt.Errorf("Invalid persister value: %v; valid types %v", typeStr, validNames)
-	}
-	return pType, nil
 }
 
 func splitStrByPipe(str string) []string {

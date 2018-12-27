@@ -4,12 +4,13 @@ package main
 import (
 	"context"
 	"flag"
-	log "github.com/golang/glog"
 	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 
@@ -18,6 +19,8 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
+
+	cconfig "github.com/joincivil/go-common/pkg/config"
 )
 
 const (
@@ -55,7 +58,7 @@ func eventDataPersister(config *utils.CrawlerConfig) model.EventDataPersister {
 }
 
 func persister(config *utils.CrawlerConfig) interface{} {
-	if config.PersisterType == utils.PersisterTypePostgresql {
+	if config.PersisterType == cconfig.PersisterTypePostgresql {
 		return postgresPersister(config)
 	}
 	// Default to the NullPersister
