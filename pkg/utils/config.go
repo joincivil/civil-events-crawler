@@ -79,6 +79,9 @@ type CrawlerConfig struct {
 	PersisterPostgresDbname  string        `split_words:"true" desc:"If persister type is Postgresql, sets the database name"`
 	PersisterPostgresUser    string        `split_words:"true" desc:"If persister type is Postgresql, sets the database user"`
 	PersisterPostgresPw      string        `split_words:"true" desc:"If persister type is Postgresql, sets the database password"`
+
+	GCProjectID     string `envconfig:"gc_project_id" desc:"Sets the Google Cloud Project ID name"`
+	PubsubTopicName string `split_words:"true" desc:"Sets the Google Cloud PubSub Topic name"`
 }
 
 // FetchListingAddresses retrieves the list of Civil newsroom listings if given
