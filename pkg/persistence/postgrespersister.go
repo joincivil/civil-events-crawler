@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"time"
 
 	log "github.com/golang/glog"
 
@@ -23,6 +24,11 @@ import (
 
 const (
 	eventTableName = "event"
+
+	// Could make this configurable later if needed
+	maxOpenConns    = 50
+	maxIdleConns    = 10
+	connMaxLifetime = time.Second * 1800 // 30 mins
 )
 
 // NewPostgresPersister creates a new postgres persister
@@ -34,6 +40,9 @@ func NewPostgresPersister(host string, port int, user string, password string, d
 		return pgPersister, fmt.Errorf("Error connecting to sqlx: %v", err)
 	}
 	pgPersister.db = db
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxIdleConns)
+	db.SetConnMaxLifetime(connMaxLifetime)
 	pgPersister.eventToBlockData = make(map[common.Address]map[string]PersisterBlockData)
 	return pgPersister, nil
 }
