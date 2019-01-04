@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	log "github.com/golang/glog"
 	"net/url"
 	"os"
@@ -41,9 +42,11 @@ func eventTriggers(config *utils.CrawlerConfig) []eventcollector.Trigger {
 }
 
 func crawlerPubSub(config *utils.CrawlerConfig) *pubsub.CrawlerPubSub {
-	if config.GCProjectID == "" && config.PubsubTopicName == "" {
+	fmt.Println("CONFIG NAMES:", config.GCProjectID, config.PubsubTopicName)
+	if config.GCProjectID == "" || config.PubsubTopicName == "" {
 		return nil
 	}
+
 	pubsub, err := pubsub.NewCrawlerPubSub(config.GCProjectID, config.PubsubTopicName)
 	if err != nil {
 		log.Errorf("Error initializing pubsub, stopping...; err: %v", err)

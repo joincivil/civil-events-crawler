@@ -80,7 +80,7 @@ type CrawlerConfig struct {
 	PersisterPostgresUser    string        `split_words:"true" desc:"If persister type is Postgresql, sets the database user"`
 	PersisterPostgresPw      string        `split_words:"true" desc:"If persister type is Postgresql, sets the database password"`
 
-	GCProjectID     string `envconfig:"gc_project_id" desc:"Sets the Google Cloud Project ID name"`
+	GCProjectID     string `envconfig:"civil_gc_project_id" desc:"Sets the Google Cloud Project ID name"`
 	PubsubTopicName string `split_words:"true" desc:"Sets the Google Cloud PubSub Topic name"`
 }
 

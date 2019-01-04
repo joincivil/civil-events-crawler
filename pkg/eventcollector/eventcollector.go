@@ -145,7 +145,6 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	}
 	log.Infof("handleEvent: events saved") // Debug, remove later
 
-	// send to pubsub
 	if c.crawlerPubSub != nil {
 		err = c.crawlerPubSub.PublishWatchedEventMessage(event)
 		if err != nil {
@@ -172,7 +171,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	}
 
 	// We need to get past newsroom events for the newsroom contract of a newly added watcher
-	// NOTE(IS): I think those newsroom events won't be processed bc of their timestamp.
+	// NOTE(IS): These newsroom events won't necessarily be processed bc of their timestamp.
 	if event.EventType() == "Application" {
 		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
 		// Check in persistence to see if events exist for this newsroom and update starting blocks
@@ -183,7 +182,6 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 			return nil
 		}
 		log.Infof("Found %v newsroom events for address %v after filtering", len(nwsrmEvents), newsroomAddr.Hex())
-		// Save events
 		err = c.eventDataPersister.SaveEvents(nwsrmEvents)
 		if err != nil {
 			err = fmt.Errorf("Error saving events %v", err)
