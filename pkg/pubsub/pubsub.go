@@ -57,8 +57,7 @@ func (c *CrawlerPubSub) PublishFilteringFinishedMessage() error {
 	if err != nil {
 		return err
 	}
-	err = c.GooglePubsub.Publish(msg)
-	return err
+	return c.GooglePubsub.Publish(msg)
 }
 
 // PublishWatchedEventMessage sends a message that an event has been watched for
@@ -67,6 +66,5 @@ func (c *CrawlerPubSub) PublishWatchedEventMessage(event *model.Event) error {
 	if err != nil {
 		return err
 	}
-	err = c.GooglePubsub.Publish(msg)
-	return err
+	return c.GooglePubsub.Publish(msg)
 }

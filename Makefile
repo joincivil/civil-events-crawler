@@ -32,6 +32,10 @@ GENERATED_HANDLER_LIST_DIR=$(GENERATED_DIR)/handlerlist
 EVENTHANDLER_GEN_MAIN=cmd/eventhandlergen/main.go
 HANDLERLIST_GEN_MAIN=cmd/handlerlistgen/main.go
 
+## Gometalinter installation
+GOMETALINTER_INSTALLER=scripts/gometalinter_install.sh
+GOMETALINTER_VERSION_TAG=v2.0.11
+
 ## Reliant on go and $GOPATH being set.
 .PHONY: check-go-env
 check-go-env:
@@ -57,8 +61,7 @@ install-dep: check-go-env ## Installs dep
 
 .PHONY: install-linter
 install-linter: check-go-env ## Installs linter
-	@$(GOGET) -u github.com/alecthomas/gometalinter
-	@gometalinter --install
+	sh $(GOMETALINTER_INSTALLER) -b $(GOPATH)/bin $(GOMETALINTER_VERSION_TAG)
 ifdef APT
 	@sudo apt-get install golang-race-detector-runtime || true
 endif

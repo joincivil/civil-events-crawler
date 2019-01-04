@@ -4,13 +4,13 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
-	log "github.com/golang/glog"
 	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 
@@ -20,6 +20,8 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/persistence"
 	"github.com/joincivil/civil-events-crawler/pkg/pubsub"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
+
+	cconfig "github.com/joincivil/go-common/pkg/config"
 )
 
 const (
@@ -42,7 +44,6 @@ func eventTriggers(config *utils.CrawlerConfig) []eventcollector.Trigger {
 }
 
 func crawlerPubSub(config *utils.CrawlerConfig) *pubsub.CrawlerPubSub {
-	fmt.Println("CONFIG NAMES:", config.GCProjectID, config.PubsubTopicName)
 	if config.GCProjectID == "" || config.PubsubTopicName == "" {
 		return nil
 	}
@@ -76,7 +77,7 @@ func eventDataPersister(config *utils.CrawlerConfig) model.EventDataPersister {
 }
 
 func persister(config *utils.CrawlerConfig) interface{} {
-	if config.PersisterType == utils.PersisterTypePostgresql {
+	if config.PersisterType == cconfig.PersisterTypePostgresql {
 		return postgresPersister(config)
 	}
 	// Default to the NullPersister

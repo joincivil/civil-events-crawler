@@ -219,6 +219,7 @@
   digest = "1:0d3f8af17e21419cf87e84797e122b10d7b2a83dd2bef1054f68abdffc5af34f"
   name = "github.com/joincivil/go-common"
   packages = [
+    "pkg/config",
     "pkg/eth",
     "pkg/gen",
     "pkg/generated/contract",
@@ -555,6 +556,7 @@
     "github.com/fatih/structs",
     "github.com/golang/glog",
     "github.com/jmoiron/sqlx",
+    "github.com/joincivil/go-common/pkg/config",
     "github.com/joincivil/go-common/pkg/eth",
     "github.com/joincivil/go-common/pkg/gen",
     "github.com/joincivil/go-common/pkg/generated/contract",

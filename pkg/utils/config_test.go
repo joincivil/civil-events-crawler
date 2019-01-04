@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
+	cconfig "github.com/joincivil/go-common/pkg/config"
 )
 
 // CRAWL_ETH_API_URL=http://ethaddress.com CRAWL_CONTRACT_ADDRESSES=civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55 CRAWL_PERSISTER_TYPE_NAME=postgresql CRAWL_PERSISTER_POSTGRES_ADDRESS=localhost CRAWL_PERSISTER_POSTGRES_PORT=5432 CRAWL_PERSISTER_POSTGRES_DBNAME=civil_crawler go run cmd/crawler/main.go
@@ -166,24 +167,24 @@ func TestCrawlerConfigUsage(t *testing.T) {
 }
 
 func TestPersisterTypeFromName(t *testing.T) {
-	_, err := utils.PersisterTypeFromName("")
+	_, err := cconfig.PersisterTypeFromName("")
 	if err == nil {
 		t.Error("Should have failed to retrieve a persister type from empty name")
 	}
 
-	persisterType, err := utils.PersisterTypeFromName("none")
+	persisterType, err := cconfig.PersisterTypeFromName("none")
 	if err != nil {
 		t.Error("Should have retrieved a persister type for 'none' name")
 	}
-	if persisterType != utils.PersisterTypeNone {
+	if persisterType != cconfig.PersisterTypeNone {
 		t.Error("Should have retrieved a persister type for 'none' value")
 	}
 
-	persisterType, err = utils.PersisterTypeFromName("postgresql")
+	persisterType, err = cconfig.PersisterTypeFromName("postgresql")
 	if err != nil {
 		t.Error("Should have retrieved a persister type for 'postgresql' name")
 	}
-	if persisterType != utils.PersisterTypePostgresql {
+	if persisterType != cconfig.PersisterTypePostgresql {
 		t.Error("Should have retrieved a persister type for 'postgresql' value")
 	}
 }
