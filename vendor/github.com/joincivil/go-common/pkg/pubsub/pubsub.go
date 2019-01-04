@@ -69,6 +69,7 @@ type GooglePubSub struct {
 	subscribeContext       context.Context
 	subscribeContextCancel context.CancelFunc
 	subscribeStarted       bool
+	subscribeMutex         sync.Mutex
 	numRunningSubscribe    int
 }
 
@@ -100,7 +101,9 @@ func (g *GooglePubSub) StartPublishers() error {
 			go g.publisher(&wg)
 			log.Info("Publisher started")
 		}
+		g.publishMutex.Lock()
 		g.publishStarted = true
+		g.publishMutex.Unlock()
 		log.Infof("All publishers started: num: %v", numRoutines)
 
 		wg.Wait()
@@ -149,12 +152,18 @@ func (g *GooglePubSub) Publish(msg *GooglePubSubMsg) error {
 
 // PublishersStarted returns true if the publishers are running, false if not.
 func (g *GooglePubSub) PublishersStarted() bool {
-	return g.publishStarted
+	g.publishMutex.Lock()
+	pubStarted := g.publishStarted
+	g.publishMutex.Unlock()
+	return pubStarted
 }
 
 // NumPublishersRunning return the number of publishers goroutines running.
 func (g *GooglePubSub) NumPublishersRunning() int {
-	return g.numRunningPublish
+	g.publishMutex.Lock()
+	numPubs := g.numRunningPublish
+	g.publishMutex.Unlock()
+	return numPubs
 }
 
 // StopPublishers will stop the publisher goroutines
@@ -205,9 +214,9 @@ func (g *GooglePubSub) StartSubscribersWithConfig(config SubscribeConfig) error 
 			go g.subscriber(&wg)
 			log.Info("Subscriber started")
 		}
-		g.publishMutex.Lock()
-		g.publishStarted = true
-		g.publishMutex.Unlock()
+		g.subscribeMutex.Lock()
+		g.subscribeStarted = true
+		g.subscribeMutex.Unlock()
 		log.Infof("All subscribers started: num: %v", numRoutines)
 
 		wg.Wait()
@@ -270,12 +279,18 @@ func (g *GooglePubSub) SubscriptionExists(subName string) (bool, error) {
 
 // SubscribersStarted returns true if the subscribers are running, false if not.
 func (g *GooglePubSub) SubscribersStarted() bool {
-	return g.subscribeStarted
+	g.subscribeMutex.Lock()
+	subStarted := g.subscribeStarted
+	g.subscribeMutex.Unlock()
+	return subStarted
 }
 
 // NumSubscribersRunning return the number of subscriber goroutines running.
 func (g *GooglePubSub) NumSubscribersRunning() int {
-	return g.numRunningPublish
+	g.subscribeMutex.Lock()
+	numSubs := g.numRunningSubscribe
+	g.subscribeMutex.Unlock()
+	return numSubs
 }
 
 // SubscriptionName returns the name of the subscription to track.
@@ -287,7 +302,9 @@ func (g *GooglePubSub) SubscriptionName() string {
 func (g *GooglePubSub) StopSubscribers() error {
 	g.subscribeContextCancel()
 	close(g.SubscribeChan)
+	g.subscribeMutex.Lock()
 	g.subscribeStarted = false
+	g.subscribeMutex.Unlock()
 	return nil
 }
 
@@ -340,7 +357,9 @@ Loop:
 func (g *GooglePubSub) subscriber(wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	g.subscribeMutex.Lock()
 	g.numRunningSubscribe++
+	g.subscribeMutex.Unlock()
 	sub := g.client.Subscription(g.subscribeConfig.Name)
 	err := sub.Receive(g.subscribeContext, func(ctx context.Context, msg *pubsub.Message) {
 		log.Infof("Got message: %v: %v\n", msg.ID, msg)
@@ -349,7 +368,9 @@ func (g *GooglePubSub) subscriber(wg *sync.WaitGroup) {
 			msg.Ack()
 		}
 	})
+	g.subscribeMutex.Lock()
 	g.numRunningSubscribe--
+	g.subscribeMutex.Unlock()
 	if err != nil {
 		log.Errorf("Error with subscription: %v\n", err)
 		return

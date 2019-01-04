@@ -216,7 +216,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:38db7b6aed4fc7548e49febba5d85e2a3c96e86d3f84b37de00aaa0548e494fb"
+  digest = "1:0d3f8af17e21419cf87e84797e122b10d7b2a83dd2bef1054f68abdffc5af34f"
   name = "github.com/joincivil/go-common"
   packages = [
     "pkg/eth",
@@ -228,7 +228,7 @@
     "pkg/time",
   ]
   pruneopts = "UT"
-  revision = "b4c2b87c5ff4c7c083d30dea17727a7c4af02211"
+  revision = "0e31702d6db94ae4127c96556a8d6f739ff4eae5"
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
