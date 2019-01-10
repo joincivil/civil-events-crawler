@@ -5,6 +5,7 @@
 package pubsub_test
 
 import (
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
@@ -73,11 +74,12 @@ func returnTestEvent(t *testing.T) *model.Event {
 
 func TestBuildMessage(t *testing.T) {
 	cps := setupCrawlerPubSub(t)
-	message, err := cps.BuildMessage(0, true)
+	event := returnTestEvent(t)
+	message, err := cps.BuildMessage(0, event.Hash())
 	if err != nil {
 		t.Errorf("Error building message for pubsub %v", err)
 	}
-	if message.Payload != "{\"timestamp\":0,\"filteredEvent\":true}" {
+	if message.Payload != fmt.Sprintf("{\"timestamp\":0,\"hash\":\"%s\"}", event.Hash()) {
 		t.Errorf("Message payload contents are wrong %v", message.Payload)
 	}
 	if message.Topic != "testTopic" {
@@ -128,7 +130,7 @@ func TestPublishMessages(t *testing.T) {
 	}
 
 	resultIDs := []string{}
-	resultChan := make(chan string, 3)
+	resultChan := make(chan string)
 
 	go func() {
 		for {
@@ -146,6 +148,7 @@ func TestPublishMessages(t *testing.T) {
 		time.Sleep(10)
 		cps.PublishFilteringFinishedMessage()
 		cps.PublishWatchedEventMessage(event)
+
 	}()
 
 Loop:

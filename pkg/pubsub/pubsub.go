@@ -23,8 +23,8 @@ func NewCrawlerPubSub(projectID string, topic string) (*CrawlerPubSub, error) {
 
 // CrawlerPubSubMessage is the message sent from the crawler
 type CrawlerPubSubMessage struct {
-	Timestamp     int64 `json:"timestamp"`
-	FilteredEvent bool  `json:"filteredEvent"`
+	Timestamp int64  `json:"timestamp"`
+	Hash      string `json:"hash"`
 }
 
 // StartPublishers starts the publishers
@@ -38,10 +38,10 @@ func (c *CrawlerPubSub) StopPublishers() error {
 }
 
 // BuildMessage builds a message for the publisher
-func (c *CrawlerPubSub) BuildMessage(timestamp int64, filtered bool) (*cpubsub.GooglePubSubMsg, error) {
+func (c *CrawlerPubSub) BuildMessage(timestamp int64, hash string) (*cpubsub.GooglePubSubMsg, error) {
 	msg := CrawlerPubSubMessage{
-		Timestamp:     timestamp,
-		FilteredEvent: filtered,
+		Timestamp: timestamp,
+		Hash:      hash,
 	}
 	msgBytes, err := json.Marshal(msg)
 	if err != nil {
@@ -51,9 +51,15 @@ func (c *CrawlerPubSub) BuildMessage(timestamp int64, filtered bool) (*cpubsub.G
 	return &cpubsub.GooglePubSubMsg{Topic: c.Topic, Payload: string(msgBytes)}, nil
 }
 
+//BuildFilteringFinishedMessage is the message sent when filtering is done. It has no timestamp or hash
+// because there are a bunch of events associated with this.
+func (c *CrawlerPubSub) BuildFilteringFinishedMessage() (*cpubsub.GooglePubSubMsg, error) {
+	return c.BuildMessage(0, "")
+}
+
 // PublishFilteringFinishedMessage sends a message to pubsub that filtering has finished
 func (c *CrawlerPubSub) PublishFilteringFinishedMessage() error {
-	msg, err := c.BuildMessage(0, true)
+	msg, err := c.BuildFilteringFinishedMessage()
 	if err != nil {
 		return err
 	}
@@ -62,7 +68,7 @@ func (c *CrawlerPubSub) PublishFilteringFinishedMessage() error {
 
 // PublishWatchedEventMessage sends a message that an event has been watched for
 func (c *CrawlerPubSub) PublishWatchedEventMessage(event *model.Event) error {
-	msg, err := c.BuildMessage(event.Timestamp(), false)
+	msg, err := c.BuildMessage(event.Timestamp(), event.Hash())
 	if err != nil {
 		return err
 	}
