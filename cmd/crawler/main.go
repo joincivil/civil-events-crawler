@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	websocketPingDelaySecs = 60 * 30 // 30 mins
+	websocketPingDelaySecs = 60 * 5 // 5 mins
 )
 
 func contractFilterers(config *utils.CrawlerConfig) []model.ContractFilterers {
@@ -147,11 +147,12 @@ Loop:
 	for {
 		select {
 		case <-time.After(websocketPingDelaySecs * time.Second):
-			header, err := client.HeaderByNumber(context.TODO(), nil)
+			_, err := client.HeaderByNumber(context.TODO(), nil)
+			// header, err := client.HeaderByNumber(context.TODO(), nil)
 			if err != nil {
 				log.Errorf("Ping header by number failed: err: %v", err)
 			}
-			log.Infof("Ping success: block number: %v", header.Number)
+			// log.Infof("Ping success: block number: %v", header.Number)
 
 		case <-killChan:
 			log.Infof("Closing websocket ping")
