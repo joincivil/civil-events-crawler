@@ -115,9 +115,11 @@ type handleEventInputs struct {
 // incoming events fromt the watchers
 func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	inputs := payload.(handleEventInputs)
-	eventType := inputs.event.EventType()                                     // Debug, remove later
-	txHash := inputs.event.TxHash()                                           // Debug, remove later
-	log.Infof("handleEvent: handling event: %v, %v", eventType, txHash.Hex()) // Debug, remove later
+	eventType := inputs.event.EventType() // Debug, remove later
+	hash := inputs.event.Hash()           // Debug, remove later
+	txHash := inputs.event.TxHash()       // Debug, remove later
+	log.Infof("handleEvent: handling event: %v, tx: %v, hsh: %v", eventType,
+		txHash.Hex(), hash) // Debug, remove later
 	event := inputs.event
 	errors := inputs.errors
 
@@ -128,7 +130,8 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		errors <- err
 		return nil
 	}
-	log.Infof("handleEvent: updated event time from block header: %v, %v", eventType, txHash.Hex()) // Debug, remove later
+	log.Infof("handleEvent: updated event time from block header: %v, tx: %v, hsh: %v",
+		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	// Save event to persister
 	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
@@ -138,7 +141,8 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		errors <- err
 		return nil
 	}
-	log.Infof("handleEvent: events saved") // Debug, remove later
+	log.Infof("handleEvent: events saved: %v, tx: %v, hsh: %v",
+		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	// Update last block in persistence in case of error
 	err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
@@ -148,7 +152,8 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		errors <- err
 		return nil
 	}
-	log.Infof("handleEvent: updated last block data: %v, %v", eventType, txHash.Hex()) // Debug, remove later
+	log.Infof("handleEvent: updated last block data: %v, tx: %v, hsh: %v",
+		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	// Call event triggers
 	err = c.callTriggers(event)
@@ -157,6 +162,8 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		errors <- err
 		return nil
 	}
+	log.Infof("handleEvent: triggers called: %v, tx: %v, hsh: %v",
+		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	// We need to get past newsroom events for the newsroom contract of a newly added watcher
 	if event.EventType() == "Application" {
@@ -165,21 +172,24 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		nwsrmEvents, err := c.FilterAddedNewsroomContract(newsroomAddr)
 		if err != nil {
 			err = fmt.Errorf("Error filtering new newsroom contract: err: %v", err)
+			log.Errorf("%v", err)
 			errors <- err
 			return nil
 		}
-		log.Infof("Found %v newsroom events for address %v after filtering", len(nwsrmEvents), newsroomAddr.Hex())
+		log.Infof("Found %v newsroom events for address %v after filtering: hsh: %v",
+			len(nwsrmEvents), newsroomAddr.Hex(), hash) // Debug, remove later
 		// Save events
 		err = c.eventDataPersister.SaveEvents(nwsrmEvents)
 		if err != nil {
-			err = fmt.Errorf("Error saving events %v", err)
+			err = fmt.Errorf("Error saving events for application %v", err)
+			log.Errorf("%v", err)
 			errors <- err
 			return nil
 		}
-		log.Infof("Saved newsroom events at address %v", newsroomAddr.Hex())
+		log.Infof("Saved newsroom events at address %v, hsh: %v", newsroomAddr.Hex(), hash) //Debug, remove later
 	}
 
-	log.Infof("handleEvent: done: %v, %v", eventType, txHash.Hex()) // Debug, remove later
+	log.Infof("handleEvent: done: %v, tx: %v, hsh: %v", eventType, txHash.Hex(), hash) // Debug, remove later
 	return nil
 }
 
@@ -225,6 +235,7 @@ func (c *EventCollector) StartCollection() error {
 
 	select {
 	case err = <-c.errorsChan:
+		log.Errorf("Received error on the collector errors chan: err: %v", err)
 		return fmt.Errorf("Error during event handling: err: %v", err)
 	case <-c.quitChan:
 		return nil
