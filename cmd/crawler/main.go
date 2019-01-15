@@ -50,7 +50,16 @@ func crawlerPubSub(config *utils.CrawlerConfig) *pubsub.CrawlerPubSub {
 
 	pubsub, err := pubsub.NewCrawlerPubSub(config.GCProjectID, config.PubsubTopicName)
 	if err != nil {
-		log.Errorf("Error initializing pubsub, stopping...; err: %v", err)
+		log.Errorf("Error initializing pubsub, stopping...; err: %v, %v, %v", err, config.GCProjectID, config.PubsubTopicName)
+		os.Exit(1)
+	}
+	topicExists, err := pubsub.GooglePubsub.TopicExists(config.PubsubTopicName)
+	if err != nil {
+		log.Errorf("Error checking for existence of topic: err: %v", err)
+		os.Exit(1)
+	}
+	if !topicExists {
+		log.Errorf("Topic: %v does not exist", config.PubsubTopicName)
 		os.Exit(1)
 	}
 	err = pubsub.StartPublishers()
