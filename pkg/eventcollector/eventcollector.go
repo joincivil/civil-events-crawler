@@ -145,10 +145,8 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	if c.crawlerPubSub != nil {
 		err = c.crawlerPubSub.PublishWatchedEventMessage(event)
 		if err != nil {
-			log.Errorf("Error sending message to pubsub: %v", err)
+			return fmt.Errorf("Error sending message to pubsub: %v", err)
 		}
-		errors <- err
-		return nil
 	}
 
 	// Update last block in persistence in case of error
