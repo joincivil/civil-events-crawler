@@ -126,14 +126,10 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	log.Infof("handleEvent: handling event: %v, tx: %v, hsh: %v", eventType,
 		txHash.Hex(), hash) // Debug, remove later
 	event := inputs.event
-	errors := inputs.errors
 
 	err := c.updateEventTimeFromBlockHeader(event)
 	if err != nil {
-		err = fmt.Errorf("Error updating date for event: err: %v", err)
-		log.Errorf("%v", err)
-		errors <- err
-		return nil
+		return fmt.Errorf("Error updating date for event: err: %v", err)
 	}
 	log.Infof("handleEvent: updated event time from block header: %v, tx: %v, hsh: %v",
 		eventType, txHash.Hex(), hash) // Debug, remove later
@@ -141,10 +137,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	// Save event to persister
 	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
 	if err != nil {
-		err = fmt.Errorf("Error saving events: err: %v", err)
-		log.Errorf("%v", err)
-		errors <- err
-		return nil
+		return fmt.Errorf("Error saving events: err: %v", err)
 	}
 	log.Infof("handleEvent: events saved: %v, tx: %v, hsh: %v",
 		eventType, txHash.Hex(), hash) // Debug, remove later
@@ -161,10 +154,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	// Update last block in persistence in case of error
 	err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
 	if err != nil {
-		err = fmt.Errorf("Error updating last block: err: %v", err)
-		log.Errorf("%v", err)
-		errors <- err
-		return nil
+		return fmt.Errorf("Error updating last block: err: %v", err)
 	}
 	log.Infof("handleEvent: updated last block data: %v, tx: %v, hsh: %v",
 		eventType, txHash.Hex(), hash) // Debug, remove later
@@ -172,9 +162,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	// Call event triggers
 	err = c.callTriggers(event)
 	if err != nil {
-		log.Errorf("Error calling triggers: err: %v", err)
-		errors <- err
-		return nil
+		return fmt.Errorf("Error calling triggers: err: %v", err)
 	}
 	log.Infof("handleEvent: triggers called: %v, tx: %v, hsh: %v",
 		eventType, txHash.Hex(), hash) // Debug, remove later
@@ -186,20 +174,14 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		// Check in persistence to see if events exist for this newsroom and update starting blocks
 		nwsrmEvents, err := c.FilterAddedNewsroomContract(newsroomAddr)
 		if err != nil {
-			err = fmt.Errorf("Error filtering new newsroom contract: err: %v", err)
-			log.Errorf("%v", err)
-			errors <- err
-			return nil
+			return fmt.Errorf("Error filtering new newsroom contract: err: %v", err)
 		}
 		log.Infof("Found %v newsroom events for address %v after filtering: hsh: %v",
 			len(nwsrmEvents), newsroomAddr.Hex(), hash) // Debug, remove later
 		// Save events
 		err = c.eventDataPersister.SaveEvents(nwsrmEvents)
 		if err != nil {
-			err = fmt.Errorf("Error saving events for application %v", err)
-			log.Errorf("%v", err)
-			errors <- err
-			return nil
+			return fmt.Errorf("Error saving events for application %v", err)
 		}
 		log.Infof("Saved newsroom events at address %v, hsh: %v", newsroomAddr.Hex(), hash) //Debug, remove later
 	}
@@ -332,17 +314,38 @@ func (c *EventCollector) startListener() error {
 				}
 				go func(e *model.Event, errs chan<- error) {
 					log.Infof(
-						"startListener go func: pool.Process start: queued: %v, queue_size: %v",
+						"startListener func: pool.Process start: queued: %v, queue_size: %v",
 						pool.QueueLength(),
 						pool.GetSize(),
 					) // Debug, remove later
-					pool.Process(
+					result := pool.Process(
 						handleEventInputs{
 							event:  e,
 							errors: errs,
 						},
 					)
-					log.Infof("startListener go func: pool.Process done") // Debug, remove later
+					if result != nil {
+						err := result.(error)
+						if err != nil {
+							log.Errorf(
+								"startListener go func: Error processing: %v, %v, %v, %v, \n%v",
+								err,
+								event.EventType(),
+								event.Hash(),
+								event.Timestamp(),
+								event.LogPayloadToString(),
+							)
+						}
+					}
+					if log.V(2) {
+						log.Infof(
+							"startListener func: pool.Process done: %v, %v, %v, \n%v",
+							event.EventType(),
+							event.Hash(),
+							event.Timestamp(),
+							event.LogPayloadToString(),
+						) // Debug, remove later
+					}
 				}(event, errors)
 				log.Infof("startListener: started process from pool") // Debug, remove later
 			case <-quit:
