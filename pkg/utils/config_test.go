@@ -12,8 +12,7 @@ import (
 )
 
 // CRAWL_ETH_API_URL=http://ethaddress.com CRAWL_CONTRACT_ADDRESSES=civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55 CRAWL_PERSISTER_TYPE_NAME=postgresql CRAWL_PERSISTER_POSTGRES_ADDRESS=localhost CRAWL_PERSISTER_POSTGRES_PORT=5432 CRAWL_PERSISTER_POSTGRES_DBNAME=civil_crawler go run cmd/crawler/main.go
-
-func TestCrawlerConfig(t *testing.T) {
+func setEnvironmentVariables() {
 	os.Setenv(
 		"CRAWL_ETH_API_URL",
 		"http://ethaddress.com",
@@ -38,6 +37,10 @@ func TestCrawlerConfig(t *testing.T) {
 		"CRAWL_PERSISTER_POSTGRES_DBNAME",
 		"civil_crawler",
 	)
+}
+
+func TestCrawlerConfig(t *testing.T) {
+	setEnvironmentVariables()
 	config := &utils.CrawlerConfig{}
 	err := config.PopulateFromEnv()
 	if err != nil {
@@ -46,29 +49,10 @@ func TestCrawlerConfig(t *testing.T) {
 }
 
 func TestCrawlerConfigMultiAddresses(t *testing.T) {
-	os.Setenv(
-		"CRAWL_ETH_API_URL",
-		"http://ethaddress.com",
-	)
+	setEnvironmentVariables()
 	os.Setenv(
 		"CRAWL_CONTRACT_ADDRESSES",
 		"civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55|0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d|0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_TYPE_NAME",
-		"postgresql",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_ADDRESS",
-		"localhost",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_PORT",
-		"5432",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_DBNAME",
-		"civil_crawler",
 	)
 	config := &utils.CrawlerConfig{}
 	err := config.PopulateFromEnv()
@@ -86,30 +70,12 @@ func TestCrawlerConfigMultiAddresses(t *testing.T) {
 
 func TestBadEthURLCrawlerConfig(t *testing.T) {
 	// Bad URL
+	setEnvironmentVariables()
 	os.Setenv(
 		"CRAWL_ETH_API_URL",
 		"ethaddress.com",
 	)
-	os.Setenv(
-		"CRAWL_CONTRACT_ADDRESSES",
-		"civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_TYPE_NAME",
-		"postgresql",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_ADDRESS",
-		"localhost",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_PORT",
-		"5432",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_DBNAME",
-		"civil_crawler",
-	)
+
 	config := &utils.CrawlerConfig{}
 	err := config.PopulateFromEnv()
 	if err == nil {
@@ -118,30 +84,11 @@ func TestBadEthURLCrawlerConfig(t *testing.T) {
 }
 
 func TestBadAddressCrawlerConfig(t *testing.T) {
-	os.Setenv(
-		"CRAWL_ETH_API_URL",
-		"http://ethaddress.com",
-	)
+	setEnvironmentVariables()
 	// Bad address
 	os.Setenv(
 		"CRAWL_CONTRACT_ADDRESSES",
 		"civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311def,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_TYPE_NAME",
-		"postgresql",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_ADDRESS",
-		"localhost",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_PORT",
-		"5432",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_DBNAME",
-		"civil_crawler",
 	)
 	config := &utils.CrawlerConfig{}
 	err := config.PopulateFromEnv()
@@ -151,30 +98,11 @@ func TestBadAddressCrawlerConfig(t *testing.T) {
 }
 
 func TestBadPersisterNameCrawlerConfig(t *testing.T) {
-	os.Setenv(
-		"CRAWL_ETH_API_URL",
-		"http://ethaddress.com",
-	)
-	os.Setenv(
-		"CRAWL_CONTRACT_ADDRESSES",
-		"civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55",
-	)
+	setEnvironmentVariables()
 	//Bad persister name
 	os.Setenv(
 		"CRAWL_PERSISTER_TYPE_NAME",
 		"mysql",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_ADDRESS",
-		"localhost",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_PORT",
-		"5432",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_DBNAME",
-		"civil_crawler",
 	)
 	config := &utils.CrawlerConfig{}
 	err := config.PopulateFromEnv()
@@ -184,30 +112,11 @@ func TestBadPersisterNameCrawlerConfig(t *testing.T) {
 }
 
 func TestBadPersisterPostgresqlAddressCrawlerConfig(t *testing.T) {
-	os.Setenv(
-		"CRAWL_ETH_API_URL",
-		"http://ethaddress.com",
-	)
-	os.Setenv(
-		"CRAWL_CONTRACT_ADDRESSES",
-		"civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_TYPE_NAME",
-		"postgresql",
-	)
+	setEnvironmentVariables()
 	//Bad persister postgresql address
 	os.Setenv(
 		"CRAWL_PERSISTER_POSTGRES_ADDRESS",
 		"",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_PORT",
-		"5432",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_DBNAME",
-		"civil_crawler",
 	)
 	config := &utils.CrawlerConfig{}
 	err := config.PopulateFromEnv()
@@ -217,30 +126,11 @@ func TestBadPersisterPostgresqlAddressCrawlerConfig(t *testing.T) {
 }
 
 func TestBadPersisterPostgresqlPortCrawlerConfig(t *testing.T) {
-	os.Setenv(
-		"CRAWL_ETH_API_URL",
-		"http://ethaddress.com",
-	)
-	os.Setenv(
-		"CRAWL_CONTRACT_ADDRESSES",
-		"civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_TYPE_NAME",
-		"postgresql",
-	)
-	//Bad persister postgresql address
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_ADDRESS",
-		"localhost",
-	)
+	setEnvironmentVariables()
+	//Bad persister postgresql port
 	os.Setenv(
 		"CRAWL_PERSISTER_POSTGRES_PORT",
 		"0",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_DBNAME",
-		"civil_crawler",
 	)
 	config := &utils.CrawlerConfig{}
 	err := config.PopulateFromEnv()
@@ -250,26 +140,7 @@ func TestBadPersisterPostgresqlPortCrawlerConfig(t *testing.T) {
 }
 
 func TestBadPersisterPostgresqlDBNameCrawlerConfig(t *testing.T) {
-	os.Setenv(
-		"CRAWL_ETH_API_URL",
-		"http://ethaddress.com",
-	)
-	os.Setenv(
-		"CRAWL_CONTRACT_ADDRESSES",
-		"civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_TYPE_NAME",
-		"postgresql",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_ADDRESS",
-		"localhost",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_PORT",
-		"5432",
-	)
+	setEnvironmentVariables()
 	//Bad persister dbname
 	os.Setenv(
 		"CRAWL_PERSISTER_POSTGRES_DBNAME",
@@ -403,6 +274,7 @@ func TestFetchListingAddresses(t *testing.T) {
 	)
 	config := &utils.CrawlerConfig{}
 	err := config.PopulateFromEnv()
+
 	if err != nil {
 		t.Errorf("Should have populated env vars: err: %v", err)
 	}

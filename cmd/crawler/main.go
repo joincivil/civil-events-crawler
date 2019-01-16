@@ -18,6 +18,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/handlerlist"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence"
+	"github.com/joincivil/civil-events-crawler/pkg/pubsub"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	cconfig "github.com/joincivil/go-common/pkg/config"
@@ -40,6 +41,33 @@ func eventTriggers(config *utils.CrawlerConfig) []eventcollector.Trigger {
 		&eventcollector.AddNewsroomWatchersTrigger{},
 		&eventcollector.RemoveNewsroomWatchersTrigger{},
 	}
+}
+
+func crawlerPubSub(config *utils.CrawlerConfig) *pubsub.CrawlerPubSub {
+	if config.GCProjectID == "" || config.PubsubTopicName == "" {
+		return nil
+	}
+
+	pubsub, err := pubsub.NewCrawlerPubSub(config.GCProjectID, config.PubsubTopicName)
+	if err != nil {
+		log.Errorf("Error initializing pubsub, stopping...; err: %v, %v, %v", err, config.GCProjectID, config.PubsubTopicName)
+		os.Exit(1)
+	}
+	topicExists, err := pubsub.GooglePubsub.TopicExists(config.PubsubTopicName)
+	if err != nil {
+		log.Errorf("Error checking for existence of topic: err: %v", err)
+		os.Exit(1)
+	}
+	if !topicExists {
+		log.Errorf("Topic: %v does not exist", config.PubsubTopicName)
+		os.Exit(1)
+	}
+	err = pubsub.StartPublishers()
+	if err != nil {
+		log.Errorf("Error starting publishers, stopping...; err: %v", err)
+		os.Exit(1)
+	}
+	return pubsub
 }
 
 func listenerMetaDataPersister(config *utils.CrawlerConfig) model.ListenerMetaDataPersister {
@@ -204,6 +232,7 @@ func startUp(config *utils.CrawlerConfig) error {
 			Triggers:           eventTriggers(config),
 			StartBlock:         config.EthStartBlock,
 			DisableListener:    !isWebsocketURL(config.EthAPIURL),
+			CrawlerPubSub:      crawlerPubSub(config),
 		},
 	)
 

@@ -21,6 +21,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/pubsub"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
 
 	"github.com/joincivil/go-common/pkg/eth"
@@ -43,6 +44,7 @@ type Config struct {
 	Triggers           []Trigger
 	StartBlock         uint64
 	DisableListener    bool
+	CrawlerPubSub      *pubsub.CrawlerPubSub
 }
 
 // NewEventCollector creates a new event collector
@@ -61,6 +63,7 @@ func NewEventCollector(config *Config) *EventCollector {
 		startChan:          make(chan bool),
 		quitChan:           make(chan bool),
 		disableListener:    config.DisableListener,
+		crawlerPubSub:      config.CrawlerPubSub,
 	}
 	return eventcollector
 }
@@ -104,6 +107,8 @@ type EventCollector struct {
 	headerCache *eth.BlockHeaderCache
 
 	disableListener bool
+
+	crawlerPubSub *pubsub.CrawlerPubSub
 }
 
 type handleEventInputs struct {
@@ -137,6 +142,13 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	log.Infof("handleEvent: events saved: %v, tx: %v, hsh: %v",
 		eventType, txHash.Hex(), hash) // Debug, remove later
 
+	if c.crawlerPubSub != nil {
+		err = c.crawlerPubSub.PublishWatchedEventMessage(event)
+		if err != nil {
+			return fmt.Errorf("Error sending message to pubsub: %v", err)
+		}
+	}
+
 	// Update last block in persistence in case of error
 	err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
 	if err != nil {
@@ -154,6 +166,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	// We need to get past newsroom events for the newsroom contract of a newly added watcher
+	// NOTE(IS): These newsroom events won't necessarily be processed bc of their timestamp.
 	if event.EventType() == "Application" {
 		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
 		// Check in persistence to see if events exist for this newsroom and update starting blocks
@@ -205,6 +218,13 @@ func (c *EventCollector) StartCollection() error {
 		log.Infof("Listener is disabled, not starting")
 		c.sendStartSignal()
 		return nil
+	}
+
+	if c.crawlerPubSub != nil {
+		err = c.crawlerPubSub.PublishFilteringFinishedMessage()
+		if err != nil {
+			return err
+		}
 	}
 
 	err = c.startListener()
@@ -339,6 +359,13 @@ func (c *EventCollector) startListener() error {
 // StopCollection is for stopping the listener
 func (c *EventCollector) StopCollection() error {
 	var err error
+	if c.crawlerPubSub != nil {
+		err = c.crawlerPubSub.StopPublishers()
+		if err != nil {
+			return err
+		}
+	}
+
 	if c.listen != nil {
 		err = c.listen.Stop()
 	}
