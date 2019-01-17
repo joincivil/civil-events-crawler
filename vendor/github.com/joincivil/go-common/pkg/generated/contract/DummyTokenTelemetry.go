@@ -14,10 +14,10 @@ import (
 )
 
 // DummyTokenTelemetryContractABI is the input ABI used to generate the binding from.
-const DummyTokenTelemetryContractABI = "[{\"constant\":false,\"inputs\":[{\"name\":\"user\",\"type\":\"address\"},{\"name\":\"tokenAmount\",\"type\":\"uint256\"}],\"name\":\"onTokensUsed\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+const DummyTokenTelemetryContractABI = "[{\"constant\":false,\"inputs\":[{\"name\":\"user\",\"type\":\"address\"},{\"name\":\"tokenAmount\",\"type\":\"uint256\"}],\"name\":\"onRequestVotingRights\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
 
 // DummyTokenTelemetryContractBin is the compiled bytecode used for deploying new contracts.
-const DummyTokenTelemetryContractBin = `0x608060405234801561001057600080fd5b5060a38061001f6000396000f300608060405260043610603e5763ffffffff7c01000000000000000000000000000000000000000000000000000000006000350416637f9d322b81146043575b600080fd5b348015604e57600080fd5b50607173ffffffffffffffffffffffffffffffffffffffff600435166024356073565b005b50505600a165627a7a72305820a262be58bccb60c6a8f5db60f87586fa8e348e7276ad0cf0dffd8f286298af920029`
+const DummyTokenTelemetryContractBin = `0x608060405234801561001057600080fd5b5060a38061001f6000396000f300608060405260043610603e5763ffffffff7c01000000000000000000000000000000000000000000000000000000006000350416637252487381146043575b600080fd5b348015604e57600080fd5b50607173ffffffffffffffffffffffffffffffffffffffff600435166024356073565b005b50505600a165627a7a723058207ad0f6acebe5f8699f63ec66e456db01d1e29bed089ebf940cec987824831bf60029`
 
 // DeployDummyTokenTelemetryContract deploys a new Ethereum contract, binding an instance of DummyTokenTelemetryContract to it.
 func DeployDummyTokenTelemetryContract(auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, *types.Transaction, *DummyTokenTelemetryContract, error) {
@@ -174,23 +174,23 @@ func (_DummyTokenTelemetryContract *DummyTokenTelemetryContractTransactorRaw) Tr
 	return _DummyTokenTelemetryContract.Contract.contract.Transact(opts, method, params...)
 }
 
-// OnTokensUsed is a paid mutator transaction binding the contract method 0x7f9d322b.
+// OnRequestVotingRights is a paid mutator transaction binding the contract method 0x72524873.
 //
-// Solidity: function onTokensUsed(user address, tokenAmount uint256) returns()
-func (_DummyTokenTelemetryContract *DummyTokenTelemetryContractTransactor) OnTokensUsed(opts *bind.TransactOpts, user common.Address, tokenAmount *big.Int) (*types.Transaction, error) {
-	return _DummyTokenTelemetryContract.contract.Transact(opts, "onTokensUsed", user, tokenAmount)
+// Solidity: function onRequestVotingRights(user address, tokenAmount uint256) returns()
+func (_DummyTokenTelemetryContract *DummyTokenTelemetryContractTransactor) OnRequestVotingRights(opts *bind.TransactOpts, user common.Address, tokenAmount *big.Int) (*types.Transaction, error) {
+	return _DummyTokenTelemetryContract.contract.Transact(opts, "onRequestVotingRights", user, tokenAmount)
 }
 
-// OnTokensUsed is a paid mutator transaction binding the contract method 0x7f9d322b.
+// OnRequestVotingRights is a paid mutator transaction binding the contract method 0x72524873.
 //
-// Solidity: function onTokensUsed(user address, tokenAmount uint256) returns()
-func (_DummyTokenTelemetryContract *DummyTokenTelemetryContractSession) OnTokensUsed(user common.Address, tokenAmount *big.Int) (*types.Transaction, error) {
-	return _DummyTokenTelemetryContract.Contract.OnTokensUsed(&_DummyTokenTelemetryContract.TransactOpts, user, tokenAmount)
+// Solidity: function onRequestVotingRights(user address, tokenAmount uint256) returns()
+func (_DummyTokenTelemetryContract *DummyTokenTelemetryContractSession) OnRequestVotingRights(user common.Address, tokenAmount *big.Int) (*types.Transaction, error) {
+	return _DummyTokenTelemetryContract.Contract.OnRequestVotingRights(&_DummyTokenTelemetryContract.TransactOpts, user, tokenAmount)
 }
 
-// OnTokensUsed is a paid mutator transaction binding the contract method 0x7f9d322b.
+// OnRequestVotingRights is a paid mutator transaction binding the contract method 0x72524873.
 //
-// Solidity: function onTokensUsed(user address, tokenAmount uint256) returns()
-func (_DummyTokenTelemetryContract *DummyTokenTelemetryContractTransactorSession) OnTokensUsed(user common.Address, tokenAmount *big.Int) (*types.Transaction, error) {
-	return _DummyTokenTelemetryContract.Contract.OnTokensUsed(&_DummyTokenTelemetryContract.TransactOpts, user, tokenAmount)
+// Solidity: function onRequestVotingRights(user address, tokenAmount uint256) returns()
+func (_DummyTokenTelemetryContract *DummyTokenTelemetryContractTransactorSession) OnRequestVotingRights(user common.Address, tokenAmount *big.Int) (*types.Transaction, error) {
+	return _DummyTokenTelemetryContract.Contract.OnRequestVotingRights(&_DummyTokenTelemetryContract.TransactOpts, user, tokenAmount)
 }
