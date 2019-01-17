@@ -21,6 +21,7 @@ import (
 
 	// "github.com/ethereum/go-ethereum/ethclient"
 	// "fmt"
+	"github.com/joincivil/go-common/pkg/eth"
 	"github.com/joincivil/go-common/pkg/generated/contract"
 )
 
@@ -75,7 +76,7 @@ func SetupSimulatedClient(gasLimit uint64) (*backends.SimulatedBackend, *bind.Tr
 // AllTestContracts contains the values returned from SetupAllTestContracts
 type AllTestContracts struct {
 	TokenAddr         common.Address
-	TokenContract     *contract.EIP20Contract
+	TokenContract     *contract.CVLTokenContract
 	PlcrAddr          common.Address
 	PlcrContract      *contract.CivilPLCRVotingContract
 	ParamAddr         common.Address
@@ -111,14 +112,28 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 	client.Commit()
 
 	// Setup the TESTCVL token
-	tokenAddr, eip20, err := setupTestEIP20Contract(client, auth)
+	tokenAddr, cvlToken, err := setupTestCVLTokenContract(client, auth)
+	if err != nil {
+		log.Fatalf("Unable to deploy cvlToken: err: %v", err)
+		return nil, err
+	}
+
+	client.Commit()
+	controllerAddress, err := cvlToken.Controller(nil)
+	if err != nil {
+		log.Fatalf("Unable to get token controllerAddress: %v", err)
+	}
+	tokenController, err := contract.NewCivilTokenControllerContract(controllerAddress, client)
+	if err != nil {
+		log.Fatalf("Unable to build token controller instance: %v", err)
+	}
 	if err != nil {
 		log.Fatalf("Unable to deploy a test token: %v", err)
 	}
 
 	client.Commit()
 
-	balance, _ := eip20.BalanceOf(&bind.CallOpts{}, auth.From) // nolint: gosec
+	balance, _ := cvlToken.BalanceOf(&bind.CallOpts{}, auth.From) // nolint: gosec
 	approveOpts := &bind.TransactOpts{
 		From:   auth.From,
 		Signer: auth.Signer,
@@ -130,7 +145,7 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 		return nil, err
 	}
 
-	_, err = eip20.Approve(approveOpts, tokenTeleAddr, balance)
+	_, err = cvlToken.Approve(approveOpts, tokenTeleAddr, balance)
 	if err != nil {
 		log.Errorf("Unable to approve user for token telemetry: %v", err)
 		return nil, err
@@ -144,7 +159,7 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 		return nil, err
 	}
 
-	_, err = eip20.Approve(approveOpts, plcrAddr, balance)
+	_, err = cvlToken.Approve(approveOpts, plcrAddr, balance)
 	if err != nil {
 		log.Errorf("Unable to approve user for PLCR: %v", err)
 		return nil, err
@@ -158,7 +173,7 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 		return nil, err
 	}
 
-	_, err = eip20.Approve(approveOpts, paramAddr, balance)
+	_, err = cvlToken.Approve(approveOpts, paramAddr, balance)
 	if err != nil {
 		log.Errorf("Unable to approve user for parameterizer: %v", err)
 		return nil, err
@@ -173,7 +188,7 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 		return nil, err
 	}
 
-	_, err = eip20.Approve(approveOpts, govtAddr, balance)
+	_, err = cvlToken.Approve(approveOpts, govtAddr, balance)
 	if err != nil {
 		log.Errorf("Unable to approve user for govt: %v", err)
 		return nil, err
@@ -188,7 +203,7 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 		return nil, err
 	}
 
-	_, err = eip20.Approve(approveOpts, civilTcrAddr, balance)
+	_, err = cvlToken.Approve(approveOpts, civilTcrAddr, balance)
 	if err != nil {
 		log.Errorf("Unable to approve user for tcr: %v", err)
 		return nil, err
@@ -202,7 +217,7 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 		return nil, err
 	}
 
-	_, err = eip20.Approve(approveOpts, newsroomAddr, balance)
+	_, err = cvlToken.Approve(approveOpts, newsroomAddr, balance)
 	if err != nil {
 		log.Errorf("Unable to approve user for newsroom: err: %v", err)
 		return nil, err
@@ -210,9 +225,49 @@ func SetupAllTestContracts() (*AllTestContracts, error) {
 
 	client.Commit()
 
+	_, err = tokenController.AddManager(auth, plcrAddr)
+	if err != nil {
+		log.Errorf("Unable to AddManager plcrAddr: %v", err)
+		return nil, err
+	}
+
+	// add Civil contracts to Core
+	_, err = tokenController.AddToCore(auth, plcrAddr)
+	if err != nil {
+		log.Errorf("Unable to AddToCore plcrAddr: %v", err)
+		return nil, err
+	}
+
+	_, err = tokenController.AddToCore(auth, civilTcrAddr)
+	if err != nil {
+		log.Errorf("Unable to AddToCore civilTcrAddr: %v", err)
+		return nil, err
+	}
+
+	_, err = tokenController.AddToCore(auth, paramAddr)
+	if err != nil {
+		log.Errorf("Unable to AddToCore paramAddr: %v", err)
+		return nil, err
+	}
+
+	// allow user to transfer to Core and Newsrooms
+	_, err = tokenController.AddToCivilians(auth, auth.From)
+	if err != nil {
+		log.Errorf("Unable to AddToCivilians: %v", err)
+		return nil, err
+	}
+
+	_, err = tokenController.AddToNewsroomMultisigs(auth, newsroomAddr)
+	if err != nil {
+		log.Errorf("Unable to AddToNewsroomMultisigs: %v", err)
+		return nil, err
+	}
+
+	client.Commit()
+
 	return &AllTestContracts{
 		TokenAddr:         tokenAddr,
-		TokenContract:     eip20,
+		TokenContract:     cvlToken,
 		PlcrAddr:          plcrAddr,
 		PlcrContract:      plcr,
 		ParamAddr:         paramAddr,
@@ -247,16 +302,21 @@ func setupTestNewsroomContract(client bind.ContractBackend, auth *bind.TransactO
 	return address, contract, nil
 }
 
-// setupTestEIP20Contract deploys a test token contract to the given ContractBackend.
-func setupTestEIP20Contract(client bind.ContractBackend, auth *bind.TransactOpts) (common.Address,
-	*contract.EIP20Contract, error) {
-	address, _, contract, err := contract.DeployEIP20Contract(
+// setupTestCVLTokenContract deploys a test token contract to the given ContractBackend.
+func setupTestCVLTokenContract(client bind.ContractBackend, auth *bind.TransactOpts) (common.Address,
+	*contract.CVLTokenContract, error) {
+	tokenControllerAddress, _, _, err := deployCivilTokenController(client, auth)
+	if err != nil {
+		return common.Address{}, nil, err
+	}
+	address, _, contract, err := contract.DeployCVLTokenContract(
 		auth,
 		client,
 		big.NewInt(9223372036854775807),
 		"CivilTokenTest",
 		18,
 		"CVLT",
+		tokenControllerAddress,
 	)
 	if err != nil {
 		return common.Address{}, nil, err
@@ -280,6 +340,21 @@ func modifyByteCodeWithDllAttrStore(bin string, dllAddr common.Address,
 	modifiedBin := ddlRexp.ReplaceAllString(contract.CivilPLCRVotingContractBin, cleanDllAddr)
 	modifiedBin = asRexp.ReplaceAllString(modifiedBin, cleanAttrStoreAddr)
 	return modifiedBin
+}
+
+func deployCivilTokenController(client bind.ContractBackend, auth *bind.TransactOpts) (common.Address, *types.Transaction, *bind.BoundContract, error) {
+	libAddress, _, _, err := contract.DeployMessagesAndCodesContract(auth, client)
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+
+	return eth.DeployContractWithLinks(
+		auth, client,
+		contract.CivilTokenControllerContractABI,
+		contract.CivilTokenControllerContractBin,
+		map[string]common.Address{"MessagesAndCodes": libAddress},
+	)
+
 }
 
 // deployCivilPLCRVotingContractModified deploys a new Ethereum contract, binding an instance of CivilPLCRVotingContract to it.
@@ -447,7 +522,6 @@ func setupTestCivilTCRContract(client bind.ContractBackend, auth *bind.TransactO
 		plcrAddr,
 		paramAddr,
 		govtAddr,
-		tokenTeleAddr,
 	)
 	if err != nil {
 		return common.Address{}, nil, err
