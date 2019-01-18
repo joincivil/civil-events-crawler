@@ -1011,10 +1011,10 @@ func TestRetrieveEvents(t *testing.T) {
 	if err != nil {
 		t.Errorf("Should not have received error when retrieving events: err: %v", err)
 	}
-	if len(events) != 3 {
-		t.Errorf("Should have seen 3 events: %v", len(events))
+	if len(events) != 4 {
+		t.Errorf("Should have seen 4 events: %v", len(events))
 	}
-	if events[0].EventType() != "Challenge" {
+	if events[0].EventType() != "ApplicationWhitelisted" {
 		t.Errorf("Should have seen the type challenge")
 	}
 
