@@ -38,8 +38,9 @@ type RetrieverMetaDataPersister interface {
 // RetrieveEventsCriteria contains the retrieval criteria for a RetrieveEvents
 // query.
 type RetrieveEventsCriteria struct {
-	Offset int `db:"offset"`
-	Count  int `db:"count"`
+	Hash   string `db:"hash"`
+	Offset int    `db:"offset"`
+	Count  int    `db:"count"`
 	// Reverse reverses by id in DB
 	Reverse   bool   `db:"reverse"`
 	FromTs    int64  `db:"fromts"`
