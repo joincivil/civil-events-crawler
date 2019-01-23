@@ -171,28 +171,33 @@ func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *mode
 	queryBuf.WriteString(fields)    // nolint: gosec
 	queryBuf.WriteString(" FROM ")  // nolint: gosec
 	queryBuf.WriteString(tableName) // nolint: gosec
-	if criteria.FromTs > 0 {
-		queryBuf.WriteString(" WHERE timestamp > :fromts") // nolint: gosec
-	}
-	if criteria.BeforeTs > 0 {
-		p.addWhereAnd(queryBuf)
-		queryBuf.WriteString(" timestamp < :beforets") // nolint: gosec
-	}
-	if criteria.EventType != "" {
-		p.addWhereAnd(queryBuf)
-		queryBuf.WriteString(" event_type = :eventtype") // nolint: gosec
-	}
-	if criteria.Reverse {
-		queryBuf.WriteString(" ORDER BY id DESC") // nolint: gosec
+	if criteria.Hash != "" {
+		// If querying by hash, we don't need any other criteria
+		queryBuf.WriteString(" WHERE hash = :hash") // nolint: gosec
 	} else {
-		queryBuf.WriteString(" ORDER BY id") // nolint: gosec
+		if criteria.FromTs > 0 {
+			queryBuf.WriteString(" WHERE timestamp > :fromts") // nolint: gosec
+		} else if criteria.BeforeTs > 0 {
+			p.addWhereAnd(queryBuf)
+			queryBuf.WriteString(" timestamp < :beforets") // nolint: gosec
+		}
+		if criteria.EventType != "" {
+			p.addWhereAnd(queryBuf)
+			queryBuf.WriteString(" event_type = :eventtype") // nolint: gosec
+		}
+		if criteria.Reverse {
+			queryBuf.WriteString(" ORDER BY id DESC") // nolint: gosec
+		} else {
+			queryBuf.WriteString(" ORDER BY id") // nolint: gosec
+		}
+		if criteria.Offset > 0 {
+			queryBuf.WriteString(" OFFSET :offset") // nolint: gosec
+		}
+		if criteria.Count > 0 {
+			queryBuf.WriteString(" LIMIT :count") // nolint: gosec
+		}
 	}
-	if criteria.Offset > 0 {
-		queryBuf.WriteString(" OFFSET :offset") // nolint: gosec
-	}
-	if criteria.Count > 0 {
-		queryBuf.WriteString(" LIMIT :count") // nolint: gosec
-	}
+
 	return queryBuf.String()
 }
 

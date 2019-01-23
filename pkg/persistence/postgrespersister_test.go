@@ -1032,4 +1032,16 @@ func TestRetrieveEvents(t *testing.T) {
 	if events[0].EventType() != "Application" {
 		t.Errorf("Should have seen the type application")
 	}
+
+	// Test criteria by hash:
+	hash := civilEventsFromContract[0].Hash()
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
+		Hash: hash,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	if len(events) != 1 {
+		t.Errorf("Should have only seen 1 event but saw %v", len(events))
+	}
 }

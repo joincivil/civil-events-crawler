@@ -134,7 +134,6 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	log.Infof("handleEvent: updated event time from block header: %v, tx: %v, hsh: %v",
 		eventType, txHash.Hex(), hash) // Debug, remove later
 
-	// Save event to persister
 	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
 	if err != nil {
 		return fmt.Errorf("Error saving events: err: %v", err)
@@ -145,7 +144,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	if c.crawlerPubSub != nil {
 		err = c.crawlerPubSub.PublishWatchedEventMessage(event)
 		if err != nil {
-			return fmt.Errorf("Error sending message to pubsub: %v", err)
+			return fmt.Errorf("Error sending message for event %v to pubsub: %v", event.Hash(), err)
 		}
 	}
 
@@ -166,22 +165,28 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	// We need to get past newsroom events for the newsroom contract of a newly added watcher
-	// NOTE(IS): These newsroom events won't necessarily be processed bc of their timestamp.
 	if event.EventType() == "Application" {
 		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
-		// Check in persistence to see if events exist for this newsroom and update starting blocks
-		nwsrmEvents, err := c.FilterAddedNewsroomContract(newsroomAddr)
+		newsroomEvents, err := c.FilterAddedNewsroomContract(newsroomAddr)
 		if err != nil {
 			return fmt.Errorf("Error filtering new newsroom contract: err: %v", err)
 		}
 		log.Infof("Found %v newsroom events for address %v after filtering: hsh: %v",
-			len(nwsrmEvents), newsroomAddr.Hex(), hash) // Debug, remove later
-		// Save events
-		err = c.eventDataPersister.SaveEvents(nwsrmEvents)
+			len(newsroomEvents), newsroomAddr.Hex(), hash) // Debug, remove later
+		err = c.eventDataPersister.SaveEvents(newsroomEvents)
 		if err != nil {
 			return fmt.Errorf("Error saving events for application %v", err)
 		}
 		log.Infof("Saved newsroom events at address %v, hsh: %v", newsroomAddr.Hex(), hash) //Debug, remove later
+		// NOTE(IS): This may not be the most efficient way to do this. Can think of a better solution later.
+		if c.crawlerPubSub != nil {
+			for _, event := range newsroomEvents {
+				err = c.crawlerPubSub.PublishWatchedEventMessage(event)
+				if err != nil {
+					return fmt.Errorf("Error sending message for event %v to pubsub: %v", event.Hash(), err)
+				}
+			}
+		}
 	}
 
 	log.Infof("handleEvent: done: %v, tx: %v, hsh: %v", eventType, txHash.Hex(), hash) // Debug, remove later
