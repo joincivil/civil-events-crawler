@@ -44,22 +44,22 @@ func eventTriggers(config *utils.CrawlerConfig) []eventcollector.Trigger {
 }
 
 func crawlerPubSub(config *utils.CrawlerConfig) *pubsub.CrawlerPubSub {
-	if config.GCProjectID == "" || config.PubsubTopicName == "" {
+	if config.PubSubProjectID == "" || config.PubSubTopicName == "" {
 		return nil
 	}
 
-	pubsub, err := pubsub.NewCrawlerPubSub(config.GCProjectID, config.PubsubTopicName)
+	pubsub, err := pubsub.NewCrawlerPubSub(config.PubSubProjectID, config.PubSubTopicName)
 	if err != nil {
-		log.Errorf("Error initializing pubsub, stopping...; err: %v, %v, %v", err, config.GCProjectID, config.PubsubTopicName)
+		log.Errorf("Error initializing pubsub, stopping...; err: %v, %v, %v", err, config.PubSubProjectID, config.PubSubTopicName)
 		os.Exit(1)
 	}
-	topicExists, err := pubsub.GooglePubsub.TopicExists(config.PubsubTopicName)
+	topicExists, err := pubsub.GooglePubsub.TopicExists(config.PubSubTopicName)
 	if err != nil {
 		log.Errorf("Error checking for existence of topic: err: %v", err)
 		os.Exit(1)
 	}
 	if !topicExists {
-		log.Errorf("Topic: %v does not exist", config.PubsubTopicName)
+		log.Errorf("Topic: %v does not exist", config.PubSubTopicName)
 		os.Exit(1)
 	}
 	err = pubsub.StartPublishers()
