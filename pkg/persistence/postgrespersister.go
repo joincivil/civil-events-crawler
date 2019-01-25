@@ -176,7 +176,7 @@ func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *mode
 		queryBuf.WriteString(" WHERE hash = :hash") // nolint: gosec
 	} else {
 		if criteria.FromTs > 0 {
-			queryBuf.WriteString(" WHERE timestamp > :fromts") // nolint: gosec
+			queryBuf.WriteString(" WHERE timestamp >= :fromts") // nolint: gosec
 		} else if criteria.BeforeTs > 0 {
 			p.addWhereAnd(queryBuf)
 			queryBuf.WriteString(" timestamp < :beforets") // nolint: gosec
