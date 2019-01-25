@@ -1,15 +1,47 @@
 package eth
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
+
+	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
+
+// WebsocketPing periodically makes a call over the given websocket conn
+// to the Eth node to ensure the connection stays alive.
+// Since there is no built in facility to do pings with the go-eth lib,
+// need to do this ourselves by making a eth_getHeaderByNumber RPC call.
+// NOTE(PN): Need to ensure the client passed in is a websocket client.
+// XXX(PN): I'm not sure of it's effectiveness since all nodes may be configured
+// differently in regards to keeping connections open.
+func WebsocketPing(client *ethclient.Client, killChan <-chan bool, pingIntervalSecs int) {
+	log.Infof("Starting ws ping at %v sec intervals...", pingIntervalSecs)
+Loop:
+	for {
+		select {
+		case <-time.After(time.Duration(pingIntervalSecs) * time.Second):
+			header, err := client.HeaderByNumber(context.TODO(), nil)
+			if err != nil {
+				log.Errorf("Ping header by number failed: err: %v", err)
+				continue
+			}
+			log.Infof("Ping success: block number: %v", header.Number)
+
+		case <-killChan:
+			log.Infof("Closing websocket ping")
+			break Loop
+		}
+	}
+}
 
 // NormalizeEthAddress takes a string address to normalize the
 // case of the ethereum address when it is a string.
