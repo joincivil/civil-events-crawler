@@ -185,6 +185,10 @@ func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *mode
 			p.addWhereAnd(queryBuf)
 			queryBuf.WriteString(" event_type = :eventtype") // nolint: gosec
 		}
+		if criteria.ContractAddress != "" {
+			p.addWhereAnd(queryBuf)
+			queryBuf.WriteString(" contract_address = :contract_address") // nolint: gosec
+		}
 		if criteria.Reverse {
 			queryBuf.WriteString(" ORDER BY id DESC") // nolint: gosec
 		} else {

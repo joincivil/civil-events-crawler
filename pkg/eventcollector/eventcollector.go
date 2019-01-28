@@ -142,7 +142,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	if c.crawlerPubSub != nil {
-		err = c.crawlerPubSub.PublishWatchedEventMessage(event)
+		err = c.crawlerPubSub.PublishTriggerMessage()
 		if err != nil {
 			return fmt.Errorf("Error sending message for event %v to pubsub: %v", event.Hash(), err)
 		}
@@ -178,13 +178,11 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 			return fmt.Errorf("Error saving events for application %v", err)
 		}
 		log.Infof("Saved newsroom events at address %v, hsh: %v", newsroomAddr.Hex(), hash) //Debug, remove later
-		// NOTE(IS): This may not be the most efficient way to do this. Can think of a better solution later.
+
 		if c.crawlerPubSub != nil {
-			for _, event := range newsroomEvents {
-				err = c.crawlerPubSub.PublishWatchedEventMessage(event)
-				if err != nil {
-					return fmt.Errorf("Error sending message for event %v to pubsub: %v", event.Hash(), err)
-				}
+			err := c.crawlerPubSub.PublishNewsroomExceptionMessage(newsroomAddr.Hex())
+			if err != nil {
+				return fmt.Errorf("Error sending message for event %v to pubsub: %v", event.Hash(), err)
 			}
 		}
 	}
@@ -226,7 +224,7 @@ func (c *EventCollector) StartCollection() error {
 	}
 
 	if c.crawlerPubSub != nil {
-		err = c.crawlerPubSub.PublishFilteringFinishedMessage()
+		err = c.crawlerPubSub.PublishTriggerMessage()
 		if err != nil {
 			return err
 		}
