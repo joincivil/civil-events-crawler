@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	elog "github.com/ethereum/go-ethereum/log"
 	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -179,6 +180,13 @@ func setupEthClient(config *utils.CrawlerConfig, killChan <-chan bool) (*ethclie
 	return client, nil
 }
 
+func enableGoEtherumLogging() {
+	glog := elog.NewGlogHandler(elog.StreamHandler(os.Stderr, elog.TerminalFormat(false)))
+	glog.Verbosity(elog.Lvl(elog.LvlDebug)) // nolint: unconvert
+	glog.Vmodule("")                        // nolint: errcheck, gosec
+	elog.Root().SetHandler(glog)
+}
+
 func startUp(config *utils.CrawlerConfig) error {
 	killChan := make(chan bool)
 
@@ -193,6 +201,8 @@ func startUp(config *utils.CrawlerConfig) error {
 		if logErr == nil {
 			log.Infof("Latest block number is: %v", header.Number)
 		}
+		// If v info level logging, include the ethereum lib logging
+		enableGoEtherumLogging()
 	}
 
 	eventCol := eventcollector.NewEventCollector(
