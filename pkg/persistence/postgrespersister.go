@@ -189,6 +189,11 @@ func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *mode
 			p.addWhereAnd(queryBuf)
 			queryBuf.WriteString(" contract_address = :contract_address") // nolint: gosec
 		}
+		if len(criteria.ExcludeHashes) > 0 {
+			p.addWhereAnd(queryBuf)
+			notInQuery := fmt.Sprintf(" hash NOT IN ('%v')", strings.Join(criteria.ExcludeHashes, "','"))
+			queryBuf.WriteString(notInQuery) // nolint: gosec
+		}
 		if criteria.Reverse {
 			queryBuf.WriteString(" ORDER BY id DESC") // nolint: gosec
 		} else {

@@ -51,7 +51,7 @@ func (c *CrawlerPubSub) BuildMessage(newsroomException bool,
 	return &cpubsub.GooglePubSubMsg{Topic: c.Topic, Payload: string(msgBytes)}, nil
 }
 
-// PublishTriggerMessage publishes a message to send a message
+// PublishTriggerMessage publishes an empty message to process events
 func (c *CrawlerPubSub) PublishTriggerMessage() error {
 	msg, err := c.BuildMessage(false, "")
 	if err != nil {
