@@ -8,8 +8,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
+	elog "github.com/ethereum/go-ethereum/log"
 	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -22,6 +22,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	cconfig "github.com/joincivil/go-common/pkg/config"
+	"github.com/joincivil/go-common/pkg/eth"
 )
 
 const (
@@ -145,31 +146,6 @@ func setupKillNotify(eventCol *eventcollector.EventCollector, killChan chan<- bo
 	}()
 }
 
-// websocketPing periodically makes a call over the websocket conn
-// to the Eth node to ensure the connection stays alive.
-// Since there is no built in facility to do pings with the go-eth lib,
-// need to do this ourselves by making a eth_getBlockByNumber RPC call.
-// NOTE(PN): Need to ensure the client passed in is a websocket client.
-// XXX(PN): Need to replace this someday with something better.
-func websocketPing(client *ethclient.Client, killChan <-chan bool) {
-Loop:
-	for {
-		select {
-		case <-time.After(websocketPingDelaySecs * time.Second):
-			_, err := client.HeaderByNumber(context.TODO(), nil)
-			// header, err := client.HeaderByNumber(context.TODO(), nil)
-			if err != nil {
-				log.Errorf("Ping header by number failed: err: %v", err)
-			}
-			// log.Infof("Ping success: block number: %v", header.Number)
-
-		case <-killChan:
-			log.Infof("Closing websocket ping")
-			break Loop
-		}
-	}
-}
-
 func isWebsocketURL(rawurl string) bool {
 	u, err := url.Parse(rawurl)
 	if err != nil {
@@ -187,7 +163,7 @@ func setupWebsocketPing(config *utils.CrawlerConfig, client *ethclient.Client,
 	// If websocket connection, setup "ping"
 	// otherwise, ignore this
 	if isWebsocketURL(config.EthAPIURL) {
-		go websocketPing(client, killChan)
+		go eth.WebsocketPing(client, killChan, websocketPingDelaySecs)
 	}
 	return nil
 }
@@ -204,6 +180,13 @@ func setupEthClient(config *utils.CrawlerConfig, killChan <-chan bool) (*ethclie
 	return client, nil
 }
 
+func enableGoEtherumLogging() {
+	glog := elog.NewGlogHandler(elog.StreamHandler(os.Stderr, elog.TerminalFormat(false)))
+	glog.Verbosity(elog.Lvl(elog.LvlDebug)) // nolint: unconvert
+	glog.Vmodule("")                        // nolint: errcheck, gosec
+	elog.Root().SetHandler(glog)
+}
+
 func startUp(config *utils.CrawlerConfig) error {
 	killChan := make(chan bool)
 
@@ -218,6 +201,8 @@ func startUp(config *utils.CrawlerConfig) error {
 		if logErr == nil {
 			log.Infof("Latest block number is: %v", header.Number)
 		}
+		// If v info level logging, include the ethereum lib logging
+		enableGoEtherumLogging()
 	}
 
 	eventCol := eventcollector.NewEventCollector(

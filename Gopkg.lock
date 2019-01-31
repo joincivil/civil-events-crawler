@@ -216,7 +216,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:b25a09d97a4a305921f0e7460394e499d6741cb46f73bdaa9bb87cb7cf59ec3f"
+  digest = "1:9d2f8673f8fa5f9e6139a3abf8dabe7efd863e2b2ad12d5a45c22d1a64c5b23e"
   name = "github.com/joincivil/go-common"
   packages = [
     "pkg/config",
@@ -229,7 +229,7 @@
     "pkg/time",
   ]
   pruneopts = "UT"
-  revision = "6c6d10efab52786cfaed114d2001e9229dd395f0"
+  revision = "e0c9fd3d3296840eedba6dde2881877553b1935e"
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
