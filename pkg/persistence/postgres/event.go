@@ -55,8 +55,7 @@ func CreateEventTableIndicesString(tableName string) string {
 		CREATE INDEX IF NOT EXISTS event_event_type_idx ON %s (event_type);
 		CREATE INDEX IF NOT EXISTS event_contract_address_idx ON %s (contract_address);
 		CREATE INDEX IF NOT EXISTS event_timestamp_idx ON %s (timestamp);
-		CREATE INDEX IF NOT EXISTS event_hash_idx ON %s (hash);
-	`, tableName, tableName, tableName, tableName)
+	`, tableName, tableName, tableName)
 	return queryString
 }
 
