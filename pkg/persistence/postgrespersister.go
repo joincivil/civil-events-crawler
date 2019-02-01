@@ -135,9 +135,9 @@ func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName s
 	for _, event := range events {
 		err := p.saveEventToTable(queryString, event)
 		if err != nil {
-			return err
+			return fmt.Errorf("Error saving %v to db, err: %v", event.Hash(), err)
 		}
-		log.Infof("saveEventsToTable: saved: %v, %v", event.EventType(), event.TxHash().Hex()) // Debug, remove later
+		log.Infof("saveEventsToTable: saved: %v, %v", event.EventType(), event.Hash()) // Debug, remove later
 	}
 	return nil
 }

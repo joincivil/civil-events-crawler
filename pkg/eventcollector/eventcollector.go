@@ -493,10 +493,12 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 				log.Infof("Adding Newsroom filterer for %v", newsroomAddr.Hex())
 				newFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
 				additionalNewsroomFilterers = append(additionalNewsroomFilterers, newFilterer)
+				existingFiltererNewsroomAddr[newsroomAddr] = true
 			}
 			if _, ok := existingWatcherNewsroomAddr[newsroomAddr]; !ok {
 				newWatcher := watcher.NewNewsroomContractWatchers(newsroomAddr)
 				watchersToAdd[newsroomAddr] = newWatcher
+				existingWatcherNewsroomAddr[newsroomAddr] = true
 			}
 		}
 		if event.EventType() == "ListingRemoved" {
