@@ -146,7 +146,7 @@ func TestPublishMessages(t *testing.T) {
 
 	go func() {
 		time.Sleep(10)
-		cps.PublishTriggerMessage()
+		cps.PublishProcessorTriggerMessage()
 		cps.PublishNewsroomExceptionMessage(event.ContractAddress().Hex())
 
 	}()

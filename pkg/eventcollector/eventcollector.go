@@ -142,7 +142,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	if c.crawlerPubSub != nil {
-		err = c.crawlerPubSub.PublishTriggerMessage()
+		err = c.crawlerPubSub.PublishProcessorTriggerMessage()
 		if err != nil {
 			return fmt.Errorf("Error sending message for event %v to pubsub: %v", event.Hash(), err)
 		}
@@ -224,7 +224,7 @@ func (c *EventCollector) StartCollection() error {
 	}
 
 	if c.crawlerPubSub != nil {
-		err = c.crawlerPubSub.PublishTriggerMessage()
+		err = c.crawlerPubSub.PublishProcessorTriggerMessage()
 		if err != nil {
 			return err
 		}
