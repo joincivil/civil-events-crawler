@@ -1011,10 +1011,10 @@ func TestRetrieveEvents(t *testing.T) {
 	if err != nil {
 		t.Errorf("Should not have received error when retrieving events: err: %v", err)
 	}
-	if len(events) != 3 {
+	if len(events) != 4 {
 		t.Errorf("Should have seen 3 events: %v", len(events))
 	}
-	if events[0].EventType() != "Challenge" {
+	if events[0].EventType() != "ApplicationWhitelisted" {
 		t.Errorf("Should have seen the type challenge")
 	}
 
@@ -1044,4 +1044,59 @@ func TestRetrieveEvents(t *testing.T) {
 	if len(events) != 1 {
 		t.Errorf("Should have only seen 1 event but saw %v", len(events))
 	}
+}
+
+func TestRetrieveEventsExcludingHash(t *testing.T) {
+	civilEventsFromContract, err := setupEvents(true)
+	if err != nil {
+		t.Errorf("Couldn't setup event %v", err)
+	}
+	timeToHash := make(map[int64][]string)
+
+	for _, event := range civilEventsFromContract {
+		ts := event.Timestamp()
+		timeToHash[ts] = append(timeToHash[ts], event.Hash())
+	}
+
+	persister, err := setupTestTable()
+	if err != nil {
+		t.Error(err)
+	}
+	defer deleteTestTableForTesting(t, persister)
+
+	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
+	if err != nil {
+		t.Errorf("Should not have seen error when saving events to table: %v", err)
+	}
+
+	// Choose random time for lastTs
+	lastTs := civilEventsFromContract[0].Timestamp()
+	// Take 1 hash to exclude
+	excluding := timeToHash[lastTs][:1]
+	events, err := persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
+		FromTs:        lastTs,
+		ExcludeHashes: excluding,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	numExpectedEvents := len(civilEventsFromContract) - len(excluding)
+	if len(events) != numExpectedEvents {
+		t.Errorf("Was expecting to get %v events but got %v instead", numExpectedEvents, len(events))
+	}
+
+	// Take 3 hashes to exclude
+	excluding = timeToHash[lastTs][:3]
+	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
+		FromTs:        lastTs,
+		ExcludeHashes: excluding,
+	})
+	if err != nil {
+		t.Errorf("Should not have received error when retrieving events: err: %v", err)
+	}
+	numExpectedEvents = len(civilEventsFromContract) - len(excluding)
+	if len(events) != numExpectedEvents {
+		t.Errorf("Was expecting to get %v events but got %v instead", numExpectedEvents, len(events))
+	}
+
 }

@@ -75,11 +75,11 @@ func returnTestEvent(t *testing.T) *model.Event {
 func TestBuildMessage(t *testing.T) {
 	cps := setupCrawlerPubSub(t)
 	event := returnTestEvent(t)
-	message, err := cps.BuildMessage(0, event.Hash())
+	message, err := cps.BuildMessage(true, event.ContractAddress().Hex())
 	if err != nil {
 		t.Errorf("Error building message for pubsub %v", err)
 	}
-	if message.Payload != fmt.Sprintf("{\"timestamp\":0,\"hash\":\"%s\"}", event.Hash()) {
+	if message.Payload != fmt.Sprintf("{\"newsroomException\":true,\"contractAddress\":\"%s\"}", event.ContractAddress().Hex()) {
 		t.Errorf("Message payload contents are wrong %v", message.Payload)
 	}
 	if message.Topic != "testTopic" {
@@ -146,8 +146,8 @@ func TestPublishMessages(t *testing.T) {
 
 	go func() {
 		time.Sleep(10)
-		cps.PublishFilteringFinishedMessage()
-		cps.PublishWatchedEventMessage(event)
+		cps.PublishProcessorTriggerMessage()
+		cps.PublishNewsroomExceptionMessage(event.ContractAddress().Hex())
 
 	}()
 

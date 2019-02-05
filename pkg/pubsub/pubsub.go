@@ -2,7 +2,6 @@ package pubsub
 
 import (
 	"encoding/json"
-	"github.com/joincivil/civil-events-crawler/pkg/model"
 	cpubsub "github.com/joincivil/go-common/pkg/pubsub"
 )
 
@@ -23,8 +22,8 @@ func NewCrawlerPubSub(projectID string, topic string) (*CrawlerPubSub, error) {
 
 // CrawlerPubSubMessage is the message sent from the crawler
 type CrawlerPubSubMessage struct {
-	Timestamp int64  `json:"timestamp"`
-	Hash      string `json:"hash"`
+	NewsroomException bool   `json:"newsroomException"`
+	ContractAddress   string `json:"contractAddress"`
 }
 
 // StartPublishers starts the publishers
@@ -38,10 +37,11 @@ func (c *CrawlerPubSub) StopPublishers() error {
 }
 
 // BuildMessage builds a message for the publisher
-func (c *CrawlerPubSub) BuildMessage(timestamp int64, hash string) (*cpubsub.GooglePubSubMsg, error) {
+func (c *CrawlerPubSub) BuildMessage(newsroomException bool,
+	contractAddress string) (*cpubsub.GooglePubSubMsg, error) {
 	msg := CrawlerPubSubMessage{
-		Timestamp: timestamp,
-		Hash:      hash,
+		NewsroomException: newsroomException,
+		ContractAddress:   contractAddress,
 	}
 	msgBytes, err := json.Marshal(msg)
 	if err != nil {
@@ -51,24 +51,18 @@ func (c *CrawlerPubSub) BuildMessage(timestamp int64, hash string) (*cpubsub.Goo
 	return &cpubsub.GooglePubSubMsg{Topic: c.Topic, Payload: string(msgBytes)}, nil
 }
 
-//BuildFilteringFinishedMessage is the message sent when filtering is done. It has no timestamp or hash
-// because there are a bunch of events associated with this.
-func (c *CrawlerPubSub) BuildFilteringFinishedMessage() (*cpubsub.GooglePubSubMsg, error) {
-	return c.BuildMessage(0, "")
-}
-
-// PublishFilteringFinishedMessage sends a message to pubsub that filtering has finished
-func (c *CrawlerPubSub) PublishFilteringFinishedMessage() error {
-	msg, err := c.BuildFilteringFinishedMessage()
+// PublishProcessorTriggerMessage publishes an empty message to process events
+func (c *CrawlerPubSub) PublishProcessorTriggerMessage() error {
+	msg, err := c.BuildMessage(false, "")
 	if err != nil {
 		return err
 	}
 	return c.GooglePubsub.Publish(msg)
 }
 
-// PublishWatchedEventMessage sends a message that an event has been watched for
-func (c *CrawlerPubSub) PublishWatchedEventMessage(event *model.Event) error {
-	msg, err := c.BuildMessage(event.Timestamp(), event.Hash())
+// PublishNewsroomExceptionMessage sends a message to pubsub to get all past events for a newsroom
+func (c *CrawlerPubSub) PublishNewsroomExceptionMessage(contractAddress string) error {
+	msg, err := c.BuildMessage(true, contractAddress)
 	if err != nil {
 		return err
 	}
