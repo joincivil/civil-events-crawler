@@ -128,8 +128,8 @@ jobs:
       - deploy:
           name: Update Kubernetes Deployment on PRODUCTION
           command: |
-            echo "intentionally turned off - uncomment to enable"
-            # kubectl set image deployment/$CIRCLE_PROJECT_REPONAME $CIRCLE_PROJECT_REPONAME=gcr.io/$GOOGLE_PROJECT_ID/$CIRCLE_PROJECT_REPONAME:master-$CIRCLE_SHA1 --namespace production
+            kubectl set image deployment/$CIRCLE_PROJECT_REPONAME $CIRCLE_PROJECT_REPONAME=gcr.io/$GOOGLE_PROJECT_ID/$CIRCLE_PROJECT_REPONAME:master-$CIRCLE_SHA1 --namespace production
+
 workflows:
   version: 2
   build_test_deploy:
