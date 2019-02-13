@@ -115,9 +115,10 @@ jobs:
       - deploy:
           name: Update Kubernetes Deployment on STAGING
           command: |
-            TAG=`echo $CIRCLE_BRANCH | sed 's/\\//_/g'`
+            # TAG=`echo $CIRCLE_BRANCH | sed 's/\\//_/g'`
 
-            kubectl set image deployment/$CIRCLE_PROJECT_REPONAME $CIRCLE_PROJECT_REPONAME=gcr.io/$GOOGLE_PROJECT_ID/$CIRCLE_PROJECT_REPONAME:$TAG-$CIRCLE_SHA1 --namespace staging
+            # kubectl set image deployment/$CIRCLE_PROJECT_REPONAME $CIRCLE_PROJECT_REPONAME=gcr.io/$GOOGLE_PROJECT_ID/$CIRCLE_PROJECT_REPONAME:$TAG-$CIRCLE_SHA1 --namespace staging
+            kubectl set image deployment/$CIRCLE_PROJECT_REPONAME $CIRCLE_PROJECT_REPONAME=gcr.io/$GOOGLE_PROJECT_ID/$CIRCLE_PROJECT_REPONAME:master-$CIRCLE_SHA1 --namespace staging
   deploy-production:
     docker:
       - image: civilmedia/gcloud-node:latest
@@ -128,7 +129,7 @@ jobs:
       - deploy:
           name: Update Kubernetes Deployment on PRODUCTION
           command: |
-            kubectl set image deployment/$CIRCLE_PROJECT_REPONAME $CIRCLE_PROJECT_REPONAME=gcr.io/$GOOGLE_PROJECT_ID/$CIRCLE_PROJECT_REPONAME:master-$CIRCLE_SHA1 --namespace production
+            kubectl set image deployment/$CIRCLE_PROJECT_REPONAME $CIRCLE_PROJECT_REPONAME=gcr.io/$GOOGLE_PROJECT_ID/$CIRCLE_PROJECT_REPONAME:production-$CIRCLE_SHA1 --namespace production
 
 workflows:
   version: 2
@@ -143,7 +144,8 @@ workflows:
             branches:
               only:
                 - master
-                - /staging.*/
+                - production
+                # - /staging.*/
       - push-container:
           context: gcp-common
           requires:
@@ -152,7 +154,8 @@ workflows:
             branches:
               only:
                 - master
-                - /staging.*/
+                - production
+                # - /staging.*/
       - deploy-staging:
           context: gcp-common
           requires:
@@ -161,7 +164,7 @@ workflows:
             branches:
               only:
                 - master
-                - /staging.*/
+                # - /staging.*/
       - deploy-production:
           context: gcp-common
           requires:
@@ -169,4 +172,4 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - production
