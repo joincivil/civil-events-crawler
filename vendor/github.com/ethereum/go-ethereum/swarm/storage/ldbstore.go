@@ -248,10 +248,6 @@ func U64ToBytes(val uint64) []byte {
 	return data
 }
 
-func (s *LDBStore) updateIndexAccess(index *dpaDBIndex) {
-	index.Access = s.accessCnt
-}
-
 func getIndexKey(hash Address) []byte {
 	hashSize := len(hash)
 	key := make([]byte, hashSize+1)
@@ -777,18 +773,6 @@ func (s *LDBStore) BinIndex(po uint8) uint64 {
 	return s.bucketCnt[po]
 }
 
-func (s *LDBStore) Size() uint64 {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-	return s.entryCnt
-}
-
-func (s *LDBStore) CurrentStorageIndex() uint64 {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-	return s.dataIdx
-}
-
 // Put adds a chunk to the database, adding indices and incrementing global counters.
 // If it already exists, it merely increments the access count of the existing entry.
 // Is thread safe
@@ -810,11 +794,11 @@ func (s *LDBStore) Put(ctx context.Context, chunk Chunk) error {
 	batch := s.batch
 
 	log.Trace("ldbstore.put: s.db.Get", "key", chunk.Address(), "ikey", fmt.Sprintf("%x", ikey))
-	idata, err := s.db.Get(ikey)
+	_, err := s.db.Get(ikey)
 	if err != nil {
 		s.doPut(chunk, &index, po)
 	}
-	idata = encodeIndex(&index)
+	idata := encodeIndex(&index)
 	s.batch.Put(ikey, idata)
 
 	// add the access-chunkindex index for garbage collection
@@ -985,6 +969,18 @@ func (s *LDBStore) Get(_ context.Context, addr Address) (chunk Chunk, err error)
 	return s.get(addr)
 }
 
+// Has queries the underlying DB if a chunk with the given address is stored
+// Returns true if the chunk is found, false if not
+func (s *LDBStore) Has(_ context.Context, addr Address) bool {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	ikey := getIndexKey(addr)
+	_, err := s.db.Get(ikey)
+
+	return err == nil
+}
+
 // TODO: To conform with other private methods of this object indices should not be updated
 func (s *LDBStore) get(addr Address) (chunk *chunk, err error) {
 	if s.closed {
@@ -1053,7 +1049,6 @@ func (s *LDBStore) Close() {
 	s.lock.Unlock()
 	// force writing out current batch
 	s.writeCurrentBatch()
-	close(s.batchesC)
 	s.db.Close()
 }
 
