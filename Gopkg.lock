@@ -340,7 +340,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:bf00c33b0474409ed72a4a0a69128ed10fae6c86feaf659c06dc545be94d811e"
+  digest = "1:a6f85d6d31c8c1185cf138cc82144c101e828472009bd8479425a011fd321e77"
   name = "golang.org/x/crypto"
   packages = [
     "pbkdf2",
@@ -349,7 +349,7 @@
     "sha3",
   ]
   pruneopts = "UT"
-  revision = "df8d4716b3472e4a531c33cedbe537dae921a1a9"
+  revision = "74369b46fc6756741c016591724fd1cb8e26845f"
 
 [[projects]]
   branch = "master"
