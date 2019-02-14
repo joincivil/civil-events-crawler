@@ -4,6 +4,8 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/ethclient"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,24 +28,60 @@ type Account struct {
 	Address common.Address
 }
 
-// NewSimulatedBackendHelper creates a new Helper using an ethereum SimulatedBackend
-func NewSimulatedBackendHelper() (*Helper, error) {
-	key, err := crypto.GenerateKey()
+// NewETHClientHelper creates a new Helper using an ethclient with the provided URL
+// accountKeys is a mapping of name->privateKey hex string
+func NewETHClientHelper(ethAPIURL string, accountKeys map[string]string) (*Helper, error) {
+	blockchain, err := ethclient.Dial(ethAPIURL)
 	if err != nil {
 		return nil, err
 	}
-	auth := bind.NewKeyedTransactor(key)
-	alloc := make(core.GenesisAlloc)
-	alloc[auth.From] = core.GenesisAccount{Balance: big.NewInt(1000000000)}
-	blockchain := backends.NewSimulatedBackend(alloc, 1000000000)
 
 	accounts := make(map[string]Account)
-	accounts["genesis"] = Account{Key: key, Auth: auth, Address: GetEthAddressFromPrivateKey(key)}
+	for keyName, privateKey := range accountKeys {
+		account, err := AccountFromPK(privateKey)
+		if err != nil {
+			return nil, err
+		}
+		accounts[keyName] = account
+	}
+
+	helper := &Helper{
+		Blockchain: blockchain,
+		Accounts:   accounts,
+	}
+
+	if (accounts["default"] != Account{}) {
+		helper.Key = accounts["default"].Key
+		helper.Auth = accounts["default"].Auth
+	}
+
+	return helper, nil
+}
+
+// NewSimulatedBackendHelper creates a new Helper using an ethereum SimulatedBackend
+// generates accounts for "genesis", "alice", "bob", "carol", "dan", "erin"
+func NewSimulatedBackendHelper() (*Helper, error) {
+	alloc := make(core.GenesisAlloc)
+
+	accounts := make(map[string]Account)
+
+	accountNames := []string{"genesis", "alice", "bob", "carol", "dan", "eric"}
+
+	for _, name := range accountNames {
+		account, err := MakeAccount()
+		if err != nil {
+			return nil, err
+		}
+		accounts[name] = account
+		alloc[account.Address] = core.GenesisAccount{Balance: big.NewInt(9223372036854775807)}
+	}
+
+	blockchain := backends.NewSimulatedBackend(alloc, 1000000000)
 
 	return &Helper{
 		Blockchain: blockchain,
-		Key:        key,
-		Auth:       auth,
+		Key:        accounts["genesis"].Key,
+		Auth:       accounts["genesis"].Auth,
 		Accounts:   accounts,
 	}, nil
 }
@@ -72,22 +110,39 @@ func (h *Helper) Call() *bind.CallOpts {
 	return &bind.CallOpts{}
 }
 
+// AccountFromPK constructs an Account from the provided ECDSA private key hex string
+func AccountFromPK(privateKey string) (Account, error) {
+	pk, err := crypto.HexToECDSA(privateKey)
+	if err != nil {
+		return Account{}, err
+	}
+	auth := bind.NewKeyedTransactor(pk)
+	return Account{Key: pk, Auth: auth, Address: GetEthAddressFromPrivateKey(pk)}, nil
+}
+
 // AddAccount generates a new account and adds it to the account mapping
 func (h *Helper) AddAccount(name string) (Account, error) {
+	account, err := MakeAccount()
+	if err != nil {
+		return Account{}, err
+	}
+
+	h.Accounts[name] = account
+
+	return h.Accounts[name], nil
+}
+
+// MakeAccount generates a new random Account
+func MakeAccount() (Account, error) {
 	key, err := crypto.GenerateKey()
 	if err != nil {
 		return Account{}, err
 	}
 	auth := bind.NewKeyedTransactor(key)
-	alloc := make(core.GenesisAlloc)
-
-	alloc[auth.From] = core.GenesisAccount{Balance: big.NewInt(1000000000)}
-
-	h.Accounts[name] = Account{
+	return Account{
 		Key:     key,
 		Auth:    auth,
 		Address: crypto.PubkeyToAddress(key.PublicKey),
-	}
+	}, nil
 
-	return h.Accounts[name], nil
 }

@@ -68,8 +68,10 @@ matrix:
             - debhelper
             - dput
             - fakeroot
+            - python-bzrlib
+            - python-paramiko
       script:
-        - go run build/ci.go debsrc -signer "Go Ethereum Linux Builder <geth-ci@ethereum.org>" -upload ppa:ethereum/ethereum
+        - go run build/ci.go debsrc -upload ethereum/ethereum -sftp-user geth-ci -signer "Go Ethereum Linux Builder <geth-ci@ethereum.org>"
 
     # This builder does the Linux Azure uploads
     - if: type = push
@@ -156,7 +158,7 @@ matrix:
       git:
         submodules: false # avoid cloning ethereum/tests
       before_install:
-        - curl https://storage.googleapis.com/golang/go1.11.2.linux-amd64.tar.gz | tar -xz
+        - curl https://storage.googleapis.com/golang/go1.11.5.linux-amd64.tar.gz | tar -xz
         - export PATH=`pwd`/go/bin:$PATH
         - export GOROOT=`pwd`/go
         - export GOPATH=$HOME/go
