@@ -2,7 +2,8 @@ package eth
 
 import (
 	"crypto/ecdsa"
-	"log"
+
+	log "github.com/golang/glog"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"

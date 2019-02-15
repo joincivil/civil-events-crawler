@@ -88,7 +88,8 @@
   revision = "0bce6a6887123b67a60366d2c9fe2dfb74289d2e"
 
 [[projects]]
-  digest = "1:87fa9f2d71fd2516e6c0d906b7eb58886c8b4fcc6ee8cada0553a0e50bfeef3a"
+  branch = "master"
+  digest = "1:1b5d7d4025b5fb2ae9159d5a3b484111c94af49b6f63cc2ce77e2cdc7aec4438"
   name = "github.com/ethereum/go-ethereum"
   packages = [
     ".",
@@ -117,7 +118,6 @@
     "crypto/bn256/cloudflare",
     "crypto/bn256/google",
     "crypto/secp256k1",
-    "crypto/sha3",
     "eth/filters",
     "ethclient",
     "ethdb",
@@ -131,8 +131,7 @@
     "trie",
   ]
   pruneopts = "T"
-  revision = "24d727b6d6e2c0cde222fa12155c4a6db5caaf2e"
-  version = "v1.8.20"
+  revision = "fab8c5a1cd6a1ef54922abe33db8bfaa1c73f169"
 
 [[projects]]
   digest = "1:ca82a3b99694824c627573c2a76d0e49719b4a9c02d1d85a2ac91f1c1f52ab9b"
@@ -216,20 +215,21 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9d2f8673f8fa5f9e6139a3abf8dabe7efd863e2b2ad12d5a45c22d1a64c5b23e"
+  digest = "1:4c47be06c2d48fd1db9419b5def740846a3d6a61ecf777fe202bcfeec340056b"
   name = "github.com/joincivil/go-common"
   packages = [
     "pkg/config",
     "pkg/eth",
     "pkg/gen",
     "pkg/generated/contract",
+    "pkg/jobs",
     "pkg/persistence/postgres",
     "pkg/pubsub",
     "pkg/strings",
     "pkg/time",
   ]
   pruneopts = "UT"
-  revision = "e0c9fd3d3296840eedba6dde2881877553b1935e"
+  revision = "5e7a7ece289b75720891e4e7d94627129115cc77"
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
@@ -340,15 +340,16 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:230a66be994ebe110710c86b4c475b9050f4872ef04937b290d9c9db20436005"
+  digest = "1:a6f85d6d31c8c1185cf138cc82144c101e828472009bd8479425a011fd321e77"
   name = "golang.org/x/crypto"
   packages = [
     "pbkdf2",
     "ripemd160",
     "scrypt",
+    "sha3",
   ]
   pruneopts = "UT"
-  revision = "df8d4716b3472e4a531c33cedbe537dae921a1a9"
+  revision = "74369b46fc6756741c016591724fd1cb8e26845f"
 
 [[projects]]
   branch = "master"
@@ -552,6 +553,7 @@
     "github.com/ethereum/go-ethereum/crypto",
     "github.com/ethereum/go-ethereum/ethclient",
     "github.com/ethereum/go-ethereum/event",
+    "github.com/ethereum/go-ethereum/log",
     "github.com/ethereum/go-ethereum/rlp",
     "github.com/fatih/structs",
     "github.com/golang/glog",

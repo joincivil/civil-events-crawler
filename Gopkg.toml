@@ -33,8 +33,8 @@
   revision = "0dae4fefe7c0e190f7b5a78dac28a1c82cc8d849"
 
 [[constraint]]
+  branch = "master"
   name = "github.com/ethereum/go-ethereum"
-  version = "1.8.15"
 
 [[constraint]]
   name = "github.com/fatih/structs"
