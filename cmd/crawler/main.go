@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	websocketPingDelaySecs = 60 * 5 // 5 mins
+	websocketPingDelaySecs = 10 // 10 secs
 )
 
 func contractFilterers(config *utils.CrawlerConfig) []model.ContractFilterers {
