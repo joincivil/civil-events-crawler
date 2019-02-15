@@ -1,6 +1,5 @@
 version: 2
-jobs:
-  build:
+defaults: &defaults
     docker:
       # CircleCI Go images available at: https://hub.docker.com/r/circleci/golang/
       - image: circleci/golang:1.11.1
@@ -9,11 +8,11 @@ jobs:
         environment:
           POSTGRES_USER: root
           POSTGRES_DB: circle_test
-
+jobs:
+  build:
+    <<: *defaults
     working_directory: /go/src/github.com/joincivil/civil-events-crawler
-
     environment:
-
     steps:
       - run:
           name: Local docker sudo
@@ -28,9 +27,9 @@ jobs:
       - checkout
       - setup_remote_docker:   # (2)
           docker_layer_caching: true # (3)
-
-      - run: make setup
-
+      - run:
+           name: Setting up tools
+           command: make check-go-env
       - run:
           name: Waiting for Postgres to be ready
           command: |
@@ -42,19 +41,47 @@ jobs:
             done
             echo Failed waiting for Postgres && exit 1
       - run:
-          name: Run unit tests
-          environment:
-            DB_URL: "postgres://root@localhost:5432/circle_test?sslmode=disable"
-            DB_MIGRATIONS: /go/src/github.com/joincivil/civil-events-crawler/migrations
-          command: |
-            make test
-      - run: make build
-      - run: make lint
-
+          name: Building code
+          command: make build
       - persist_to_workspace:
           root: ./
           paths:
             - build
+            - pkg
+            - Makefile
+            - vendor
+            - cmd
+            - scripts
+            - .gometalinter.json
+
+  lint:
+    <<: *defaults
+    working_directory: /go/src/github.com/joincivil/civil-events-crawler
+    environment:
+    steps:
+        - attach_workspace:
+            at: ./
+        - run:
+           name: Setting up tools
+           command: make install-linter
+        - run:
+            name: Run linter
+            command: make lint
+
+  test:
+    <<: *defaults
+    working_directory: /go/src/github.com/joincivil/civil-events-crawler
+    environment:
+    steps:
+        - attach_workspace:
+            at: ./
+        - run:
+            name: Run unit tests
+            environment:
+               DB_URL: "postgres://root@localhost:5432/circle_test?sslmode=disable"
+               DB_MIGRATIONS: /go/src/github.com/joincivil/civil-events-crawler/migrations
+            command: |
+               make test
 
   setup-gcp:
     docker:
@@ -136,6 +163,12 @@ workflows:
   build_test_deploy:
     jobs:
       - build
+      - test:
+          requires:
+            - build
+      - lint:
+          requires:
+            - build
       - setup-gcp:
           context: gcp-common
           requires:
