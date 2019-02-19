@@ -22,6 +22,9 @@ const (
 
 	// CivilPLCRVotingContractType is the enum value for the Civil PLCR Voting type
 	CivilPLCRVotingContractType
+
+	// CVLTokenContractType is the enum value for the CVL token type
+	CVLTokenContractType
 )
 
 var (
@@ -29,6 +32,7 @@ var (
 	// which is the location of the contract and contract ABI, along with contract
 	// metadata used to generate the watchers/filterers.
 	// To be kept up to date with supported contracts
+	// TODO(PN): Convert this to a YAML or JSON file that loads into this spec struct
 	ContractTypeToSpecs = CSpecs{
 		specs: map[ContractType]*ContractSpecs{
 			CivilTcrContractType: {
@@ -49,6 +53,13 @@ var (
 				name:        "CivilPLCRVotingContract",
 				simpleName:  "civilplcrvoting",
 				abiStr:      contract.CivilPLCRVotingContractABI,
+				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
+				typePackage: "contract",
+			},
+			CVLTokenContractType: {
+				name:        "CVLTokenContract",
+				simpleName:  "cvltoken",
+				abiStr:      contract.CVLTokenContractABI,
 				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
 				typePackage: "contract",
 			},
