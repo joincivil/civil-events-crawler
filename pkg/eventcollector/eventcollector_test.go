@@ -183,7 +183,8 @@ func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.Even
 	collector := eventcollector.NewEventCollector(
 		&eventcollector.Config{
 			Chain:              &testChainReader{},
-			Client:             contracts.Client,
+			HTTPClient:         contracts.Client,
+			WsClient:           contracts.Client,
 			Filterers:          filterers,
 			Watchers:           watchers,
 			RetrieverPersister: persister,
@@ -214,7 +215,8 @@ func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*event
 	collector := eventcollector.NewEventCollector(
 		&eventcollector.Config{
 			Chain:              &testChainReader{},
-			Client:             contracts.Client,
+			HTTPClient:         contracts.Client,
+			WsClient:           contracts.Client,
 			Filterers:          filterers,
 			Watchers:           watchers,
 			RetrieverPersister: persister,
@@ -246,7 +248,8 @@ func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContr
 	collector := eventcollector.NewEventCollector(
 		&eventcollector.Config{
 			Chain:              &testChainReader{},
-			Client:             contracts.Client,
+			HTTPClient:         contracts.Client,
+			WsClient:           contracts.Client,
 			Filterers:          filterers,
 			Watchers:           watchers,
 			RetrieverPersister: goodPersister,
@@ -278,7 +281,8 @@ func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTest
 	collector := eventcollector.NewEventCollector(
 		&eventcollector.Config{
 			Chain:              &testChainReader{},
-			Client:             contracts.Client,
+			HTTPClient:         contracts.Client,
+			WsClient:           contracts.Client,
 			Filterers:          filterers,
 			Watchers:           watchers,
 			RetrieverPersister: badPersister,
@@ -308,7 +312,8 @@ func setupTestCollectorBadWatcher(contracts *cutils.AllTestContracts) *eventcoll
 	collector := eventcollector.NewEventCollector(
 		&eventcollector.Config{
 			Chain:              &testChainReader{},
-			Client:             contracts.Client,
+			HTTPClient:         contracts.Client,
+			WsClient:           contracts.Client,
 			Filterers:          filterers,
 			Watchers:           watchers,
 			RetrieverPersister: persister,
