@@ -402,8 +402,8 @@ func (c *EventCollector) sendStartSignal() {
 }
 
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
-func (c *EventCollector) updateRetrieverStartingBlocks() {
-	for _, filter := range c.filterers {
+func (c *EventCollector) updateRetrieverStartingBlocks(filterers []model.ContractFilterers) {
+	for _, filter := range filterers {
 		c.updateFiltererStartingBlock(filter)
 	}
 }
@@ -471,7 +471,7 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 }
 
 func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers) error {
-	c.updateRetrieverStartingBlocks()
+	c.updateRetrieverStartingBlocks(filterers)
 	c.retrieve = retriever.NewEventRetriever(c.httpClient, filterers)
 	return c.retrieve.Retrieve()
 }

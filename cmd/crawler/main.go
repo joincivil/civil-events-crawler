@@ -158,7 +158,7 @@ func isWebsocketURL(rawurl string) bool {
 	return false
 }
 
-func setupHttpEthClient(config *utils.CrawlerConfig) (*ethclient.Client, error) {
+func setupHTTPEthClient(config *utils.CrawlerConfig) (*ethclient.Client, error) {
 	if isWebsocketURL(config.EthAPIURL) {
 		return nil, nil
 	}
@@ -200,7 +200,7 @@ func enableGoEtherumLogging() {
 func startUp(config *utils.CrawlerConfig) error {
 	killChan := make(chan bool)
 
-	httpClient, err := setupHttpEthClient(config)
+	httpClient, err := setupHTTPEthClient(config)
 	if err != nil {
 		return err
 	}
