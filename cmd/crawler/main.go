@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net/url"
 	"os"
 	"os/signal"
@@ -160,7 +161,10 @@ func isWebsocketURL(rawurl string) bool {
 
 func setupHTTPEthClient(config *utils.CrawlerConfig) (*ethclient.Client, error) {
 	if isWebsocketURL(config.EthAPIURL) {
-		return nil, nil
+		return nil, fmt.Errorf(
+			"Fatal: Valid HTTP eth client URL required: configured url: %v",
+			config.EthAPIURL,
+		)
 	}
 
 	client, err := ethclient.Dial(config.EthAPIURL)
