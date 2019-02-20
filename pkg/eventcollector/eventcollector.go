@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
 	"runtime"
 	"sync"
 
@@ -35,7 +36,8 @@ const (
 type Config struct {
 	Chain              ethereum.ChainReader
 	RetryChain         eth.RetryChainReader
-	Client             bind.ContractBackend
+	HTTPClient         bind.ContractBackend
+	WsClient           bind.ContractBackend
 	Filterers          []model.ContractFilterers
 	Watchers           []model.ContractWatchers
 	RetrieverPersister model.RetrieverMetaDataPersister
@@ -43,7 +45,6 @@ type Config struct {
 	EventDataPersister model.EventDataPersister
 	Triggers           []Trigger
 	StartBlock         uint64
-	DisableListener    bool
 	CrawlerPubSub      *pubsub.CrawlerPubSub
 }
 
@@ -52,7 +53,8 @@ func NewEventCollector(config *Config) *EventCollector {
 	eventcollector := &EventCollector{
 		chain:              config.Chain,
 		retryChain:         eth.RetryChainReader{ChainReader: config.Chain},
-		client:             config.Client,
+		httpClient:         config.HTTPClient,
+		wsClient:           config.WsClient,
 		filterers:          config.Filterers,
 		watchers:           config.Watchers,
 		retrieverPersister: config.RetrieverPersister,
@@ -62,7 +64,6 @@ func NewEventCollector(config *Config) *EventCollector {
 		startBlock:         config.StartBlock,
 		startChan:          make(chan bool),
 		quitChan:           make(chan bool),
-		disableListener:    config.DisableListener,
 		crawlerPubSub:      config.CrawlerPubSub,
 	}
 	return eventcollector
@@ -74,7 +75,9 @@ type EventCollector struct {
 
 	retryChain eth.RetryChainReader
 
-	client bind.ContractBackend
+	httpClient bind.ContractBackend
+
+	wsClient bind.ContractBackend
 
 	triggers []Trigger
 
@@ -105,8 +108,6 @@ type EventCollector struct {
 	mutex sync.Mutex
 
 	headerCache *eth.BlockHeaderCache
-
-	disableListener bool
 
 	crawlerPubSub *pubsub.CrawlerPubSub
 }
@@ -195,7 +196,7 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 func (c *EventCollector) FilterAddedNewsroomContract(newsroomAddr common.Address) ([]*model.Event, error) {
 	nwsrmFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
 	c.updateFiltererStartingBlock(nwsrmFilterer)
-	retrieve := retriever.NewEventRetriever(c.client, []model.ContractFilterers{nwsrmFilterer})
+	retrieve := retriever.NewEventRetriever(c.httpClient, []model.ContractFilterers{nwsrmFilterer})
 	err := retrieve.Retrieve()
 	if err != nil {
 		return nil, err
@@ -217,7 +218,9 @@ func (c *EventCollector) StartCollection() error {
 		return err
 	}
 
-	if c.disableListener {
+	// nil gotcha appears
+	// https://divan.github.io/posts/avoid_gotchas/#interfaces
+	if c.wsClient == nil || reflect.ValueOf(c.wsClient).IsNil() {
 		log.Infof("Listener is disabled, not starting")
 		c.sendStartSignal()
 		return nil
@@ -285,7 +288,7 @@ func (c *EventCollector) startListener() error {
 	defer c.mutex.Unlock()
 	c.mutex.Lock()
 
-	c.listen = listener.NewEventListener(c.client, c.watchers)
+	c.listen = listener.NewEventListener(c.wsClient, c.watchers)
 	if c.listen == nil {
 		return errors.New("Listener should not be nil")
 	}
@@ -399,8 +402,8 @@ func (c *EventCollector) sendStartSignal() {
 }
 
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
-func (c *EventCollector) updateRetrieverStartingBlocks() {
-	for _, filter := range c.filterers {
+func (c *EventCollector) updateRetrieverStartingBlocks(filterers []model.ContractFilterers) {
+	for _, filter := range filterers {
 		c.updateFiltererStartingBlock(filter)
 	}
 }
@@ -468,8 +471,8 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 }
 
 func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers) error {
-	c.updateRetrieverStartingBlocks()
-	c.retrieve = retriever.NewEventRetriever(c.client, filterers)
+	c.updateRetrieverStartingBlocks(filterers)
+	c.retrieve = retriever.NewEventRetriever(c.httpClient, filterers)
 	return c.retrieve.Retrieve()
 }
 
