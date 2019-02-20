@@ -158,25 +158,35 @@ func isWebsocketURL(rawurl string) bool {
 	return false
 }
 
-func setupWebsocketPing(config *utils.CrawlerConfig, client *ethclient.Client,
-	killChan <-chan bool) error {
-	// If websocket connection, setup "ping"
-	// otherwise, ignore this
+func setupHttpEthClient(config *utils.CrawlerConfig) (*ethclient.Client, error) {
 	if isWebsocketURL(config.EthAPIURL) {
-		go eth.WebsocketPing(client, killChan, websocketPingDelaySecs)
+		return nil, nil
 	}
-	return nil
-}
 
-func setupEthClient(config *utils.CrawlerConfig, killChan <-chan bool) (*ethclient.Client, error) {
 	client, err := ethclient.Dial(config.EthAPIURL)
 	if err != nil {
 		return nil, err
 	}
-	err = setupWebsocketPing(config, client, killChan)
+
+	return client, nil
+}
+
+func setupWebsocketEthClient(config *utils.CrawlerConfig, killChan <-chan bool) (*ethclient.Client, error) {
+	if config.EthWsAPIURL == "" {
+		return nil, nil
+	}
+
+	if !isWebsocketURL(config.EthWsAPIURL) {
+		return nil, nil
+	}
+
+	client, err := ethclient.Dial(config.EthWsAPIURL)
 	if err != nil {
 		return nil, err
 	}
+
+	go eth.WebsocketPing(client, killChan, websocketPingDelaySecs)
+
 	return client, nil
 }
 
@@ -190,14 +200,19 @@ func enableGoEtherumLogging() {
 func startUp(config *utils.CrawlerConfig) error {
 	killChan := make(chan bool)
 
-	client, err := setupEthClient(config, killChan)
+	httpClient, err := setupHttpEthClient(config)
+	if err != nil {
+		return err
+	}
+
+	wsClient, err := setupWebsocketEthClient(config, killChan)
 	if err != nil {
 		return err
 	}
 
 	log.Infof("Starting to filter at block number %v", config.EthStartBlock)
 	if log.V(2) {
-		header, logErr := client.HeaderByNumber(context.TODO(), nil)
+		header, logErr := httpClient.HeaderByNumber(context.TODO(), nil)
 		if logErr == nil {
 			log.Infof("Latest block number is: %v", header.Number)
 		}
@@ -207,8 +222,9 @@ func startUp(config *utils.CrawlerConfig) error {
 
 	eventCol := eventcollector.NewEventCollector(
 		&eventcollector.Config{
-			Chain:              client,
-			Client:             client,
+			Chain:              httpClient,
+			HTTPClient:         httpClient,
+			WsClient:           wsClient,
 			Filterers:          contractFilterers(config),
 			Watchers:           contractWatchers(config),
 			RetrieverPersister: retrieverMetaDataPersister(config),
@@ -216,7 +232,6 @@ func startUp(config *utils.CrawlerConfig) error {
 			EventDataPersister: eventDataPersister(config),
 			Triggers:           eventTriggers(config),
 			StartBlock:         config.EthStartBlock,
-			DisableListener:    !isWebsocketURL(config.EthAPIURL),
 			CrawlerPubSub:      crawlerPubSub(config),
 		},
 	)
