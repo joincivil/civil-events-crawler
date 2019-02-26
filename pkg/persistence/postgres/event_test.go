@@ -40,6 +40,7 @@ var (
 			Removed:     false,
 		},
 	}
+	fakeVersion = "123"
 )
 
 func setupDBEventFromEvent(civilEvent *model.Event) (*postgres.Event, error) {
@@ -221,7 +222,7 @@ func TestInt64Overflow(t *testing.T) {
 }
 
 func TestCreateTableQuery(t *testing.T) {
-	query := postgres.CreateEventTableQuery()
+	query := postgres.CreateEventTableQuery(fakeVersion)
 	if query == "" {
 		t.Errorf("Should have returned a value for query")
 	}
@@ -231,7 +232,7 @@ func TestCreateTableQuery(t *testing.T) {
 }
 
 func TestCreateEventTableIndices(t *testing.T) {
-	query := postgres.CreateEventTableIndices()
+	query := postgres.CreateEventTableIndices("event")
 	if query == "" {
 		t.Errorf("Should have returned a value for query")
 	}
