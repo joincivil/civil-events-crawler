@@ -393,22 +393,6 @@ func TestTableSetupExistingVersion(t *testing.T) {
 	persister.db.Query(fmt.Sprintf("DROP TABLE %v;", fmt.Sprintf("%s_%s", "event", newVersionNo)))
 }
 
-func TestIndexCreation(t *testing.T) {
-	persister, err := setupDBConnection()
-	if err != nil {
-		t.Errorf("Error connecting to DB: %v", err)
-	}
-	versionNo := "123456"
-	err = persister.CreateTables(versionNo)
-	if err != nil {
-		t.Errorf("Error creating/checking for tables: %v", err)
-	}
-	err = persister.CreateIndices()
-	if err != nil {
-		t.Errorf("Error creating indices: %v", err)
-	}
-}
-
 func TestIndexCreationTestTable(t *testing.T) {
 	persister, err := setupTestTable()
 	if err != nil {
