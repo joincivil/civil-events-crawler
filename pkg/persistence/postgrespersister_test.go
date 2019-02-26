@@ -321,20 +321,19 @@ func TestDBConnection(t *testing.T) {
 	}
 }
 
-func TestTableSetup(t *testing.T) {
-	// TODO(IS): delete this test for event_12131313
+func TestTableSetupNoExistingVersion(t *testing.T) {
 	persister, err := setupDBConnection()
 	if err != nil {
 		t.Errorf("Error connecting to DB: %v", err)
 	}
-	// test w version number specified
+
 	versionNo := "123456"
 	err = persister.CreateTables(versionNo)
 	tableName := persister.getTableName("event")
 	if err != nil {
 		t.Errorf("Error creating/checking for tables: %v", err)
 	}
-	// check table exists
+
 	var exists bool
 	queryString := fmt.Sprintf("SELECT EXISTS ( SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '%v');",
 		tableName)
@@ -345,7 +344,7 @@ func TestTableSetup(t *testing.T) {
 	if !exists {
 		t.Errorf("event table does not exist")
 	}
-	// delete table here
+
 	persister.db.Query(fmt.Sprintf("DROP TABLE %v;", tableName))
 }
 
