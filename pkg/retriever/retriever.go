@@ -3,8 +3,13 @@
 package retriever // import "github.com/joincivil/civil-events-crawler/pkg/retriever"
 
 import (
+	"runtime"
 	"sort"
+	"sync"
 
+	log "github.com/golang/glog"
+
+	"github.com/Jeffail/tunny"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
@@ -32,17 +37,60 @@ type EventRetriever struct {
 
 	// filterers contains a list of ContractFilterers
 	filterers []model.ContractFilterers
+
+	// Mutex to lock writes/reads to PastEvents
+	pastEventsMutex sync.Mutex
 }
 
 // Retrieve gets all events from StartBlock until now
 func (r *EventRetriever) Retrieve() error {
+	workerMultiplier := 1
+	numWorkers := runtime.NumCPU() * workerMultiplier
+
+	// Worker pool to run the filterers
+	pool := tunny.NewFunc(numWorkers, func(payload interface{}) interface{} {
+		f := payload.(func())
+		f()
+		return nil
+	})
+	defer pool.Close()
+
+	wg := sync.WaitGroup{}
 	for _, filter := range r.filterers {
-		err, pastEvents := filter.StartFilterers(r.client, r.PastEvents)
-		if err != nil {
-			return err
-		}
-		r.PastEvents = pastEvents
+		wg.Add(1)
+
+		go func(filt model.ContractFilterers) {
+			filtererFunc := func() {
+				log.Infof(
+					"Starting filterer: %v, %v",
+					filt.ContractName(),
+					filt.ContractAddress().Hex(),
+				)
+
+				pastEvents := []*model.Event{}
+				err, pastEvents := filt.StartFilterers(r.client, pastEvents)
+				if err != nil {
+					log.Errorf("Error retrieving filterer events: err: %v", err)
+					return
+				}
+
+				r.pastEventsMutex.Lock()
+				r.PastEvents = append(r.PastEvents, pastEvents...)
+				r.pastEventsMutex.Unlock()
+			}
+
+			pool.Process(filtererFunc)
+			wg.Done()
+			log.Infof(
+				"Completed filterer: %v, %v",
+				filt.ContractName(),
+				filt.ContractAddress().Hex(),
+			)
+		}(filter)
 	}
+
+	wg.Wait()
+	log.Infof("All %v filterers have run", len(r.filterers))
 	return nil
 }
 
