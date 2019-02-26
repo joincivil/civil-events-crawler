@@ -70,55 +70,10 @@ func (p *PostgresPersister) RetrieveVersion() (string, error) {
 	return p.retrieveVersionFromTable(versionTableName)
 }
 
-func (p *PostgresPersister) retrieveVersionFromTable(tableName string) (string, error) {
-	dbVersionData := []postgres.VersionData{}
-	queryString := fmt.Sprintf(`SELECT * FROM %s WHERE service_name=$1;`, tableName) // nolint: gosec
-	err := p.db.Select(&dbVersionData, queryString, crawlerServiceName)
-	if err != nil {
-		return "", err
-	}
-	if len(dbVersionData) == 0 {
-		return "", cpersist.ErrPersisterNoResults
-	}
-	if len(dbVersionData) > 1 {
-		return "", fmt.Errorf("There shouldn't be more than one version type in DB for %v", crawlerServiceName)
-	}
-	return dbVersionData[0].Version, nil
-}
-
 // SaveVersion saves/updates the version for this persistence
 func (p *PostgresPersister) SaveVersion(versionNumber string) error {
 	// This should be a table update if the row exists, else an insert
 	return p.saveVersionToTable(versionTableName, versionNumber)
-}
-
-// saveVersionToTable saves/updates the version
-func (p *PostgresPersister) saveVersionToTable(tableName string, versionNumber string) error {
-	dbVersionStruct := postgres.VersionData{
-		Version:     versionNumber,
-		ServiceName: crawlerServiceName}
-
-	queryString, err := p.updateDBQueryBuffer([]string{versionFieldName}, tableName, dbVersionStruct)
-	if err != nil {
-		return fmt.Errorf("Error creating query string %v", err)
-	}
-	queryString.WriteString(" WHERE service_name=:service_name;") // nolint: gosec
-	resUpdate, updateErr := p.db.NamedExec(queryString.String(), dbVersionStruct)
-	if updateErr != nil {
-		return fmt.Errorf("Error updating fields in version table: %v", updateErr)
-	}
-	resUpdateRows, err := resUpdate.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("Error updating fields in version table: %v", err)
-	}
-	if resUpdateRows == 0 {
-		queryString := cpostgres.InsertIntoDBQueryString(tableName, postgres.VersionData{})
-		_, err := p.db.NamedExec(queryString, dbVersionStruct)
-		if err != nil {
-			return fmt.Errorf("Error saving version to table: %v", err)
-		}
-	}
-	return nil
 }
 
 // SaveEvents saves events to events table in DB
@@ -161,7 +116,8 @@ func (p *PostgresPersister) UpdateLastBlockData(events []*model.Event) error {
 }
 
 // PopulateBlockDataFromDB will fill the persistence with data from the DB.
-func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
+func (p *PostgresPersister) PopulateBlockDataFromDB(tableType string) error {
+	tableName := p.getTableName(tableType)
 	events, err := p.getLatestEvents(tableName)
 	if err != nil {
 		return err
@@ -237,6 +193,51 @@ func (p *PostgresPersister) updateDBQueryBuffer(updatedFields []string, tableNam
 		}
 	}
 	return queryBuf, nil
+}
+
+func (p *PostgresPersister) retrieveVersionFromTable(tableName string) (string, error) {
+	dbVersionData := []postgres.VersionData{}
+	queryString := fmt.Sprintf(`SELECT * FROM %s WHERE service_name=$1;`, tableName) // nolint: gosec
+	err := p.db.Select(&dbVersionData, queryString, crawlerServiceName)
+	if err != nil {
+		return "", err
+	}
+	if len(dbVersionData) == 0 {
+		return "", cpersist.ErrPersisterNoResults
+	}
+	if len(dbVersionData) > 1 {
+		return "", fmt.Errorf("There shouldn't be more than one version type in DB for %v", crawlerServiceName)
+	}
+	return dbVersionData[0].Version, nil
+}
+
+// saveVersionToTable saves/updates the version
+func (p *PostgresPersister) saveVersionToTable(tableName string, versionNumber string) error {
+	dbVersionStruct := postgres.VersionData{
+		Version:     versionNumber,
+		ServiceName: crawlerServiceName}
+
+	queryString, err := p.updateDBQueryBuffer([]string{versionFieldName}, tableName, dbVersionStruct)
+	if err != nil {
+		return fmt.Errorf("Error creating query string %v", err)
+	}
+	queryString.WriteString(" WHERE service_name=:service_name;") // nolint: gosec
+	resUpdate, updateErr := p.db.NamedExec(queryString.String(), dbVersionStruct)
+	if updateErr != nil {
+		return fmt.Errorf("Error updating fields in version table: %v", updateErr)
+	}
+	resUpdateRows, err := resUpdate.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("Error updating fields in version table: %v", err)
+	}
+	if resUpdateRows == 0 {
+		queryString := cpostgres.InsertIntoDBQueryString(tableName, postgres.VersionData{})
+		_, err := p.db.NamedExec(queryString, dbVersionStruct)
+		if err != nil {
+			return fmt.Errorf("Error saving version to table: %v", err)
+		}
+	}
+	return nil
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {

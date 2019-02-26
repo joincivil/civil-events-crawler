@@ -28,6 +28,7 @@ import (
 
 const (
 	websocketPingDelaySecs = 10 // 10 secs
+	eventTableType         = "event"
 )
 
 func contractFilterers(config *utils.CrawlerConfig) []model.ContractFilterers {
@@ -108,7 +109,7 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 		os.Exit(1)
 	}
 	// Attempts to create all the necessary tables here
-	err = persister.CreateTables()
+	err = persister.CreateTables(config.VersionNumber)
 	if err != nil {
 		log.Errorf("Error creating tables, stopping...; err: %v", err)
 		os.Exit(1)
@@ -120,7 +121,7 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 		os.Exit(1)
 	}
 	// Populate persistence with latest block data from events table
-	err = persister.PopulateBlockDataFromDB("event")
+	err = persister.PopulateBlockDataFromDB(eventTableType)
 	if err != nil {
 		log.Errorf("Error populating persistence from Postgresql, stopping...; err: %v", err)
 	}

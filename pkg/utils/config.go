@@ -50,6 +50,8 @@ type CrawlerConfig struct {
 
 	PubSubProjectID string `split_words:"true" desc:"Sets the Google Cloud Project ID name"`
 	PubSubTopicName string `split_words:"true" desc:"Sets the Google Cloud PubSub Topic name"`
+
+	VersionNumber string `split_words:"true" desc:"Sets the version for table"`
 }
 
 // FetchListingAddresses retrieves the list of Civil newsroom listings if given
