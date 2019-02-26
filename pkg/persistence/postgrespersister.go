@@ -18,12 +18,14 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 
+	cpersist "github.com/joincivil/go-common/pkg/persistence"
 	cpostgres "github.com/joincivil/go-common/pkg/persistence/postgres"
 )
 
 const (
-	eventTableName = "event"
-
+	versionTableName   = "version"
+	crawlerServiceName = "crawler"
+	versionFieldName   = "Version"
 	// Could make this configurable later if needed
 	maxOpenConns    = 50
 	maxIdleConns    = 10
@@ -50,15 +52,84 @@ func NewPostgresPersister(host string, port int, user string, password string, d
 type PostgresPersister struct {
 	eventToBlockData map[common.Address]map[string]PersisterBlockData
 	db               *sqlx.DB
+	version          string
+}
+
+// PersisterVersion returns the version of this persistence
+func (p *PostgresPersister) PersisterVersion() string {
+	return p.version
+}
+
+// getTableName formats tabletype with version of this persister to return the table name
+func (p *PostgresPersister) getTableName(tableType string) string {
+	return fmt.Sprintf("%s_%s", tableType, p.version)
+}
+
+// RetrieveVersion retrieves the version of this persistence
+func (p *PostgresPersister) RetrieveVersion() (string, error) {
+	return p.retrieveVersionFromTable(versionTableName)
+}
+
+func (p *PostgresPersister) retrieveVersionFromTable(tableName string) (string, error) {
+	dbVersionData := []postgres.VersionData{}
+	queryString := fmt.Sprintf(`SELECT * FROM %s WHERE service_name=$1;`, tableName) // nolint: gosec
+	err := p.db.Select(&dbVersionData, queryString, crawlerServiceName)
+	if err != nil {
+		return "", err
+	}
+	if len(dbVersionData) == 0 {
+		return "", cpersist.ErrPersisterNoResults
+	}
+	if len(dbVersionData) > 1 {
+		return "", fmt.Errorf("There shouldn't be more than one version type in DB for %v", crawlerServiceName)
+	}
+	return dbVersionData[0].Version, nil
+}
+
+// SaveVersion saves/updates the version for this persistence
+func (p *PostgresPersister) SaveVersion(versionNumber string) error {
+	// This should be a table update if the row exists, else an insert
+	return p.saveVersionToTable(versionTableName, versionNumber)
+}
+
+// saveVersionToTable saves/updates the version
+func (p *PostgresPersister) saveVersionToTable(tableName string, versionNumber string) error {
+	dbVersionStruct := postgres.VersionData{
+		Version:     versionNumber,
+		ServiceName: crawlerServiceName}
+
+	queryString, err := p.updateDBQueryBuffer([]string{versionFieldName}, tableName, dbVersionStruct)
+	if err != nil {
+		return fmt.Errorf("Error creating query string %v", err)
+	}
+	queryString.WriteString(" WHERE service_name=:service_name;") // nolint: gosec
+	resUpdate, updateErr := p.db.NamedExec(queryString.String(), dbVersionStruct)
+	if updateErr != nil {
+		return fmt.Errorf("Error updating fields in version table: %v", updateErr)
+	}
+	resUpdateRows, err := resUpdate.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("Error updating fields in version table: %v", err)
+	}
+	if resUpdateRows == 0 {
+		queryString := cpostgres.InsertIntoDBQueryString(tableName, postgres.VersionData{})
+		_, err := p.db.NamedExec(queryString, dbVersionStruct)
+		if err != nil {
+			return fmt.Errorf("Error saving version to table: %v", err)
+		}
+	}
+	return nil
 }
 
 // SaveEvents saves events to events table in DB
 func (p *PostgresPersister) SaveEvents(events []*model.Event) error {
+	eventTableName := p.getTableName(postgres.EventTableType)
 	return p.saveEventsToTable(events, eventTableName)
 }
 
 // RetrieveEvents retrieves the Events given an offset, count, and asc/dec bool. Ordered by db id.
 func (p *PostgresPersister) RetrieveEvents(criteria *model.RetrieveEventsCriteria) ([]*model.Event, error) {
+	eventTableName := p.getTableName(postgres.EventTableType)
 	return p.retrieveEventsFromTable(eventTableName, criteria)
 }
 
@@ -115,17 +186,57 @@ func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
 }
 
 // CreateTables creates tables in DB if they don't exist
-func (p *PostgresPersister) CreateTables() error {
-	eventTableQuery := postgres.CreateEventTableQuery()
-	_, err := p.db.Exec(eventTableQuery)
+func (p *PostgresPersister) CreateTables(version string) error {
+	// Create version table first if it dne
+	versionTableQuery := postgres.CreateVersionTableQuery()
+	_, err := p.db.Exec(versionTableQuery)
+	if err != nil {
+		return err
+	}
+	if version == "" {
+		version, err = p.RetrieveVersion()
+		if err != nil {
+			if err == cpersist.ErrPersisterNoResults {
+				return fmt.Errorf("No version in version table, specify a version: err %v", err)
+			}
+			return err
+		}
+	}
+	p.version = version
+	err = p.SaveVersion(p.version)
+	if err != nil {
+		return err
+	}
+	eventTableName := p.getTableName(postgres.EventTableType)
+	eventTableQuery := postgres.CreateEventTableQuery(eventTableName)
+	_, err = p.db.Exec(eventTableQuery)
 	return err
 }
 
 // CreateIndices creates the indices for DB if they don't exist
 func (p *PostgresPersister) CreateIndices() error {
-	indexQuery := postgres.CreateEventTableIndices()
+	eventTableName := p.getTableName(postgres.EventTableType)
+	indexQuery := postgres.CreateEventTableIndices(eventTableName)
 	_, err := p.db.Exec(indexQuery)
 	return err
+}
+
+func (p *PostgresPersister) updateDBQueryBuffer(updatedFields []string, tableName string, dbModelStruct interface{}) (bytes.Buffer, error) {
+	var queryBuf bytes.Buffer
+	queryBuf.WriteString("UPDATE ") // nolint: gosec
+	queryBuf.WriteString(tableName) // nolint: gosec
+	queryBuf.WriteString(" SET ")   // nolint: gosec
+	for idx, field := range updatedFields {
+		dbFieldName, err := cpostgres.DbFieldNameFromModelName(dbModelStruct, field)
+		if err != nil {
+			return queryBuf, fmt.Errorf("Error getting %s from %s table DB struct tag: %v", field, tableName, err)
+		}
+		queryBuf.WriteString(fmt.Sprintf("%s=:%s", dbFieldName, dbFieldName)) // nolint: gosec
+		if idx+1 < len(updatedFields) {
+			queryBuf.WriteString(", ") // nolint: gosec
+		}
+	}
+	return queryBuf, nil
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {

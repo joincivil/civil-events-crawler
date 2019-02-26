@@ -18,12 +18,13 @@ import (
 )
 
 const (
-	eventTableName = "event"
+	// EventTableType is the type of table this code defines
+	EventTableType = "event"
 )
 
 // CreateEventTableQuery returns the query to create the event table
-func CreateEventTableQuery() string {
-	return CreateEventTableQueryString(eventTableName)
+func CreateEventTableQuery(tableName string) string {
+	return CreateEventTableQueryString(tableName)
 }
 
 // CreateEventTableQueryString returns the query to create this table
@@ -45,8 +46,8 @@ func CreateEventTableQueryString(tableName string) string {
 }
 
 // CreateEventTableIndices returns the query to create indices for this table
-func CreateEventTableIndices() string {
-	return CreateEventTableIndicesString(eventTableName)
+func CreateEventTableIndices(tableName string) string {
+	return CreateEventTableIndicesString(tableName)
 }
 
 // CreateEventTableIndicesString returns the query to create this table
