@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	eventTestTableName = "event_test"
+	eventTestTableType = "event_test"
+	version            = "f"
 	postgresPort       = 5432
 	postgresDBName     = "civil_crawler"
 	postgresUser       = "docker"
@@ -271,7 +272,9 @@ func setupTestTable() (*PostgresPersister, error) {
 	if err != nil {
 		return persister, fmt.Errorf("Error connecting to DB: %v", err)
 	}
-	createTableQuery := postgres.CreateEventTableQueryString(eventTestTableName)
+	persister.version = version
+	eventTestTableName := persister.GetTableName(eventTestTableType)
+	createTableQuery := postgres.CreateEventTableQuery(eventTestTableName)
 	_, err = persister.db.Query(createTableQuery)
 	if err != nil {
 		return persister, fmt.Errorf("Couldn't create test table %v", err)
@@ -281,7 +284,9 @@ func setupTestTable() (*PostgresPersister, error) {
 }
 
 func deleteTestTable(persister *PostgresPersister) error {
-	_, err := persister.db.Query("DROP TABLE event_test;")
+	persister.version = version
+	eventTestTableName := persister.GetTableName(eventTestTableType)
+	_, err := persister.db.Query(fmt.Sprintf("DROP TABLE %v;", eventTestTableName))
 	if err != nil {
 		return err
 	}
@@ -329,7 +334,7 @@ func TestTableSetupNoExistingVersion(t *testing.T) {
 
 	versionNo := "123456"
 	err = persister.CreateTables(versionNo)
-	tableName := persister.getTableName("event")
+	tableName := persister.GetTableName("event")
 	if err != nil {
 		t.Errorf("Error creating/checking for tables: %v", err)
 	}
@@ -398,8 +403,8 @@ func TestIndexCreationTestTable(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
-	indexCreationQuery := postgres.CreateEventTableIndicesString(eventTestTableName)
+	eventTestTableName := persister.GetTableName(eventTestTableType)
+	indexCreationQuery := postgres.CreateEventTableIndices(eventTestTableName)
 	_, err = persister.db.Query(indexCreationQuery)
 	if err != nil {
 		t.Errorf("Error creating indices in test table: %v", err)
@@ -418,6 +423,7 @@ func TestDuplicateEvents(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 
 	// create 2 events w same payload hash
 	event1, err := setupApplicationEvent(false)
@@ -446,7 +452,7 @@ func TestMultipleQueries(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	// save each type of test event to table
 	// save many events
 	for i := 1; i <= 100; i++ {
@@ -471,7 +477,7 @@ func TestMultipleQueries(t *testing.T) {
 		}
 
 		// get latest events
-		err = persister.PopulateBlockDataFromDB(eventTestTableName)
+		err = persister.PopulateBlockDataFromDB(eventTestTableType)
 		if err != nil {
 			t.Errorf("Couldn't populate block data %v", err)
 		}
@@ -484,7 +490,7 @@ func TestSaveEvents(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	events, err := setupEvents(true)
 	if err != nil {
 		t.Errorf("Couldn't setup civilEvent from contract %v", err)
@@ -513,7 +519,7 @@ func BenchmarkSavingManyEventsToEventTestTable(b *testing.B) {
 		b.Error(err)
 	}
 	defer deleteTestTableForBenchmarks(b, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	numEvents := 100
 	numEventTypes := 5
 	civilEventsFromContract := make([]*model.Event, 0)
@@ -591,7 +597,7 @@ func TestLatestEventsQuery(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	testEvents, err := setupEvents(true)
 	if err != nil {
 		t.Errorf("Couldn't setup event %v", err)
@@ -640,7 +646,7 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	// create test events, fill test block data
 	numEvents := 3
 	civilEventsFromContract := make([]*model.Event, 0)
@@ -695,7 +701,7 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 	}
 
 	// populate persistence
-	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	err = persister.PopulateBlockDataFromDB(eventTestTableType)
 	if err != nil {
 		t.Errorf("Cannot fill persistence, %v", err)
 	}
@@ -715,6 +721,7 @@ func TestSameTimestampEvents(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 
 	// setup 2 challenge events (same contract address) with the same timestamp..
 	// 2 cases
@@ -742,7 +749,7 @@ func TestSameTimestampEvents(t *testing.T) {
 	}
 
 	// populate persistence
-	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	err = persister.PopulateBlockDataFromDB(eventTestTableType)
 	if err != nil {
 		t.Errorf("Cannot fill persistence, %v", err)
 	}
@@ -776,7 +783,7 @@ func TestSameTimestampEvents(t *testing.T) {
 	}
 
 	// populate persistence
-	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	err = persister.PopulateBlockDataFromDB(eventTestTableType)
 	if err != nil {
 		t.Errorf("Cannot fill persistence, %v", err)
 	}
@@ -795,7 +802,7 @@ func TestDBToEvent(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	appEvent, err := setupApplicationEvent(true)
 	if err != nil {
 		t.Errorf("setupEvent should have succeeded: err: %v", err)
@@ -885,7 +892,7 @@ func TestUint256Float64Conversion(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	appEvent, err := setupApplicationEvent(true)
 	if err != nil {
 		t.Errorf("setupEvent should have succeeded: err: %v", err)
@@ -926,7 +933,7 @@ func TestRetrieveEvents(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
 		t.Errorf("Should not have seen error when saving events to table: %v", err)
@@ -1094,7 +1101,7 @@ func TestRetrieveEventsExcludingHash(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
 		t.Errorf("Should not have seen error when saving events to table: %v", err)
