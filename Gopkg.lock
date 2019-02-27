@@ -215,7 +215,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4c47be06c2d48fd1db9419b5def740846a3d6a61ecf777fe202bcfeec340056b"
+  digest = "1:f9ca232d47f25309eb51e676bbe44ae02f8a80655b8d642f68517e0b653cd232"
   name = "github.com/joincivil/go-common"
   packages = [
     "pkg/config",
@@ -223,13 +223,14 @@
     "pkg/gen",
     "pkg/generated/contract",
     "pkg/jobs",
+    "pkg/persistence",
     "pkg/persistence/postgres",
     "pkg/pubsub",
     "pkg/strings",
     "pkg/time",
   ]
   pruneopts = "UT"
-  revision = "5e7a7ece289b75720891e4e7d94627129115cc77"
+  revision = "68ea090ad413b80e1ec8a91a7cf65c97fa3fab15"
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
@@ -562,6 +563,7 @@
     "github.com/joincivil/go-common/pkg/eth",
     "github.com/joincivil/go-common/pkg/gen",
     "github.com/joincivil/go-common/pkg/generated/contract",
+    "github.com/joincivil/go-common/pkg/persistence",
     "github.com/joincivil/go-common/pkg/persistence/postgres",
     "github.com/joincivil/go-common/pkg/pubsub",
     "github.com/joincivil/go-common/pkg/strings",
