@@ -127,7 +127,7 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 		os.Exit(1)
 	}
 	// Populate persistence with latest block data from events table
-	err = persister.PopulateBlockDataFromDB(postgres.EventTableType)
+	err = persister.PopulateBlockDataFromDB(postgres.EventTableBaseName)
 	if err != nil {
 		log.Errorf("Error populating persistence from Postgresql, stopping...; err: %v", err)
 	}

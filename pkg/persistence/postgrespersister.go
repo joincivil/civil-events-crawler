@@ -76,13 +76,13 @@ func (p *PostgresPersister) SaveVersion(versionNumber *string) error {
 
 // SaveEvents saves events to events table in DB
 func (p *PostgresPersister) SaveEvents(events []*model.Event) error {
-	eventTableName := p.GetTableName(postgres.EventTableType)
+	eventTableName := p.GetTableName(postgres.EventTableBaseName)
 	return p.saveEventsToTable(events, eventTableName)
 }
 
 // RetrieveEvents retrieves the Events given an offset, count, and asc/dec bool. Ordered by db id.
 func (p *PostgresPersister) RetrieveEvents(criteria *model.RetrieveEventsCriteria) ([]*model.Event, error) {
-	eventTableName := p.GetTableName(postgres.EventTableType)
+	eventTableName := p.GetTableName(postgres.EventTableBaseName)
 	return p.retrieveEventsFromTable(eventTableName, criteria)
 }
 
@@ -163,7 +163,7 @@ func (p *PostgresPersister) CreateVersionTable(version *string) error {
 
 // CreateEventTable creates event table
 func (p *PostgresPersister) CreateEventTable() error {
-	eventTableName := p.GetTableName(postgres.EventTableType)
+	eventTableName := p.GetTableName(postgres.EventTableBaseName)
 	eventTableQuery := postgres.CreateEventTableQuery(eventTableName)
 	_, err := p.db.Exec(eventTableQuery)
 	return err
@@ -171,7 +171,7 @@ func (p *PostgresPersister) CreateEventTable() error {
 
 // CreateIndices creates the indices for DB if they don't exist
 func (p *PostgresPersister) CreateIndices() error {
-	eventTableName := p.GetTableName(postgres.EventTableType)
+	eventTableName := p.GetTableName(postgres.EventTableBaseName)
 	indexQuery := postgres.CreateEventTableIndices(eventTableName)
 	_, err := p.db.Exec(indexQuery)
 	return err

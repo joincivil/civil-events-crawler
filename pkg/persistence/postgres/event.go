@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	// EventTableType is the type of table this code defines
-	EventTableType = "event"
+	// EventTableBaseName is the type of table this code defines
+	EventTableBaseName = "event"
 )
 
 // CreateEventTableQuery returns the query to create this table
