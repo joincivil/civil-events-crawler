@@ -51,6 +51,7 @@ type CrawlerConfig struct {
 	PubSubProjectID string `split_words:"true" desc:"Sets the Google Cloud Project ID name"`
 	PubSubTopicName string `split_words:"true" desc:"Sets the Google Cloud PubSub Topic name"`
 
+	// VersionNumber is the version of DB for postgres persistence
 	VersionNumber string `split_words:"true" desc:"Sets the version for table"`
 }
 

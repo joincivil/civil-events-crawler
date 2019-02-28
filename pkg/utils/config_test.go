@@ -229,7 +229,7 @@ func testGraphqlResponse(w http.ResponseWriter, r *http.Request) {
 }
 
 func testServer(t *testing.T, handler func(http.ResponseWriter, *http.Request)) *http.Server {
-	srv := &http.Server{Addr: ":8888"}
+	srv := &http.Server{Addr: ":8889"}
 	http.HandleFunc("/", handler)
 	go func() {
 		err := srv.ListenAndServe()
@@ -250,7 +250,7 @@ func TestFetchListingAddresses(t *testing.T) {
 	)
 	os.Setenv(
 		"CRAWL_CIVIL_LISTING_GRAPHQL_URL",
-		"http://localhost:8888/query",
+		"http://localhost:8889/query",
 	)
 	os.Setenv(
 		"CRAWL_CONTRACT_ADDRESSES",
