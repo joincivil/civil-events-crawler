@@ -19,6 +19,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/handlerlist"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence"
+	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 	"github.com/joincivil/civil-events-crawler/pkg/pubsub"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
@@ -28,7 +29,6 @@ import (
 
 const (
 	websocketPingDelaySecs = 10 // 10 secs
-	eventTableType         = "event"
 )
 
 func contractFilterers(config *utils.CrawlerConfig) []model.ContractFilterers {
@@ -108,8 +108,14 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 		log.Errorf("Error connecting to Postgresql, stopping...; err: %v", err)
 		os.Exit(1)
 	}
-	// Attempts to create all the necessary tables here
-	err = persister.CreateTables(config.VersionNumber)
+	// Create version_data table
+	err = persister.CreateVersionTable(&config.VersionNumber)
+	if err != nil {
+		log.Errorf("Error creating tables, stopping...; err: %v", err)
+		os.Exit(1)
+	}
+	// Create event table
+	err = persister.CreateEventTable()
 	if err != nil {
 		log.Errorf("Error creating tables, stopping...; err: %v", err)
 		os.Exit(1)
@@ -121,7 +127,7 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 		os.Exit(1)
 	}
 	// Populate persistence with latest block data from events table
-	err = persister.PopulateBlockDataFromDB(eventTableType)
+	err = persister.PopulateBlockDataFromDB(postgres.EventTableType)
 	if err != nil {
 		log.Errorf("Error populating persistence from Postgresql, stopping...; err: %v", err)
 	}
