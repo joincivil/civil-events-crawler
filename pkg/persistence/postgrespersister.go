@@ -20,12 +20,11 @@ import (
 
 	cpersist "github.com/joincivil/go-common/pkg/persistence"
 	cpostgres "github.com/joincivil/go-common/pkg/persistence/postgres"
+	ctime "github.com/joincivil/go-common/pkg/time"
 )
 
 const (
-	versionTableName   = "version"
 	crawlerServiceName = "crawler"
-	versionFieldName   = "Version"
 	// Could make this configurable later if needed
 	maxOpenConns    = 50
 	maxIdleConns    = 10
@@ -52,28 +51,27 @@ func NewPostgresPersister(host string, port int, user string, password string, d
 type PostgresPersister struct {
 	eventToBlockData map[common.Address]map[string]PersisterBlockData
 	db               *sqlx.DB
-	version          string
+	version          *string
 }
 
-// PersisterVersion returns the version of this persistence
-func (p *PostgresPersister) PersisterVersion() string {
-	return p.version
+// PersisterVersion returns the latest version of this persistence
+func (p *PostgresPersister) PersisterVersion() (*string, error) {
+	return p.persisterVersionFromTable(postgres.VersionTableName)
 }
 
 // GetTableName formats tabletype with version of this persister to return the table name
 func (p *PostgresPersister) GetTableName(tableType string) string {
-	return fmt.Sprintf("%s_%s", tableType, p.version)
+	return fmt.Sprintf("%s_%s", tableType, *p.version)
 }
 
-// RetrieveVersion retrieves the version of this persistence
-func (p *PostgresPersister) RetrieveVersion() (string, error) {
-	return p.retrieveVersionFromTable(versionTableName)
-}
-
-// SaveVersion saves/updates the version for this persistence
-func (p *PostgresPersister) SaveVersion(versionNumber string) error {
-	// This should be a table update if the row exists, else an insert
-	return p.saveVersionToTable(versionTableName, versionNumber)
+// SaveVersion saves the version for this persistence
+func (p *PostgresPersister) SaveVersion(versionNumber *string) error {
+	err := p.saveVersionToTable(postgres.VersionTableName, versionNumber)
+	if err != nil {
+		return err
+	}
+	p.version = versionNumber
+	return nil
 }
 
 // SaveEvents saves events to events table in DB
@@ -141,31 +139,33 @@ func (p *PostgresPersister) PopulateBlockDataFromDB(tableType string) error {
 	return nil
 }
 
-// CreateTables creates tables in DB if they don't exist
-func (p *PostgresPersister) CreateTables(version string) error {
-	// Create version table first if it dne
-	versionTableQuery := postgres.CreateVersionTableQuery()
+// CreateVersionTable creates the version table
+func (p *PostgresPersister) CreateVersionTable(version *string) error {
+	versionTableQuery := postgres.CreateVersionTableQuery(postgres.VersionTableName)
 	_, err := p.db.Exec(versionTableQuery)
 	if err != nil {
 		return err
 	}
-	if version == "" {
-		version, err = p.RetrieveVersion()
-		if err != nil {
-			if err == cpersist.ErrPersisterNoResults {
-				return fmt.Errorf("No version in version table, specify a version: err %v", err)
-			}
-			return err
+
+	currentVersion, err := p.PersisterVersion()
+	if err != nil && version == nil {
+		if err == cpersist.ErrPersisterNoResults {
+			return fmt.Errorf("No version in version table, specify a version: err %v", err)
 		}
-	}
-	p.version = version
-	err = p.SaveVersion(p.version)
-	if err != nil {
 		return err
 	}
+	if currentVersion == p.version {
+		return nil
+	}
+	p.version = version
+	return p.SaveVersion(version)
+}
+
+// CreateEventTable creates event table
+func (p *PostgresPersister) CreateEventTable() error {
 	eventTableName := p.GetTableName(postgres.EventTableType)
 	eventTableQuery := postgres.CreateEventTableQuery(eventTableName)
-	_, err = p.db.Exec(eventTableQuery)
+	_, err := p.db.Exec(eventTableQuery)
 	return err
 }
 
@@ -177,65 +177,41 @@ func (p *PostgresPersister) CreateIndices() error {
 	return err
 }
 
-func (p *PostgresPersister) updateDBQueryBuffer(updatedFields []string, tableName string, dbModelStruct interface{}) (bytes.Buffer, error) {
-	var queryBuf bytes.Buffer
-	queryBuf.WriteString("UPDATE ") // nolint: gosec
-	queryBuf.WriteString(tableName) // nolint: gosec
-	queryBuf.WriteString(" SET ")   // nolint: gosec
-	for idx, field := range updatedFields {
-		dbFieldName, err := cpostgres.DbFieldNameFromModelName(dbModelStruct, field)
+func (p *PostgresPersister) persisterVersionFromTable(tableName string) (*string, error) {
+	if p.version == nil {
+		version, err := p.retrieveVersionFromTable(tableName)
 		if err != nil {
-			return queryBuf, fmt.Errorf("Error getting %s from %s table DB struct tag: %v", field, tableName, err)
+			return nil, err
 		}
-		queryBuf.WriteString(fmt.Sprintf("%s=:%s", dbFieldName, dbFieldName)) // nolint: gosec
-		if idx+1 < len(updatedFields) {
-			queryBuf.WriteString(", ") // nolint: gosec
-		}
+		p.version = version
 	}
-	return queryBuf, nil
+	return p.version, nil
 }
 
-func (p *PostgresPersister) retrieveVersionFromTable(tableName string) (string, error) {
-	dbVersionData := []postgres.VersionData{}
-	queryString := fmt.Sprintf(`SELECT * FROM %s WHERE service_name=$1;`, tableName) // nolint: gosec
-	err := p.db.Select(&dbVersionData, queryString, crawlerServiceName)
+func (p *PostgresPersister) retrieveVersionFromTable(tableName string) (*string, error) {
+	dbVersion := []postgres.Version{}
+	queryString := fmt.Sprintf(`SELECT * FROM %s WHERE service_name=$1 ORDER BY last_updated_timestamp DESC LIMIT 1;`, tableName) // nolint: gosec
+	err := p.db.Select(&dbVersion, queryString, crawlerServiceName)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if len(dbVersionData) == 0 {
-		return "", cpersist.ErrPersisterNoResults
+	if len(dbVersion) == 0 {
+		return nil, cpersist.ErrPersisterNoResults
 	}
-	if len(dbVersionData) > 1 {
-		return "", fmt.Errorf("There shouldn't be more than one version type in DB for %v", crawlerServiceName)
-	}
-	return dbVersionData[0].Version, nil
+	return dbVersion[0].Version, nil
 }
 
-// saveVersionToTable saves/updates the version
-func (p *PostgresPersister) saveVersionToTable(tableName string, versionNumber string) error {
-	dbVersionStruct := postgres.VersionData{
-		Version:     versionNumber,
-		ServiceName: crawlerServiceName}
+// saveVersionToTable saves the version
+func (p *PostgresPersister) saveVersionToTable(tableName string, versionNumber *string) error {
+	dbVersionStruct := postgres.Version{
+		Version:           versionNumber,
+		ServiceName:       crawlerServiceName,
+		LastUpdatedDateTs: ctime.CurrentEpochSecsInInt64()}
 
-	queryString, err := p.updateDBQueryBuffer([]string{versionFieldName}, tableName, dbVersionStruct)
+	queryString := cpostgres.InsertIntoDBQueryString(tableName, postgres.Version{})
+	_, err := p.db.NamedExec(queryString, dbVersionStruct)
 	if err != nil {
-		return fmt.Errorf("Error creating query string %v", err)
-	}
-	queryString.WriteString(" WHERE service_name=:service_name;") // nolint: gosec
-	resUpdate, updateErr := p.db.NamedExec(queryString.String(), dbVersionStruct)
-	if updateErr != nil {
-		return fmt.Errorf("Error updating fields in version table: %v", updateErr)
-	}
-	resUpdateRows, err := resUpdate.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("Error updating fields in version table: %v", err)
-	}
-	if resUpdateRows == 0 {
-		queryString := cpostgres.InsertIntoDBQueryString(tableName, postgres.VersionData{})
-		_, err := p.db.NamedExec(queryString, dbVersionStruct)
-		if err != nil {
-			return fmt.Errorf("Error saving version to table: %v", err)
-		}
+		return fmt.Errorf("Error saving version to table: %v", err)
 	}
 	return nil
 }

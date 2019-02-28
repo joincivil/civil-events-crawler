@@ -27,13 +27,13 @@ import (
 )
 
 const (
-	eventTestTableType = "event_test"
-	version            = "f"
-	postgresPort       = 5432
-	postgresDBName     = "civil_crawler"
-	postgresUser       = "docker"
-	postgresPswd       = "docker"
-	postgresHost       = "localhost"
+	eventTestTableType   = "event_test"
+	versionTestTableName = "version_test"
+	postgresPort         = 5432
+	postgresDBName       = "civil_crawler"
+	postgresUser         = "docker"
+	postgresPswd         = "docker"
+	postgresHost         = "localhost"
 )
 
 var (
@@ -272,7 +272,8 @@ func setupTestTable() (*PostgresPersister, error) {
 	if err != nil {
 		return persister, fmt.Errorf("Error connecting to DB: %v", err)
 	}
-	persister.version = version
+	version := "f"
+	persister.version = &version
 	eventTestTableName := persister.GetTableName(eventTestTableType)
 	createTableQuery := postgres.CreateEventTableQuery(eventTestTableName)
 	_, err = persister.db.Query(createTableQuery)
@@ -284,7 +285,8 @@ func setupTestTable() (*PostgresPersister, error) {
 }
 
 func deleteTestTable(persister *PostgresPersister) error {
-	persister.version = version
+	version := "f"
+	persister.version = &version
 	eventTestTableName := persister.GetTableName(eventTestTableType)
 	_, err := persister.db.Query(fmt.Sprintf("DROP TABLE %v;", eventTestTableName))
 	if err != nil {
@@ -304,6 +306,22 @@ func deleteTestTableForBenchmarks(b *testing.B, persister *PostgresPersister) {
 	err := deleteTestTable(persister)
 	if err != nil {
 		b.Errorf("Couldn't delete test table %v", err)
+	}
+}
+
+func createTestVersionTable(t *testing.T, persister *PostgresPersister) {
+	versionTableQuery := postgres.CreateVersionTableQuery(versionTestTableName)
+	_, err := persister.db.Exec(versionTableQuery)
+	if err != nil {
+		t.Errorf("error %v", err)
+	}
+
+}
+
+func deleteTestVersionTable(t *testing.T, persister *PostgresPersister) {
+	_, err := persister.db.Query(fmt.Sprintf("DROP TABLE %v;", versionTestTableName))
+	if err != nil {
+		t.Errorf("error: %v", err)
 	}
 }
 
@@ -333,7 +351,17 @@ func TestTableSetupNoExistingVersion(t *testing.T) {
 	}
 
 	versionNo := "123456"
-	err = persister.CreateTables(versionNo)
+	createTestVersionTable(t, persister)
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
+	if err != nil {
+		t.Errorf("Error saving  version: %v", err)
+	}
+	persister.version = &versionNo
+	err = persister.CreateEventTable()
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+
 	tableName := persister.GetTableName("event")
 	if err != nil {
 		t.Errorf("Error creating/checking for tables: %v", err)
@@ -351,6 +379,30 @@ func TestTableSetupNoExistingVersion(t *testing.T) {
 	}
 
 	persister.db.Query(fmt.Sprintf("DROP TABLE %v;", tableName))
+	deleteTestVersionTable(t, persister)
+}
+
+func TestSaveAndRetrieveFromVersionTable(t *testing.T) {
+	persister, err := setupDBConnection()
+	if err != nil {
+		t.Errorf("Error connecting to DB: %v", err)
+	}
+	// Just create the version table and save here
+	createTestVersionTable(t, persister)
+	versionNo := "123456"
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
+	if err != nil {
+		t.Errorf("Error saving versionNo to table: %v", err)
+	}
+
+	versionFromTable, err := persister.retrieveVersionFromTable(versionTestTableName)
+	if err != nil {
+		t.Errorf("Error retrieving from table: %v", err)
+	}
+	if *versionFromTable != versionNo {
+		t.Errorf("Version numbers do not match, %v, %v", versionNo, *versionFromTable)
+	}
+	deleteTestVersionTable(t, persister)
 }
 
 func TestTableSetupExistingVersion(t *testing.T) {
@@ -359,42 +411,41 @@ func TestTableSetupExistingVersion(t *testing.T) {
 		t.Errorf("Error connecting to DB: %v", err)
 	}
 	// Just create the version table and save here
-	versionTableQuery := postgres.CreateVersionTableQuery()
-	_, err = persister.db.Exec(versionTableQuery)
-	if err != nil {
-		t.Errorf("Error creating version table %v", err)
-	}
+	createTestVersionTable(t, persister)
 
 	versionNo := "123456"
-	err = persister.SaveVersion(versionNo)
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
 	if err != nil {
 		t.Errorf("Error saving versionNo to table: %v", err)
 	}
 
-	versionNoCopy, err := persister.RetrieveVersion()
+	versionNoCopy, err := persister.persisterVersionFromTable(versionTestTableName)
 	if err != nil {
 		t.Errorf("Error getting version %v", err)
 	}
-	if versionNoCopy != versionNo {
-		t.Errorf("versions don't match %v, %v", versionNo, versionNoCopy)
+	if *versionNoCopy != versionNo {
+		t.Errorf("versions don't match %v, %v", versionNo, *versionNoCopy)
 	}
+
+	// reset persister.version to nil, to simulate restarting with a new version
+	persister.version = nil
 
 	newVersionNo := "1234567"
-	err = persister.CreateTables(newVersionNo)
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo)
 	if err != nil {
-		t.Errorf("Should have thrown an error here")
+		t.Errorf("Error creating/checking for tables: %v", err)
 	}
 
-	newVersionNoCopy, err := persister.RetrieveVersion()
+	newVersionNoCopy, err := persister.persisterVersionFromTable(versionTestTableName)
 	if err != nil {
 		t.Errorf("Error getting version %v", err)
 	}
-	if newVersionNoCopy != newVersionNo {
-		t.Errorf("versions don't match %v, %v", newVersionNoCopy, newVersionNo)
+	if *newVersionNoCopy != newVersionNo {
+		t.Errorf("versions don't match %v, %v", *newVersionNoCopy, newVersionNo)
 	}
 
-	persister.db.Query(fmt.Sprintf("DROP TABLE %v;", fmt.Sprintf("%s_%s", "event", versionNo)))
-	persister.db.Query(fmt.Sprintf("DROP TABLE %v;", fmt.Sprintf("%s_%s", "event", newVersionNo)))
+	deleteTestVersionTable(t, persister)
 }
 
 func TestIndexCreationTestTable(t *testing.T) {
