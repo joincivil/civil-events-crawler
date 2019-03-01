@@ -139,7 +139,7 @@ func (p *PostgresPersister) PopulateBlockDataFromDB(tableType string) error {
 	return nil
 }
 
-// CreateVersionTable creates the version table
+// CreateVersionTable creates the version table and sets the version with new or existing version
 func (p *PostgresPersister) CreateVersionTable(version *string) error {
 	versionTableQuery := postgres.CreateVersionTableQuery(postgres.VersionTableName)
 	_, err := p.db.Exec(versionTableQuery)
