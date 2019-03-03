@@ -10,7 +10,8 @@ package {{.PackageName}}
 
 import (
 	log "github.com/golang/glog"
-    "fmt"
+	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -135,6 +136,17 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 		log.Infof("Starting up Watch{{.EventMethod}} for contract %v", w.contractAddress.Hex())
 		for {
 			select {
+			// 15 min premptive resubscribe
+			case <-time.After(time.Second * time.Duration(60*15)):
+				// log.Infof("WATCHER: Premptive restart of {{.EventMethod}}")
+				oldSub := sub
+				sub, recvChan, err = startupFn()
+				if err != nil {
+					log.Errorf("WATCHER: Error starting {{.EventMethod}}: %v", err)
+					return err
+				}
+				oldSub.Unsubscribe()
+				log.Infof("WATCHER: Done preemptive restart {{.EventMethod}}: oldsub: %v, new sub: %v", oldSub, sub)
 			case event := <-recvChan:
 				log.Errorf("Received event on Watch{{.EventMethod}}: %v", event)
 				modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", w.ContractName(), w.contractAddress, event, ctime.CurrentEpochSecsInInt64(), model.Watcher)
