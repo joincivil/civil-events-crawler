@@ -41,7 +41,7 @@ func New{{.ContractTypeName}}Filterers(contractAddress common.Address) *{{.Contr
         lastEvents: make([]*model.Event, 0),
     }
     for _, eventType := range contractFilterers.eventTypes {
-        contractFilterers.eventToStartBlock[eventType] = {{.DefaultStartBlock}} 
+        contractFilterers.eventToStartBlock[eventType] = {{.DefaultStartBlock}}
     }
     return contractFilterers
 }
@@ -161,17 +161,29 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
     }
 
     log.Infof("Filtering events for {{.EventMethod}} for contract %v starting at block %v", f.contractAddress.Hex(), startBlock)
-    itr, err := f.contract.Filter{{.EventMethod}}(
-        opts,
-    {{- if .ParamValues -}}
-    {{range .ParamValues}}
-        []{{.Type}}{},
-    {{- end}}
-    {{end}}
-    )
-    if err != nil {
-        log.Errorf("Error getting event {{.EventMethod}}: %v", err)
-        return err, pastEvents
+	var itr *contract.{{$.ContractTypeName}}{{.EventMethod}}Iterator
+	var err error
+	maxRetries := 3
+    retry := 0
+    for {
+        itr, err = f.contract.Filter{{.EventMethod}}(
+            opts,
+        {{- if .ParamValues -}}
+        {{range .ParamValues}}
+            []{{.Type}}{},
+        {{- end}}
+        {{end}}
+        )
+		if err == nil {
+            log.Infof("Successful filter: {{.EventMethod}} for contract %v", f.contractAddress.Hex())
+			break
+		}
+		if retry >= maxRetries {
+            log.Errorf("Failed filter: {{.EventMethod}} for contract %v: err: %v", f.contractAddress.Hex(), err)
+			return err, pastEvents
+		}
+        log.Infof("Retrying filter: {{.EventMethod}} for contract %v: err: %v", f.contractAddress.Hex(), err)
+		retry++
     }
     beforeCount := len(pastEvents)
     nextEvent := itr.Next()
