@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	log "github.com/golang/glog"
 
 	"github.com/Jeffail/tunny"
@@ -290,12 +291,12 @@ func (c *EventCollector) startListener() error {
 
 	c.listen = listener.NewEventListener(c.wsClient, c.watchers)
 	if c.listen == nil {
-		return errors.New("Listener should not be nil")
+		return errors.New("startupListener: Listener should not be nil")
 	}
 
 	err := c.listen.Start()
 	if err != nil {
-		return fmt.Errorf("Listener should have started with no errors: %v", err)
+		return fmt.Errorf("startupListener: Listener should have started with no errors: %v", err)
 	}
 
 	go func(quit <-chan bool, errors chan<- error) {
@@ -309,19 +310,18 @@ func (c *EventCollector) startListener() error {
 			case event := <-c.listen.EventRecvChan:
 				if log.V(2) {
 					log.Infof(
-						"event received: %v, %v, %v, \n%v",
+						"startupListener: Recv loop event received: %v",
+						spew.Sprintf("%#+v", event),
+					)
+				} else {
+					log.Infof(
+						"startupListener: Recv loop event received: eventType: %v, hash: %v, ts: %v",
 						event.EventType(),
 						event.Hash(),
 						event.Timestamp(),
-						event.LogPayloadToString(),
 					)
 				}
 				go func(e *model.Event, errs chan<- error) {
-					log.Infof(
-						"startListener func: pool.Process start: queued: %v, queue_size: %v",
-						pool.QueueLength(),
-						pool.GetSize(),
-					) // Debug, remove later
 					result := pool.Process(
 						handleEventInputs{
 							event:  e,
@@ -332,28 +332,28 @@ func (c *EventCollector) startListener() error {
 						err := result.(error)
 						if err != nil {
 							log.Errorf(
-								"startListener go func: Error processing: %v, %v, %v, %v, \n%v",
+								"startupListener: pool.Process Error processing: err: %v: %v",
 								err,
-								event.EventType(),
-								event.Hash(),
-								event.Timestamp(),
-								event.LogPayloadToString(),
+								spew.Sdump(event),
 							)
 						}
 					}
 					if log.V(2) {
 						log.Infof(
-							"startListener func: pool.Process done: %v, %v, %v, \n%v",
+							"startupListener: pool.Process done: %v",
+							spew.Sprintf("%#+v", event),
+						)
+					} else {
+						log.Infof(
+							"startupListener: pool.Process done: %v, %v, %v",
 							event.EventType(),
 							event.Hash(),
 							event.Timestamp(),
-							event.LogPayloadToString(),
-						) // Debug, remove later
+						)
 					}
 				}(event, errors)
-				log.Infof("startListener: started process from pool") // Debug, remove later
 			case <-quit:
-				log.Infof("startListener: quit") // Debug, remove later
+				log.Infof("startupListener: Quit event recv loop")
 				return
 			}
 		}

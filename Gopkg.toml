@@ -59,3 +59,7 @@
   [[prune.project]]
     name = "github.com/ethereum/go-ethereum"
     unused-packages = false
+
+[[constraint]]
+  name = "github.com/davecgh/go-spew"
+  version = "1.1.1"
