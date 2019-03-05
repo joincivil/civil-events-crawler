@@ -138,7 +138,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 		for {
 			select {
 			// 15 min premptive resubscribe
-			case <-time.After(time.Second * time.Duration(60*1)):
+			case <-time.After(time.Second * time.Duration(60*15)):
 				// log.Infof("Premptive restart of {{.EventMethod}}")
 				oldSub := sub
 				sub, recvChan, err = startupFn()
