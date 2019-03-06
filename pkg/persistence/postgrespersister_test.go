@@ -300,6 +300,7 @@ func deleteTestTableForTesting(t *testing.T, persister *PostgresPersister) {
 	if err != nil {
 		t.Errorf("Couldn't delete test table %v", err)
 	}
+	persister.db.Close()
 }
 
 func deleteTestTableForBenchmarks(b *testing.B, persister *PostgresPersister) {

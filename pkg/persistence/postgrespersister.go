@@ -54,7 +54,7 @@ type PostgresPersister struct {
 	version          *string
 }
 
-// PersisterVersion returns the latest version of this persistence
+// PersisterVersion returns and sets the latest version of this persistence
 func (p *PostgresPersister) PersisterVersion() (*string, error) {
 	return p.persisterVersionFromTable(postgres.VersionTableName)
 }
@@ -154,7 +154,7 @@ func (p *PostgresPersister) CreateVersionTable(version *string) error {
 		}
 		return err
 	}
-	if currentVersion == p.version {
+	if currentVersion == version {
 		return nil
 	}
 	p.version = version
