@@ -207,13 +207,22 @@ func (p *PostgresPersister) saveVersionToTable(tableName string, versionNumber *
 		Version:           versionNumber,
 		ServiceName:       crawlerServiceName,
 		LastUpdatedDateTs: ctime.CurrentEpochSecsInInt64()}
-
-	queryString := cpostgres.InsertIntoDBQueryString(tableName, postgres.Version{})
+	queryString := p.upsertVersionDataQueryString(tableName, dbVersionStruct)
 	_, err := p.db.NamedExec(queryString, dbVersionStruct)
 	if err != nil {
 		return fmt.Errorf("Error saving version to table: %v", err)
 	}
 	return nil
+}
+
+func (p *PostgresPersister) upsertVersionDataQueryString(tableName string, dbModelStruct interface{}) string {
+	onConflict := "version, service_name"
+	timestampField := "last_updated_timestamp"
+	timestampValue := ":last_updated_timestamp"
+	fieldNames, fieldNamesColon := cpostgres.StructFieldsForQuery(dbModelStruct, true, "")
+	queryString := fmt.Sprintf("INSERT INTO %s (%s) VALUES(%s) ON CONFLICT(%s) DO UPDATE SET %s=%s;",
+		tableName, fieldNames, fieldNamesColon, onConflict, timestampField, timestampValue) // nolint: gosec
+	return queryString
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {

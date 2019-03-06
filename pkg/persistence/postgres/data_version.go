@@ -10,12 +10,14 @@ const (
 )
 
 // CreateVersionTableQuery returns the query to create this table
+// version and service_name are unique.
 func CreateVersionTableQuery(tableName string) string {
 	queryString := fmt.Sprintf(`
         CREATE TABLE IF NOT EXISTS %s(
             version TEXT,
             service_name TEXT,
-            last_updated_timestamp INT
+            last_updated_timestamp INT,
+            PRIMARY KEY(version, service_name)
         );
     `, tableName)
 	return queryString

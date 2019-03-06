@@ -446,6 +446,24 @@ func TestTableSetupExistingVersion(t *testing.T) {
 		t.Errorf("versions don't match %v, %v", *newVersionNoCopy, newVersionNo)
 	}
 
+	// now reset back to old verion. this should do the upsert correctly
+	persister.version = nil
+
+	newVersionNo2 := "123456"
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo2)
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+
+	newVersionNoCopy2, err := persister.persisterVersionFromTable(versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting version %v", err)
+	}
+	if *newVersionNoCopy2 != newVersionNo2 {
+		t.Errorf("versions don't match %v, %v", *newVersionNoCopy2, newVersionNo2)
+	}
+
 	deleteTestVersionTable(t, persister)
 }
 
