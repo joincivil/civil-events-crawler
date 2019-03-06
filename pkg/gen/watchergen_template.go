@@ -10,6 +10,7 @@ package {{.PackageName}}
 
 import (
 	log "github.com/golang/glog"
+	"github.com/davecgh/go-spew/spew"
 	"fmt"
 	"time"
 
@@ -138,17 +139,21 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 			select {
 			// 15 min premptive resubscribe
 			case <-time.After(time.Second * time.Duration(60*15)):
-				// log.Infof("WATCHER: Premptive restart of {{.EventMethod}}")
+				// log.Infof("Premptive restart of {{.EventMethod}}")
 				oldSub := sub
 				sub, recvChan, err = startupFn()
 				if err != nil {
-					log.Errorf("WATCHER: Error starting {{.EventMethod}}: %v", err)
+					log.Errorf("Error starting {{.EventMethod}}: %v", err)
 					return err
 				}
 				oldSub.Unsubscribe()
-				log.Infof("WATCHER: Done preemptive restart {{.EventMethod}}: oldsub: %v, new sub: %v", oldSub, sub)
+				log.Infof("Done preemptive restart {{.EventMethod}}")
 			case event := <-recvChan:
-				log.Errorf("Received event on Watch{{.EventMethod}}: %v", event)
+				if log.V(2) {
+					log.Infof("Received event on Watch{{.EventMethod}}: %v", spew.Sprintf("%#+v", event))
+				} else {
+					log.Info("Received event on Watch{{.EventMethod}}")
+				}
 				modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", w.ContractName(), w.contractAddress, event, ctime.CurrentEpochSecsInInt64(), model.Watcher)
 				if err != nil {
 					log.Errorf("Error creating new event: event: %v, err: %v", event, err)
@@ -172,7 +177,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 				sub.Unsubscribe()
 				sub, recvChan, err = startupFn()
 				if err != nil {
-					log.Errorf("Error restarting Watch{{.EventMethod}}, fatal (b): %v", err)
+					log.Errorf("WATCHER: Error restarting Watch{{.EventMethod}}, fatal (b): %v", err)
 					return err
 				}
 			case <-quit:
