@@ -157,6 +157,10 @@ func (p *PostgresPersister) CreateVersionTable(version *string) error {
 	if currentVersion == version {
 		return nil
 	}
+	if version == nil {
+		// NOTE(IS): Use existing version, but update timestamp
+		version = currentVersion
+	}
 	p.version = version
 	return p.SaveVersion(version)
 }
