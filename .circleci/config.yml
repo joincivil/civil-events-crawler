@@ -173,6 +173,8 @@ workflows:
           context: gcp-common
           requires:
             - build
+            - test
+            - lint
           filters:
             branches:
               only:
