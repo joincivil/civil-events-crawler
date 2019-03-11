@@ -23,11 +23,12 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	cconfig "github.com/joincivil/go-common/pkg/config"
+	"github.com/joincivil/go-common/pkg/eth"
 )
 
-// const (
-// 	websocketPingDelaySecs = 10 // 10 secs
-// )
+const (
+	websocketPingDelaySecs = 10 // 10 secs
+)
 
 func contractFilterers(config *utils.CrawlerConfig) []model.ContractFilterers {
 	return handlerlist.ContractFilterers(config.ContractAddressObjs)
@@ -188,7 +189,7 @@ func setupWebsocketEthClient(config *utils.CrawlerConfig, killChan <-chan bool) 
 		return nil, err
 	}
 
-	// go eth.WebsocketPing(client, killChan, websocketPingDelaySecs)
+	go eth.WebsocketPing(client, killChan, websocketPingDelaySecs)
 
 	return client, nil
 }
