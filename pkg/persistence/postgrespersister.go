@@ -59,6 +59,11 @@ func (p *PostgresPersister) PersisterVersion() (*string, error) {
 	return p.persisterVersionFromTable(postgres.VersionTableName)
 }
 
+// OldVersions returns all versions except for the most recent one for this service
+func (p *PostgresPersister) OldVersions(serviceName string) ([]string, error) {
+	return p.oldVersionsFromTable(serviceName, postgres.VersionTableName)
+}
+
 // GetTableName formats tabletype with version of this persister to return the table name
 func (p *PostgresPersister) GetTableName(tableType string) string {
 	return fmt.Sprintf("%s_%s", tableType, *p.version)
@@ -190,6 +195,24 @@ func (p *PostgresPersister) persisterVersionFromTable(tableName string) (*string
 		p.version = version
 	}
 	return p.version, nil
+}
+
+func (p *PostgresPersister) oldVersionsFromTable(serviceName string, tableName string) ([]string, error) {
+	dbVersions := []postgres.Version{}
+	queryStringLargest := fmt.Sprintf(`SELECT MAX(last_updated_timestamp) FROM %s WHERE service_name='%s'`,
+		tableName, serviceName) // nolint: gosec
+	queryString := fmt.Sprintf(`SELECT * FROM %s WHERE service_name=$1 AND last_updated_timestamp !=(%s)`,
+		tableName, queryStringLargest) // nolint: gosec
+	err := p.db.Select(&dbVersions, queryString, serviceName)
+	if err != nil {
+		return []string{}, err
+	}
+	versions := []string{}
+	for _, version := range dbVersions {
+		versions = append(versions, *version.Version)
+	}
+
+	return versions, nil
 }
 
 func (p *PostgresPersister) retrieveVersionFromTable(tableName string) (*string, error) {

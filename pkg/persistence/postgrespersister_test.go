@@ -345,6 +345,42 @@ func TestDBConnection(t *testing.T) {
 	}
 }
 
+func TestGetAllVersions(t *testing.T) {
+	persister, err := setupDBConnection()
+	if err != nil {
+		t.Errorf("Error connecting to DB: %v", err)
+	}
+
+	versionNo := "123456"
+	createTestVersionTable(t, persister)
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
+	if err != nil {
+		t.Errorf("Error saving  version: %v", err)
+	}
+	time.Sleep(1 * time.Second)
+	versionNo2 := "1234567"
+	createTestVersionTable(t, persister)
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo2)
+	if err != nil {
+		t.Errorf("Error saving  version: %v", err)
+	}
+	time.Sleep(1 * time.Second)
+	versionNo3 := "1234568"
+	createTestVersionTable(t, persister)
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo3)
+	if err != nil {
+		t.Errorf("Error saving  version: %v", err)
+	}
+
+	v, err := persister.oldVersionsFromTable("crawler", versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting old versions %v", v)
+	}
+	if len(v) != 2 {
+		t.Errorf("Should be ")
+	}
+}
+
 func TestTableSetupNoExistingVersion(t *testing.T) {
 	persister, err := setupDBConnection()
 	if err != nil {
