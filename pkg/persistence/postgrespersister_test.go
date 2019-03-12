@@ -449,6 +449,7 @@ func TestTableSetupExistingVersion(t *testing.T) {
 	}
 	// Just create the version table and save here
 	createTestVersionTable(t, persister)
+	defer deleteTestVersionTable(t, persister)
 
 	versionNo := "123456"
 	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
@@ -500,7 +501,86 @@ func TestTableSetupExistingVersion(t *testing.T) {
 		t.Errorf("versions don't match %v, %v", *newVersionNoCopy2, newVersionNo2)
 	}
 
-	deleteTestVersionTable(t, persister)
+}
+
+func TestUpdateExistenceForVersionTable(t *testing.T) {
+	persister, err := setupDBConnection()
+	if err != nil {
+		t.Errorf("Error connecting to DB: %v", err)
+	}
+	// Just create the version table and save here
+	createTestVersionTable(t, persister)
+	defer deleteTestVersionTable(t, persister)
+
+	versionNo := "123456"
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
+	if err != nil {
+		t.Errorf("Error saving versionNo to table: %v", err)
+	}
+
+	versionNoCopy, err := persister.persisterVersionFromTable(versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting version %v", err)
+	}
+	if *versionNoCopy != versionNo {
+		t.Errorf("versions don't match %v, %v", versionNo, *versionNoCopy)
+	}
+
+	// reset persister.version to nil, to simulate restarting with a new version
+	persister.version = nil
+
+	newVersionNo := "1234567"
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo)
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+	newVersionNo2 := "1234568"
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo2)
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+	newVersionNo3 := "1234569"
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo3)
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+
+	newVersionNoCopy, err := persister.persisterVersionFromTable(versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting version %v", err)
+	}
+	if *newVersionNoCopy != newVersionNo3 {
+		t.Errorf("versions don't match %v, %v", *newVersionNoCopy, newVersionNo)
+	}
+
+	//update both of these to false
+	err = persister.UpdateExistenceForVersionTable(versionTestTableName, versionNo)
+	if err != nil {
+		t.Errorf("Error updating version in table, err: %v", err)
+	}
+	v, err := persister.oldVersionsFromTable("crawler", versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting old versions %v", v)
+	}
+	if len(v) != 2 {
+		t.Errorf("Should have one version but got %v", len(v))
+	}
+
+	err = persister.UpdateExistenceForVersionTable(versionTestTableName, newVersionNo)
+	if err != nil {
+		t.Errorf("Error updating version in table, err: %v", err)
+	}
+	v, err = persister.oldVersionsFromTable("crawler", versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting old versions %v", v)
+	}
+	if len(v) != 1 {
+		t.Errorf("Should not have gotten any versions but got %v", len(v))
+	}
+
 }
 
 func TestIndexCreationTestTable(t *testing.T) {
