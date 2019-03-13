@@ -198,9 +198,9 @@ func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *mode
 			queryBuf.WriteString(notInQuery) // nolint: gosec
 		}
 		if criteria.Reverse {
-			queryBuf.WriteString(" ORDER BY e.id DESC") // nolint: gosec
+			queryBuf.WriteString(" ORDER BY e.timestamp DESC, e.id DESC") // nolint: gosec
 		} else {
-			queryBuf.WriteString(" ORDER BY e.id") // nolint: gosec
+			queryBuf.WriteString(" ORDER BY e.timestamp, e.id") // nolint: gosec
 		}
 		if criteria.Offset > 0 {
 			queryBuf.WriteString(" OFFSET :offset") // nolint: gosec
