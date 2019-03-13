@@ -122,9 +122,10 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 						return nil, nil, err
 					}
 					retry++
-					log.Warningf("startupFn: Retrying start Watch{{.EventMethod}}: %v", err)
+					log.Warningf("startupFn: Retrying start Watch{{.EventMethod}}: retry: %v: %v", retry, err)
 					continue
 				}
+				log.Infof("startupFn: Watch{{.EventMethod}} started")
 				return sub, recvChan, nil
 			}
 		}
@@ -139,7 +140,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 			select {
 			// 15 min premptive resubscribe
 			case <-time.After(time.Second * time.Duration(60*15)):
-				// log.Infof("Premptive restart of {{.EventMethod}}")
+				log.Infof("Premptive restart of {{.EventMethod}}")
 				oldSub := sub
 				sub, recvChan, err = startupFn()
 				if err != nil {
@@ -161,6 +162,11 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 				}
 				select {
 				case eventRecvChan <- modelEvent:
+					if log.V(2) {
+						log.Infof("Sent event to eventRecvChan on Watch{{.EventMethod}}: %v", spew.Sprintf("%#+v", event))
+					} else {
+						log.Info("Sent event to eventRecvChan on Watch{{.EventMethod}}")
+					}
 				case err := <-sub.Err():
 					log.Errorf("Error with Watch{{.EventMethod}}, fatal (a): %v", err)
 					sub.Unsubscribe()
@@ -169,7 +175,9 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 						log.Errorf("Error restarting Watch{{.EventMethod}}, fatal (a): %v", err)
 						return err
 					}
+					log.Errorf("Done error with Watch{{.EventMethod}}, fatal (a): %v", err)
 				case <-quit:
+					log.Infof("Quit Watch{{.EventMethod}} (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
@@ -181,6 +189,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 					return err
 				}
 			case <-quit:
+				log.Infof("Quit Watch{{.EventMethod}} (b): %v", err)
 				return nil
 			}
 		}
