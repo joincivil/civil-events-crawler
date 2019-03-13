@@ -72,15 +72,16 @@ func (p *PostgresPersister) GetTableName(tableType string) string {
 
 // DropTable drops the table with the specified tableName
 func (p *PostgresPersister) DropTable(tableName string) error {
-	_, err := p.db.Query(fmt.Sprintf("DROP TABLE %v;", tableName)) // nolint: gosec
+	_, err := p.db.Query(fmt.Sprintf("DROP TABLE IF EXISTS %v;", tableName)) // nolint: gosec
 	return err
 }
 
-// UpdateExistenceForVersionTable updates the tableName's exists field to false in the version table
-func (p *PostgresPersister) UpdateExistenceForVersionTable(tableName string, versionNumber string) error {
+// UpdateExistenceFalseForVersionTable updates the tableName's exists field to false in the version table
+func (p *PostgresPersister) UpdateExistenceFalseForVersionTable(tableName string, versionNumber string,
+	serviceName string) error {
 	dbVersionStruct := postgres.Version{
 		Version:     &versionNumber,
-		ServiceName: CrawlerServiceName,
+		ServiceName: serviceName,
 		Exists:      false}
 	onConflict := fmt.Sprintf("%s, %s", postgres.VersionFieldName, postgres.ServiceFieldName)
 	updatedFields := []string{postgres.ExistsFieldName}
@@ -272,18 +273,17 @@ func (p *PostgresPersister) saveVersionToTable(tableName string, versionNumber *
 
 func (p *PostgresPersister) upsertVersionDataQueryString(tableName string, dbModelStruct interface{},
 	onConflict string, updatedFields []string) string {
-	var queryBuf bytes.Buffer
+	var queryString strings.Builder
 	fieldNames, fieldNamesColon := cpostgres.StructFieldsForQuery(dbModelStruct, true, "")
-	queryString := fmt.Sprintf("INSERT INTO %s (%s) VALUES(%s) ON CONFLICT(%s) DO UPDATE SET ",
-		tableName, fieldNames, fieldNamesColon, onConflict) // nolint: gosec
-	queryBuf.WriteString(queryString) // nolint: gosec
+	queryString.WriteString(fmt.Sprintf("INSERT INTO %s (%s) VALUES(%s) ON CONFLICT(%s) DO UPDATE SET ",
+		tableName, fieldNames, fieldNamesColon, onConflict)) // nolint: gosec
 	for idx, field := range updatedFields {
-		queryBuf.WriteString(fmt.Sprintf("%s=:%s", field, field)) // nolint: gosec
+		queryString.WriteString(fmt.Sprintf("%s=:%s", field, field)) // nolint: gosec
 		if idx+1 < len(updatedFields) {
-			queryBuf.WriteString(", ") // nolint: gosec
+			queryString.WriteString(", ") // nolint: gosec
 		}
 	}
-	return queryBuf.String()
+	return queryString.String()
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {

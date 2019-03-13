@@ -557,7 +557,7 @@ func TestUpdateExistenceForVersionTable(t *testing.T) {
 	}
 
 	//update both of these to false
-	err = persister.UpdateExistenceForVersionTable(versionTestTableName, versionNo)
+	err = persister.UpdateExistenceFalseForVersionTable(versionTestTableName, versionNo, CrawlerServiceName)
 	if err != nil {
 		t.Errorf("Error updating version in table, err: %v", err)
 	}
@@ -569,7 +569,7 @@ func TestUpdateExistenceForVersionTable(t *testing.T) {
 		t.Errorf("Should have one version but got %v", len(v))
 	}
 
-	err = persister.UpdateExistenceForVersionTable(versionTestTableName, newVersionNo)
+	err = persister.UpdateExistenceFalseForVersionTable(versionTestTableName, newVersionNo, CrawlerServiceName)
 	if err != nil {
 		t.Errorf("Error updating version in table, err: %v", err)
 	}

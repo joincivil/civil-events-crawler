@@ -26,7 +26,6 @@ func main() {
 		log.Errorf("Invalid crawler config: err: %v\n", err)
 		os.Exit(2)
 	}
-	// this should look in db and get all versions which aren't new
 	persister, err := persistence.NewPostgresPersister(
 		config.PersisterPostgresAddress,
 		config.PersisterPostgresPort,
@@ -53,7 +52,7 @@ func main() {
 			log.Errorf("Error deleting %v table, stopping...; err: %v", eventTableName, err)
 		}
 		log.Infof("Successfully deleted table %v", eventTableName)
-		err = persister.UpdateExistenceForVersionTable(postgres.VersionTableName, version)
+		err = persister.UpdateExistenceFalseForVersionTable(postgres.VersionTableName, version, persistence.CrawlerServiceName)
 		if err != nil {
 			log.Errorf("Error updating exists field for %v table, stopping...; err: %v", eventTableName, err)
 		}
