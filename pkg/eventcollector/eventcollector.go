@@ -257,10 +257,11 @@ func (c *EventCollector) StartCollection() error {
 			log.Infof("Polling enabled, waiting...")
 			select {
 			case <-time.After(time.Duration(c.pollingIntSecs()) * time.Second):
+				// Loop back to call runRetriever
+				continue
 			case <-c.quitChan:
 				return nil
 			}
-			continue
 		}
 
 		if !c.isListenerEnabled() {
@@ -278,6 +279,7 @@ func (c *EventCollector) StartCollection() error {
 		once.Do(func() { c.sendStartSignal() })
 
 		select {
+		// All errors from the watchers and startListener loop get funnelled here.
 		case err = <-c.errorsChan:
 			log.Errorf("Received error on chan, restarting collector: err: %v", err)
 			// nil this out to kill start signal, not needed at this point
@@ -289,6 +291,7 @@ func (c *EventCollector) StartCollection() error {
 				}
 			}()
 		case <-c.quitChan:
+			log.Infof("Received quitChan signal, stopping collection")
 			return nil
 		}
 	}
