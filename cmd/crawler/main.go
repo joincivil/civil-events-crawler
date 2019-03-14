@@ -165,17 +165,19 @@ func startUp(config *utils.CrawlerConfig) error {
 
 	eventCol := eventcollector.NewEventCollector(
 		&eventcollector.Config{
-			Chain:              httpClient,
-			HTTPClient:         httpClient,
-			WsEthURL:           config.EthWsAPIURL,
-			Filterers:          contractFilterers(config),
-			Watchers:           contractWatchers(config),
-			RetrieverPersister: retrieverMetaDataPersister(config),
-			ListenerPersister:  listenerMetaDataPersister(config),
-			EventDataPersister: eventDataPersister(config),
-			Triggers:           eventTriggers(config),
-			StartBlock:         config.EthStartBlock,
-			CrawlerPubSub:      crawlerPubSub(config),
+			Chain:               httpClient,
+			HTTPClient:          httpClient,
+			WsEthURL:            config.EthWsAPIURL,
+			Filterers:           contractFilterers(config),
+			Watchers:            contractWatchers(config),
+			RetrieverPersister:  retrieverMetaDataPersister(config),
+			ListenerPersister:   listenerMetaDataPersister(config),
+			EventDataPersister:  eventDataPersister(config),
+			Triggers:            eventTriggers(config),
+			StartBlock:          config.EthStartBlock,
+			CrawlerPubSub:       crawlerPubSub(config),
+			PollingEnabled:      config.PollingEnabled,
+			PollingIntervalSecs: config.PollingIntervalSecs,
 		},
 	)
 
