@@ -25,6 +25,9 @@ const (
 
 	// CVLTokenContractType is the enum value for the CVL token type
 	CVLTokenContractType
+
+	// CVLParameterizerContractType is the enum value for the CVL Parameterizer type
+	CVLParameterizerContractType
 )
 
 var (
@@ -60,6 +63,13 @@ var (
 				name:        "CVLTokenContract",
 				simpleName:  "cvltoken",
 				abiStr:      contract.CVLTokenContractABI,
+				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
+				typePackage: "contract",
+			},
+			CVLParameterizerContractType: {
+				name:        "ParameterizerContract",
+				simpleName:  "civilparameterizer",
+				abiStr:      contract.ParameterizerContractABI,
 				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
 				typePackage: "contract",
 			},
