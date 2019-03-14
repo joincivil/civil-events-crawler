@@ -11,8 +11,9 @@ import (
 type ContractWatchers interface {
 	ContractName() string
 	ContractAddress() common.Address
-	StartWatchers(client bind.ContractBackend, eventRecvChan chan *Event) ([]event.Subscription, error)
-	StopWatchers() error
+	StartWatchers(client bind.ContractBackend, eventRecvChan chan *Event,
+		errs chan error) ([]event.Subscription, error)
+	StopWatchers(unsub bool) error
 }
 
 // ContractFilterers defines an interface that starts up a particular set of filterers
