@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/golang/glog"
@@ -33,6 +34,8 @@ const (
 	blockHeaderExpirySecs = 60 * 5 // 5 mins
 
 	wsPingDelaySecs = 10 // 10 secs
+
+	defaultPollingIntervalSecs = 60 // 60 secs
 )
 
 // Config contains the configuration dependencies for the EventCollector
@@ -44,39 +47,43 @@ const (
 //   the given connection even on error (at your own risk).
 // - If both are nil, will disable the event listeners.
 type Config struct {
-	Chain              ethereum.ChainReader
-	HTTPClient         bind.ContractBackend
-	WsClient           bind.ContractBackend
-	WsEthURL           string
-	Filterers          []model.ContractFilterers
-	Watchers           []model.ContractWatchers
-	RetrieverPersister model.RetrieverMetaDataPersister
-	ListenerPersister  model.ListenerMetaDataPersister
-	EventDataPersister model.EventDataPersister
-	Triggers           []Trigger
-	StartBlock         uint64
-	CrawlerPubSub      *pubsub.CrawlerPubSub
+	Chain               ethereum.ChainReader
+	HTTPClient          bind.ContractBackend
+	WsClient            bind.ContractBackend
+	WsEthURL            string
+	Filterers           []model.ContractFilterers
+	Watchers            []model.ContractWatchers
+	RetrieverPersister  model.RetrieverMetaDataPersister
+	ListenerPersister   model.ListenerMetaDataPersister
+	EventDataPersister  model.EventDataPersister
+	Triggers            []Trigger
+	StartBlock          uint64
+	CrawlerPubSub       *pubsub.CrawlerPubSub
+	PollingEnabled      bool
+	PollingIntervalSecs int
 }
 
 // NewEventCollector creates a new event collector
 func NewEventCollector(config *Config) *EventCollector {
 	eventcollector := &EventCollector{
-		chain:              config.Chain,
-		retryChain:         eth.RetryChainReader{ChainReader: config.Chain},
-		httpClient:         config.HTTPClient,
-		wsClient:           config.WsClient,
-		wsEthURL:           config.WsEthURL,
-		filterers:          config.Filterers,
-		watchers:           config.Watchers,
-		retrieverPersister: config.RetrieverPersister,
-		listenerPersister:  config.ListenerPersister,
-		eventDataPersister: config.EventDataPersister,
-		triggers:           config.Triggers,
-		startBlock:         config.StartBlock,
-		startChan:          make(chan bool),
-		quitChan:           make(chan bool),
-		errorsChan:         make(chan error),
-		crawlerPubSub:      config.CrawlerPubSub,
+		chain:               config.Chain,
+		retryChain:          eth.RetryChainReader{ChainReader: config.Chain},
+		httpClient:          config.HTTPClient,
+		wsClient:            config.WsClient,
+		wsEthURL:            config.WsEthURL,
+		filterers:           config.Filterers,
+		watchers:            config.Watchers,
+		retrieverPersister:  config.RetrieverPersister,
+		listenerPersister:   config.ListenerPersister,
+		eventDataPersister:  config.EventDataPersister,
+		triggers:            config.Triggers,
+		startBlock:          config.StartBlock,
+		startChan:           make(chan bool),
+		quitChan:            make(chan bool),
+		errorsChan:          make(chan error),
+		crawlerPubSub:       config.CrawlerPubSub,
+		pollingEnabled:      config.PollingEnabled,
+		pollingIntervalSecs: config.PollingIntervalSecs,
 	}
 	return eventcollector
 }
@@ -124,6 +131,10 @@ type EventCollector struct {
 	headerCache *eth.BlockHeaderCache
 
 	crawlerPubSub *pubsub.CrawlerPubSub
+
+	pollingEnabled bool
+
+	pollingIntervalSecs int
 }
 
 type handleEventInputs struct {
@@ -226,10 +237,11 @@ func (c *EventCollector) StartChan() chan bool {
 
 // StartCollection contains logic to run retriever and listener.
 func (c *EventCollector) StartCollection() error {
+	var once sync.Once
 	for {
 		err := c.runRetriever()
 		if err != nil {
-			c.sendStartSignal()
+			once.Do(func() { c.sendStartSignal() })
 			return err
 		}
 
@@ -240,19 +252,30 @@ func (c *EventCollector) StartCollection() error {
 			}
 		}
 
+		if c.pollingEnabled {
+			once.Do(func() { c.sendStartSignal() })
+			log.Infof("Polling enabled, waiting...")
+			select {
+			case <-time.After(time.Duration(c.pollingIntSecs()) * time.Second):
+			case <-c.quitChan:
+				return nil
+			}
+			continue
+		}
+
 		if !c.isListenerEnabled() {
 			log.Infof("Listener is disabled, not starting")
-			c.sendStartSignal()
+			once.Do(func() { c.sendStartSignal() })
 			return nil
 		}
 
 		err = c.startListener()
 		if err != nil {
-			c.sendStartSignal()
+			once.Do(func() { c.sendStartSignal() })
 			return fmt.Errorf("Error starting listener: err: %v", err)
 		}
 
-		c.sendStartSignal()
+		once.Do(func() { c.sendStartSignal() })
 
 		select {
 		case err = <-c.errorsChan:
@@ -394,6 +417,8 @@ func (c *EventCollector) startListener() error {
 				// Any errors from the watchers
 				log.Infof("startupListener: watcher error chan: %v", err)
 				cleanupFn()
+				// make sure we send these errors to the main errors chan
+				c.errorsChan <- err
 				return
 
 			case <-quit:
@@ -446,7 +471,7 @@ func (c *EventCollector) sendStartSignal() {
 }
 
 func (c *EventCollector) isListenerEnabled() bool {
-	if c.wsEthURL == "" && c.wsClient == nil {
+	if (c.wsEthURL == "" && c.wsClient == nil) || c.pollingEnabled {
 		return false
 	}
 	return true
@@ -464,6 +489,14 @@ func (c *EventCollector) initWsClient() (bind.ContractBackend, chan bool, error)
 	}
 	wsClient := bind.ContractBackend(ethclient)
 	return wsClient, killChan, nil
+}
+
+func (c *EventCollector) pollingIntSecs() int {
+	intSecs := c.pollingIntervalSecs
+	if intSecs == 0 {
+		intSecs = defaultPollingIntervalSecs
+	}
+	return intSecs
 }
 
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
