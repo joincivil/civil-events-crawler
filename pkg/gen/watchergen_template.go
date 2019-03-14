@@ -38,6 +38,7 @@ func New{{.ContractTypeName}}Watchers(contractAddress common.Address) *{{.Contra
 }
 
 type {{.ContractTypeName}}Watchers struct {
+	errors chan error
 	contractAddress common.Address
 	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
 	activeSubs []event.Subscription
@@ -51,22 +52,25 @@ func (w *{{.ContractTypeName}}Watchers) ContractName() string {
 	return "{{.ContractTypeName}}"
 }
 
-func (w *{{.ContractTypeName}}Watchers) StopWatchers() error {
-	for _, sub := range w.activeSubs {
-		sub.Unsubscribe()
+func (w *{{.ContractTypeName}}Watchers) StopWatchers(unsub bool) error {
+	if unsub {
+		for _, sub := range w.activeSubs {
+			sub.Unsubscribe()
+		}
 	}
 	w.activeSubs = nil
 	return nil
 }
 
 func (w *{{.ContractTypeName}}Watchers) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
-	return w.Start{{.ContractTypeName}}Watchers(client, eventRecvChan)
+	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	return w.Start{{.ContractTypeName}}Watchers(client, eventRecvChan, errs)
 }
 
 // Start{{.ContractTypeName}}Watchers starts up the event watchers for {{.ContractTypeName}}
 func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	w.errors = errs
     contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(w.contractAddress, client)
 	if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
@@ -97,9 +101,7 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 
 func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *{{$.ContractTypePackage}}.{{.EventType}}, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *{{$.ContractTypePackage}}.{{.EventType}})
@@ -118,12 +120,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 						log.Infof("startupFn: Unsubscribing Watch{{.EventMethod}}")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start Watch{{.EventMethod}}: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: Watch{{.EventMethod}} started")
 				return sub, recvChan, nil
@@ -132,6 +129,10 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting Watch{{.EventMethod}}: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -145,8 +146,10 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting {{.EventMethod}}: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old {{.EventMethod}}")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart {{.EventMethod}}")
 			case event := <-recvChan:
@@ -169,27 +172,18 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with Watch{{.EventMethod}}, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting Watch{{.EventMethod}}, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with Watch{{.EventMethod}}, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit Watch{{.EventMethod}} (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with Watch{{.EventMethod}}, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting Watch{{.EventMethod}}, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit Watch{{.EventMethod}} (b): %v", err)
+				log.Infof("Quitting loop for Watch{{.EventMethod}}")
 				return nil
 			}
 		}

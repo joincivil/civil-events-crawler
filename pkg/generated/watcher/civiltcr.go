@@ -6,9 +6,10 @@ package watcher
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/golang/glog"
-	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,6 +30,7 @@ func NewCivilTCRContractWatchers(contractAddress common.Address) *CivilTCRContra
 }
 
 type CivilTCRContractWatchers struct {
+	errors          chan error
 	contractAddress common.Address
 	contract        *contract.CivilTCRContract
 	activeSubs      []event.Subscription
@@ -42,22 +44,25 @@ func (w *CivilTCRContractWatchers) ContractName() string {
 	return "CivilTCRContract"
 }
 
-func (w *CivilTCRContractWatchers) StopWatchers() error {
-	for _, sub := range w.activeSubs {
-		sub.Unsubscribe()
+func (w *CivilTCRContractWatchers) StopWatchers(unsub bool) error {
+	if unsub {
+		for _, sub := range w.activeSubs {
+			sub.Unsubscribe()
+		}
 	}
 	w.activeSubs = nil
 	return nil
 }
 
 func (w *CivilTCRContractWatchers) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
-	return w.StartCivilTCRContractWatchers(client, eventRecvChan)
+	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	return w.StartCivilTCRContractWatchers(client, eventRecvChan, errs)
 }
 
 // StartCivilTCRContractWatchers starts up the event watchers for CivilTCRContract
 func (w *CivilTCRContractWatchers) StartCivilTCRContractWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	w.errors = errs
 	contract, err := contract.NewCivilTCRContract(w.contractAddress, client)
 	if err != nil {
 		log.Errorf("Error initializing StartCivilTCRContract: err: %v", err)
@@ -194,9 +199,7 @@ func (w *CivilTCRContractWatchers) StartCivilTCRContractWatchers(client bind.Con
 
 func (w *CivilTCRContractWatchers) startWatchAppealGranted(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractAppealGranted, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractAppealGranted)
@@ -212,12 +215,7 @@ func (w *CivilTCRContractWatchers) startWatchAppealGranted(eventRecvChan chan *m
 						log.Infof("startupFn: Unsubscribing WatchAppealGranted")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchAppealGranted: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchAppealGranted started")
 				return sub, recvChan, nil
@@ -226,6 +224,10 @@ func (w *CivilTCRContractWatchers) startWatchAppealGranted(eventRecvChan chan *m
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchAppealGranted: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -239,8 +241,10 @@ func (w *CivilTCRContractWatchers) startWatchAppealGranted(eventRecvChan chan *m
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting AppealGranted: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old AppealGranted")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart AppealGranted")
 			case event := <-recvChan:
@@ -263,27 +267,18 @@ func (w *CivilTCRContractWatchers) startWatchAppealGranted(eventRecvChan chan *m
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchAppealGranted, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchAppealGranted, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchAppealGranted, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchAppealGranted (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchAppealGranted, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchAppealGranted, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchAppealGranted (b): %v", err)
+				log.Infof("Quitting loop for WatchAppealGranted")
 				return nil
 			}
 		}
@@ -292,9 +287,7 @@ func (w *CivilTCRContractWatchers) startWatchAppealGranted(eventRecvChan chan *m
 
 func (w *CivilTCRContractWatchers) startWatchAppealRequested(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractAppealRequested, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractAppealRequested)
@@ -310,12 +303,7 @@ func (w *CivilTCRContractWatchers) startWatchAppealRequested(eventRecvChan chan 
 						log.Infof("startupFn: Unsubscribing WatchAppealRequested")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchAppealRequested: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchAppealRequested started")
 				return sub, recvChan, nil
@@ -324,6 +312,10 @@ func (w *CivilTCRContractWatchers) startWatchAppealRequested(eventRecvChan chan 
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchAppealRequested: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -337,8 +329,10 @@ func (w *CivilTCRContractWatchers) startWatchAppealRequested(eventRecvChan chan 
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting AppealRequested: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old AppealRequested")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart AppealRequested")
 			case event := <-recvChan:
@@ -361,27 +355,18 @@ func (w *CivilTCRContractWatchers) startWatchAppealRequested(eventRecvChan chan 
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchAppealRequested, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchAppealRequested, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchAppealRequested, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchAppealRequested (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchAppealRequested, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchAppealRequested, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchAppealRequested (b): %v", err)
+				log.Infof("Quitting loop for WatchAppealRequested")
 				return nil
 			}
 		}
@@ -390,9 +375,7 @@ func (w *CivilTCRContractWatchers) startWatchAppealRequested(eventRecvChan chan 
 
 func (w *CivilTCRContractWatchers) startWatchApplication(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractApplication, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractApplication)
@@ -408,12 +391,7 @@ func (w *CivilTCRContractWatchers) startWatchApplication(eventRecvChan chan *mod
 						log.Infof("startupFn: Unsubscribing WatchApplication")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchApplication: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchApplication started")
 				return sub, recvChan, nil
@@ -422,6 +400,10 @@ func (w *CivilTCRContractWatchers) startWatchApplication(eventRecvChan chan *mod
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchApplication: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -435,8 +417,10 @@ func (w *CivilTCRContractWatchers) startWatchApplication(eventRecvChan chan *mod
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting Application: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old Application")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart Application")
 			case event := <-recvChan:
@@ -459,27 +443,18 @@ func (w *CivilTCRContractWatchers) startWatchApplication(eventRecvChan chan *mod
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchApplication, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchApplication, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchApplication, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchApplication (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchApplication, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchApplication, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchApplication (b): %v", err)
+				log.Infof("Quitting loop for WatchApplication")
 				return nil
 			}
 		}
@@ -488,9 +463,7 @@ func (w *CivilTCRContractWatchers) startWatchApplication(eventRecvChan chan *mod
 
 func (w *CivilTCRContractWatchers) startWatchApplicationRemoved(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractApplicationRemoved, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractApplicationRemoved)
@@ -505,12 +478,7 @@ func (w *CivilTCRContractWatchers) startWatchApplicationRemoved(eventRecvChan ch
 						log.Infof("startupFn: Unsubscribing WatchApplicationRemoved")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchApplicationRemoved: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchApplicationRemoved started")
 				return sub, recvChan, nil
@@ -519,6 +487,10 @@ func (w *CivilTCRContractWatchers) startWatchApplicationRemoved(eventRecvChan ch
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchApplicationRemoved: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -532,8 +504,10 @@ func (w *CivilTCRContractWatchers) startWatchApplicationRemoved(eventRecvChan ch
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting ApplicationRemoved: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old ApplicationRemoved")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart ApplicationRemoved")
 			case event := <-recvChan:
@@ -556,27 +530,18 @@ func (w *CivilTCRContractWatchers) startWatchApplicationRemoved(eventRecvChan ch
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchApplicationRemoved, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchApplicationRemoved, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchApplicationRemoved, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchApplicationRemoved (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchApplicationRemoved, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchApplicationRemoved, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchApplicationRemoved (b): %v", err)
+				log.Infof("Quitting loop for WatchApplicationRemoved")
 				return nil
 			}
 		}
@@ -585,9 +550,7 @@ func (w *CivilTCRContractWatchers) startWatchApplicationRemoved(eventRecvChan ch
 
 func (w *CivilTCRContractWatchers) startWatchApplicationWhitelisted(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractApplicationWhitelisted, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractApplicationWhitelisted)
@@ -602,12 +565,7 @@ func (w *CivilTCRContractWatchers) startWatchApplicationWhitelisted(eventRecvCha
 						log.Infof("startupFn: Unsubscribing WatchApplicationWhitelisted")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchApplicationWhitelisted: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchApplicationWhitelisted started")
 				return sub, recvChan, nil
@@ -616,6 +574,10 @@ func (w *CivilTCRContractWatchers) startWatchApplicationWhitelisted(eventRecvCha
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchApplicationWhitelisted: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -629,8 +591,10 @@ func (w *CivilTCRContractWatchers) startWatchApplicationWhitelisted(eventRecvCha
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting ApplicationWhitelisted: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old ApplicationWhitelisted")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart ApplicationWhitelisted")
 			case event := <-recvChan:
@@ -653,27 +617,18 @@ func (w *CivilTCRContractWatchers) startWatchApplicationWhitelisted(eventRecvCha
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchApplicationWhitelisted, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchApplicationWhitelisted, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchApplicationWhitelisted, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchApplicationWhitelisted (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchApplicationWhitelisted, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchApplicationWhitelisted, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchApplicationWhitelisted (b): %v", err)
+				log.Infof("Quitting loop for WatchApplicationWhitelisted")
 				return nil
 			}
 		}
@@ -682,9 +637,7 @@ func (w *CivilTCRContractWatchers) startWatchApplicationWhitelisted(eventRecvCha
 
 func (w *CivilTCRContractWatchers) startWatchChallenge(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractChallenge, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractChallenge)
@@ -701,12 +654,7 @@ func (w *CivilTCRContractWatchers) startWatchChallenge(eventRecvChan chan *model
 						log.Infof("startupFn: Unsubscribing WatchChallenge")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchChallenge: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchChallenge started")
 				return sub, recvChan, nil
@@ -715,6 +663,10 @@ func (w *CivilTCRContractWatchers) startWatchChallenge(eventRecvChan chan *model
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchChallenge: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -728,8 +680,10 @@ func (w *CivilTCRContractWatchers) startWatchChallenge(eventRecvChan chan *model
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting Challenge: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old Challenge")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart Challenge")
 			case event := <-recvChan:
@@ -752,27 +706,18 @@ func (w *CivilTCRContractWatchers) startWatchChallenge(eventRecvChan chan *model
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchChallenge, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchChallenge, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchChallenge, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchChallenge (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchChallenge, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchChallenge, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchChallenge (b): %v", err)
+				log.Infof("Quitting loop for WatchChallenge")
 				return nil
 			}
 		}
@@ -781,9 +726,7 @@ func (w *CivilTCRContractWatchers) startWatchChallenge(eventRecvChan chan *model
 
 func (w *CivilTCRContractWatchers) startWatchChallengeFailed(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractChallengeFailed, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractChallengeFailed)
@@ -799,12 +742,7 @@ func (w *CivilTCRContractWatchers) startWatchChallengeFailed(eventRecvChan chan 
 						log.Infof("startupFn: Unsubscribing WatchChallengeFailed")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchChallengeFailed: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchChallengeFailed started")
 				return sub, recvChan, nil
@@ -813,6 +751,10 @@ func (w *CivilTCRContractWatchers) startWatchChallengeFailed(eventRecvChan chan 
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchChallengeFailed: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -826,8 +768,10 @@ func (w *CivilTCRContractWatchers) startWatchChallengeFailed(eventRecvChan chan 
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting ChallengeFailed: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old ChallengeFailed")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart ChallengeFailed")
 			case event := <-recvChan:
@@ -850,27 +794,18 @@ func (w *CivilTCRContractWatchers) startWatchChallengeFailed(eventRecvChan chan 
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchChallengeFailed, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchChallengeFailed, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchChallengeFailed, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchChallengeFailed (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchChallengeFailed, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchChallengeFailed, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchChallengeFailed (b): %v", err)
+				log.Infof("Quitting loop for WatchChallengeFailed")
 				return nil
 			}
 		}
@@ -879,9 +814,7 @@ func (w *CivilTCRContractWatchers) startWatchChallengeFailed(eventRecvChan chan 
 
 func (w *CivilTCRContractWatchers) startWatchChallengeSucceeded(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractChallengeSucceeded, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractChallengeSucceeded)
@@ -897,12 +830,7 @@ func (w *CivilTCRContractWatchers) startWatchChallengeSucceeded(eventRecvChan ch
 						log.Infof("startupFn: Unsubscribing WatchChallengeSucceeded")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchChallengeSucceeded: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchChallengeSucceeded started")
 				return sub, recvChan, nil
@@ -911,6 +839,10 @@ func (w *CivilTCRContractWatchers) startWatchChallengeSucceeded(eventRecvChan ch
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchChallengeSucceeded: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -924,8 +856,10 @@ func (w *CivilTCRContractWatchers) startWatchChallengeSucceeded(eventRecvChan ch
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting ChallengeSucceeded: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old ChallengeSucceeded")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart ChallengeSucceeded")
 			case event := <-recvChan:
@@ -948,27 +882,18 @@ func (w *CivilTCRContractWatchers) startWatchChallengeSucceeded(eventRecvChan ch
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchChallengeSucceeded, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchChallengeSucceeded, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchChallengeSucceeded, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchChallengeSucceeded (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchChallengeSucceeded, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchChallengeSucceeded, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchChallengeSucceeded (b): %v", err)
+				log.Infof("Quitting loop for WatchChallengeSucceeded")
 				return nil
 			}
 		}
@@ -977,9 +902,7 @@ func (w *CivilTCRContractWatchers) startWatchChallengeSucceeded(eventRecvChan ch
 
 func (w *CivilTCRContractWatchers) startWatchDeposit(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractDeposit, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractDeposit)
@@ -995,12 +918,7 @@ func (w *CivilTCRContractWatchers) startWatchDeposit(eventRecvChan chan *model.E
 						log.Infof("startupFn: Unsubscribing WatchDeposit")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchDeposit: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchDeposit started")
 				return sub, recvChan, nil
@@ -1009,6 +927,10 @@ func (w *CivilTCRContractWatchers) startWatchDeposit(eventRecvChan chan *model.E
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchDeposit: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1022,8 +944,10 @@ func (w *CivilTCRContractWatchers) startWatchDeposit(eventRecvChan chan *model.E
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting Deposit: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old Deposit")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart Deposit")
 			case event := <-recvChan:
@@ -1046,27 +970,18 @@ func (w *CivilTCRContractWatchers) startWatchDeposit(eventRecvChan chan *model.E
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchDeposit, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchDeposit, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchDeposit, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchDeposit (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchDeposit, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchDeposit, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchDeposit (b): %v", err)
+				log.Infof("Quitting loop for WatchDeposit")
 				return nil
 			}
 		}
@@ -1075,9 +990,7 @@ func (w *CivilTCRContractWatchers) startWatchDeposit(eventRecvChan chan *model.E
 
 func (w *CivilTCRContractWatchers) startWatchFailedChallengeOverturned(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractFailedChallengeOverturned, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractFailedChallengeOverturned)
@@ -1093,12 +1006,7 @@ func (w *CivilTCRContractWatchers) startWatchFailedChallengeOverturned(eventRecv
 						log.Infof("startupFn: Unsubscribing WatchFailedChallengeOverturned")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchFailedChallengeOverturned: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchFailedChallengeOverturned started")
 				return sub, recvChan, nil
@@ -1107,6 +1015,10 @@ func (w *CivilTCRContractWatchers) startWatchFailedChallengeOverturned(eventRecv
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchFailedChallengeOverturned: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1120,8 +1032,10 @@ func (w *CivilTCRContractWatchers) startWatchFailedChallengeOverturned(eventRecv
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting FailedChallengeOverturned: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old FailedChallengeOverturned")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart FailedChallengeOverturned")
 			case event := <-recvChan:
@@ -1144,27 +1058,18 @@ func (w *CivilTCRContractWatchers) startWatchFailedChallengeOverturned(eventRecv
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchFailedChallengeOverturned, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchFailedChallengeOverturned, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchFailedChallengeOverturned, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchFailedChallengeOverturned (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchFailedChallengeOverturned, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchFailedChallengeOverturned, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchFailedChallengeOverturned (b): %v", err)
+				log.Infof("Quitting loop for WatchFailedChallengeOverturned")
 				return nil
 			}
 		}
@@ -1173,9 +1078,7 @@ func (w *CivilTCRContractWatchers) startWatchFailedChallengeOverturned(eventRecv
 
 func (w *CivilTCRContractWatchers) startWatchGovernmentTransfered(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractGovernmentTransfered, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractGovernmentTransfered)
@@ -1189,12 +1092,7 @@ func (w *CivilTCRContractWatchers) startWatchGovernmentTransfered(eventRecvChan 
 						log.Infof("startupFn: Unsubscribing WatchGovernmentTransfered")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchGovernmentTransfered: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchGovernmentTransfered started")
 				return sub, recvChan, nil
@@ -1203,6 +1101,10 @@ func (w *CivilTCRContractWatchers) startWatchGovernmentTransfered(eventRecvChan 
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchGovernmentTransfered: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1216,8 +1118,10 @@ func (w *CivilTCRContractWatchers) startWatchGovernmentTransfered(eventRecvChan 
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting GovernmentTransfered: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old GovernmentTransfered")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart GovernmentTransfered")
 			case event := <-recvChan:
@@ -1240,27 +1144,18 @@ func (w *CivilTCRContractWatchers) startWatchGovernmentTransfered(eventRecvChan 
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchGovernmentTransfered, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchGovernmentTransfered, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchGovernmentTransfered, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchGovernmentTransfered (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchGovernmentTransfered, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchGovernmentTransfered, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchGovernmentTransfered (b): %v", err)
+				log.Infof("Quitting loop for WatchGovernmentTransfered")
 				return nil
 			}
 		}
@@ -1269,9 +1164,7 @@ func (w *CivilTCRContractWatchers) startWatchGovernmentTransfered(eventRecvChan 
 
 func (w *CivilTCRContractWatchers) startWatchGrantedAppealChallenged(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractGrantedAppealChallenged, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractGrantedAppealChallenged)
@@ -1288,12 +1181,7 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealChallenged(eventRecvCh
 						log.Infof("startupFn: Unsubscribing WatchGrantedAppealChallenged")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchGrantedAppealChallenged: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchGrantedAppealChallenged started")
 				return sub, recvChan, nil
@@ -1302,6 +1190,10 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealChallenged(eventRecvCh
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchGrantedAppealChallenged: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1315,8 +1207,10 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealChallenged(eventRecvCh
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting GrantedAppealChallenged: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old GrantedAppealChallenged")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart GrantedAppealChallenged")
 			case event := <-recvChan:
@@ -1339,27 +1233,18 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealChallenged(eventRecvCh
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchGrantedAppealChallenged, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchGrantedAppealChallenged, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchGrantedAppealChallenged, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchGrantedAppealChallenged (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchGrantedAppealChallenged, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchGrantedAppealChallenged, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchGrantedAppealChallenged (b): %v", err)
+				log.Infof("Quitting loop for WatchGrantedAppealChallenged")
 				return nil
 			}
 		}
@@ -1368,9 +1253,7 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealChallenged(eventRecvCh
 
 func (w *CivilTCRContractWatchers) startWatchGrantedAppealConfirmed(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractGrantedAppealConfirmed, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractGrantedAppealConfirmed)
@@ -1387,12 +1270,7 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealConfirmed(eventRecvCha
 						log.Infof("startupFn: Unsubscribing WatchGrantedAppealConfirmed")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchGrantedAppealConfirmed: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchGrantedAppealConfirmed started")
 				return sub, recvChan, nil
@@ -1401,6 +1279,10 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealConfirmed(eventRecvCha
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchGrantedAppealConfirmed: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1414,8 +1296,10 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealConfirmed(eventRecvCha
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting GrantedAppealConfirmed: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old GrantedAppealConfirmed")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart GrantedAppealConfirmed")
 			case event := <-recvChan:
@@ -1438,27 +1322,18 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealConfirmed(eventRecvCha
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchGrantedAppealConfirmed, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchGrantedAppealConfirmed, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchGrantedAppealConfirmed, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchGrantedAppealConfirmed (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchGrantedAppealConfirmed, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchGrantedAppealConfirmed, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchGrantedAppealConfirmed (b): %v", err)
+				log.Infof("Quitting loop for WatchGrantedAppealConfirmed")
 				return nil
 			}
 		}
@@ -1467,9 +1342,7 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealConfirmed(eventRecvCha
 
 func (w *CivilTCRContractWatchers) startWatchGrantedAppealOverturned(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractGrantedAppealOverturned, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractGrantedAppealOverturned)
@@ -1486,12 +1359,7 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealOverturned(eventRecvCh
 						log.Infof("startupFn: Unsubscribing WatchGrantedAppealOverturned")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchGrantedAppealOverturned: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchGrantedAppealOverturned started")
 				return sub, recvChan, nil
@@ -1500,6 +1368,10 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealOverturned(eventRecvCh
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchGrantedAppealOverturned: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1513,8 +1385,10 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealOverturned(eventRecvCh
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting GrantedAppealOverturned: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old GrantedAppealOverturned")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart GrantedAppealOverturned")
 			case event := <-recvChan:
@@ -1537,27 +1411,18 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealOverturned(eventRecvCh
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchGrantedAppealOverturned, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchGrantedAppealOverturned, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchGrantedAppealOverturned, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchGrantedAppealOverturned (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchGrantedAppealOverturned, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchGrantedAppealOverturned, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchGrantedAppealOverturned (b): %v", err)
+				log.Infof("Quitting loop for WatchGrantedAppealOverturned")
 				return nil
 			}
 		}
@@ -1566,9 +1431,7 @@ func (w *CivilTCRContractWatchers) startWatchGrantedAppealOverturned(eventRecvCh
 
 func (w *CivilTCRContractWatchers) startWatchListingRemoved(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractListingRemoved, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractListingRemoved)
@@ -1583,12 +1446,7 @@ func (w *CivilTCRContractWatchers) startWatchListingRemoved(eventRecvChan chan *
 						log.Infof("startupFn: Unsubscribing WatchListingRemoved")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchListingRemoved: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchListingRemoved started")
 				return sub, recvChan, nil
@@ -1597,6 +1455,10 @@ func (w *CivilTCRContractWatchers) startWatchListingRemoved(eventRecvChan chan *
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchListingRemoved: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1610,8 +1472,10 @@ func (w *CivilTCRContractWatchers) startWatchListingRemoved(eventRecvChan chan *
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting ListingRemoved: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old ListingRemoved")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart ListingRemoved")
 			case event := <-recvChan:
@@ -1634,27 +1498,18 @@ func (w *CivilTCRContractWatchers) startWatchListingRemoved(eventRecvChan chan *
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchListingRemoved, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchListingRemoved, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchListingRemoved, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchListingRemoved (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchListingRemoved, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchListingRemoved, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchListingRemoved (b): %v", err)
+				log.Infof("Quitting loop for WatchListingRemoved")
 				return nil
 			}
 		}
@@ -1663,9 +1518,7 @@ func (w *CivilTCRContractWatchers) startWatchListingRemoved(eventRecvChan chan *
 
 func (w *CivilTCRContractWatchers) startWatchListingWithdrawn(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractListingWithdrawn, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractListingWithdrawn)
@@ -1680,12 +1533,7 @@ func (w *CivilTCRContractWatchers) startWatchListingWithdrawn(eventRecvChan chan
 						log.Infof("startupFn: Unsubscribing WatchListingWithdrawn")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchListingWithdrawn: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchListingWithdrawn started")
 				return sub, recvChan, nil
@@ -1694,6 +1542,10 @@ func (w *CivilTCRContractWatchers) startWatchListingWithdrawn(eventRecvChan chan
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchListingWithdrawn: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1707,8 +1559,10 @@ func (w *CivilTCRContractWatchers) startWatchListingWithdrawn(eventRecvChan chan
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting ListingWithdrawn: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old ListingWithdrawn")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart ListingWithdrawn")
 			case event := <-recvChan:
@@ -1731,27 +1585,18 @@ func (w *CivilTCRContractWatchers) startWatchListingWithdrawn(eventRecvChan chan
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchListingWithdrawn, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchListingWithdrawn, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchListingWithdrawn, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchListingWithdrawn (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchListingWithdrawn, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchListingWithdrawn, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchListingWithdrawn (b): %v", err)
+				log.Infof("Quitting loop for WatchListingWithdrawn")
 				return nil
 			}
 		}
@@ -1760,9 +1605,7 @@ func (w *CivilTCRContractWatchers) startWatchListingWithdrawn(eventRecvChan chan
 
 func (w *CivilTCRContractWatchers) startWatchRewardClaimed(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractRewardClaimed, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractRewardClaimed)
@@ -1778,12 +1621,7 @@ func (w *CivilTCRContractWatchers) startWatchRewardClaimed(eventRecvChan chan *m
 						log.Infof("startupFn: Unsubscribing WatchRewardClaimed")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchRewardClaimed: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchRewardClaimed started")
 				return sub, recvChan, nil
@@ -1792,6 +1630,10 @@ func (w *CivilTCRContractWatchers) startWatchRewardClaimed(eventRecvChan chan *m
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchRewardClaimed: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1805,8 +1647,10 @@ func (w *CivilTCRContractWatchers) startWatchRewardClaimed(eventRecvChan chan *m
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting RewardClaimed: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old RewardClaimed")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart RewardClaimed")
 			case event := <-recvChan:
@@ -1829,27 +1673,18 @@ func (w *CivilTCRContractWatchers) startWatchRewardClaimed(eventRecvChan chan *m
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchRewardClaimed, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchRewardClaimed, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchRewardClaimed, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchRewardClaimed (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchRewardClaimed, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchRewardClaimed, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchRewardClaimed (b): %v", err)
+				log.Infof("Quitting loop for WatchRewardClaimed")
 				return nil
 			}
 		}
@@ -1858,9 +1693,7 @@ func (w *CivilTCRContractWatchers) startWatchRewardClaimed(eventRecvChan chan *m
 
 func (w *CivilTCRContractWatchers) startWatchSuccessfulChallengeOverturned(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractSuccessfulChallengeOverturned, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractSuccessfulChallengeOverturned)
@@ -1876,12 +1709,7 @@ func (w *CivilTCRContractWatchers) startWatchSuccessfulChallengeOverturned(event
 						log.Infof("startupFn: Unsubscribing WatchSuccessfulChallengeOverturned")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchSuccessfulChallengeOverturned: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchSuccessfulChallengeOverturned started")
 				return sub, recvChan, nil
@@ -1890,6 +1718,10 @@ func (w *CivilTCRContractWatchers) startWatchSuccessfulChallengeOverturned(event
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchSuccessfulChallengeOverturned: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -1903,8 +1735,10 @@ func (w *CivilTCRContractWatchers) startWatchSuccessfulChallengeOverturned(event
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting SuccessfulChallengeOverturned: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old SuccessfulChallengeOverturned")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart SuccessfulChallengeOverturned")
 			case event := <-recvChan:
@@ -1927,27 +1761,18 @@ func (w *CivilTCRContractWatchers) startWatchSuccessfulChallengeOverturned(event
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchSuccessfulChallengeOverturned, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchSuccessfulChallengeOverturned, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchSuccessfulChallengeOverturned, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchSuccessfulChallengeOverturned (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchSuccessfulChallengeOverturned, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchSuccessfulChallengeOverturned, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchSuccessfulChallengeOverturned (b): %v", err)
+				log.Infof("Quitting loop for WatchSuccessfulChallengeOverturned")
 				return nil
 			}
 		}
@@ -1956,9 +1781,7 @@ func (w *CivilTCRContractWatchers) startWatchSuccessfulChallengeOverturned(event
 
 func (w *CivilTCRContractWatchers) startWatchTouchAndRemoved(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractTouchAndRemoved, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractTouchAndRemoved)
@@ -1973,12 +1796,7 @@ func (w *CivilTCRContractWatchers) startWatchTouchAndRemoved(eventRecvChan chan 
 						log.Infof("startupFn: Unsubscribing WatchTouchAndRemoved")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchTouchAndRemoved: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchTouchAndRemoved started")
 				return sub, recvChan, nil
@@ -1987,6 +1805,10 @@ func (w *CivilTCRContractWatchers) startWatchTouchAndRemoved(eventRecvChan chan 
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchTouchAndRemoved: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -2000,8 +1822,10 @@ func (w *CivilTCRContractWatchers) startWatchTouchAndRemoved(eventRecvChan chan 
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting TouchAndRemoved: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old TouchAndRemoved")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart TouchAndRemoved")
 			case event := <-recvChan:
@@ -2024,27 +1848,18 @@ func (w *CivilTCRContractWatchers) startWatchTouchAndRemoved(eventRecvChan chan 
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchTouchAndRemoved, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchTouchAndRemoved, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchTouchAndRemoved, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchTouchAndRemoved (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchTouchAndRemoved, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchTouchAndRemoved, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchTouchAndRemoved (b): %v", err)
+				log.Infof("Quitting loop for WatchTouchAndRemoved")
 				return nil
 			}
 		}
@@ -2053,9 +1868,7 @@ func (w *CivilTCRContractWatchers) startWatchTouchAndRemoved(eventRecvChan chan 
 
 func (w *CivilTCRContractWatchers) startWatchWithdrawal(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilTCRContractWithdrawal, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilTCRContractWithdrawal)
@@ -2071,12 +1884,7 @@ func (w *CivilTCRContractWatchers) startWatchWithdrawal(eventRecvChan chan *mode
 						log.Infof("startupFn: Unsubscribing WatchWithdrawal")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchWithdrawal: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchWithdrawal started")
 				return sub, recvChan, nil
@@ -2085,6 +1893,10 @@ func (w *CivilTCRContractWatchers) startWatchWithdrawal(eventRecvChan chan *mode
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchWithdrawal: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -2098,8 +1910,10 @@ func (w *CivilTCRContractWatchers) startWatchWithdrawal(eventRecvChan chan *mode
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting Withdrawal: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old Withdrawal")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart Withdrawal")
 			case event := <-recvChan:
@@ -2122,27 +1936,18 @@ func (w *CivilTCRContractWatchers) startWatchWithdrawal(eventRecvChan chan *mode
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchWithdrawal, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchWithdrawal, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchWithdrawal, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchWithdrawal (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchWithdrawal, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchWithdrawal, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchWithdrawal (b): %v", err)
+				log.Infof("Quitting loop for WatchWithdrawal")
 				return nil
 			}
 		}

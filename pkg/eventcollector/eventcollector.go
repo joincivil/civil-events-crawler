@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"reflect"
 	"runtime"
 	"sync"
 
@@ -25,20 +24,30 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/pubsub"
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	"github.com/joincivil/go-common/pkg/eth"
 )
 
 const (
 	blockHeaderExpirySecs = 60 * 5 // 5 mins
+
+	wsPingDelaySecs = 10 // 10 secs
 )
 
 // Config contains the configuration dependencies for the EventCollector
+// NOTES ON WSCLIENT
+// - If both WsEthURL / WsClient is set, WsClient will be initially used. If there
+//   is a failure, the WS connection will be recreated using the WsEthURL.
+// - If WsClient is nil, will use WsEthURL to create the ws connection.
+// - If WsEthURL is not set, but WsClient is, it will continue to try and use
+//   the given connection even on error (at your own risk).
+// - If both are nil, will disable the event listeners.
 type Config struct {
 	Chain              ethereum.ChainReader
-	RetryChain         eth.RetryChainReader
 	HTTPClient         bind.ContractBackend
 	WsClient           bind.ContractBackend
+	WsEthURL           string
 	Filterers          []model.ContractFilterers
 	Watchers           []model.ContractWatchers
 	RetrieverPersister model.RetrieverMetaDataPersister
@@ -56,6 +65,7 @@ func NewEventCollector(config *Config) *EventCollector {
 		retryChain:         eth.RetryChainReader{ChainReader: config.Chain},
 		httpClient:         config.HTTPClient,
 		wsClient:           config.WsClient,
+		wsEthURL:           config.WsEthURL,
 		filterers:          config.Filterers,
 		watchers:           config.Watchers,
 		retrieverPersister: config.RetrieverPersister,
@@ -65,6 +75,7 @@ func NewEventCollector(config *Config) *EventCollector {
 		startBlock:         config.StartBlock,
 		startChan:          make(chan bool),
 		quitChan:           make(chan bool),
+		errorsChan:         make(chan error),
 		crawlerPubSub:      config.CrawlerPubSub,
 	}
 	return eventcollector
@@ -79,6 +90,8 @@ type EventCollector struct {
 	httpClient bind.ContractBackend
 
 	wsClient bind.ContractBackend
+
+	wsEthURL string
 
 	triggers []Trigger
 
@@ -213,41 +226,48 @@ func (c *EventCollector) StartChan() chan bool {
 
 // StartCollection contains logic to run retriever and listener.
 func (c *EventCollector) StartCollection() error {
-	err := c.runRetriever()
-	if err != nil {
-		c.sendStartSignal()
-		return err
-	}
-
-	// nil gotcha appears
-	// https://divan.github.io/posts/avoid_gotchas/#interfaces
-	if c.wsClient == nil || reflect.ValueOf(c.wsClient).IsNil() {
-		log.Infof("Listener is disabled, not starting")
-		c.sendStartSignal()
-		return nil
-	}
-
-	if c.crawlerPubSub != nil {
-		err = c.crawlerPubSub.PublishProcessorTriggerMessage()
+	for {
+		err := c.runRetriever()
 		if err != nil {
+			c.sendStartSignal()
 			return err
 		}
-	}
 
-	err = c.startListener()
-	if err != nil {
+		if c.crawlerPubSub != nil {
+			err = c.crawlerPubSub.PublishProcessorTriggerMessage()
+			if err != nil {
+				log.Errorf("Error publishing trigger message: err: %v", err)
+			}
+		}
+
+		if !c.isListenerEnabled() {
+			log.Infof("Listener is disabled, not starting")
+			c.sendStartSignal()
+			return nil
+		}
+
+		err = c.startListener()
+		if err != nil {
+			c.sendStartSignal()
+			return fmt.Errorf("Error starting listener: err: %v", err)
+		}
+
 		c.sendStartSignal()
-		return fmt.Errorf("Error starting listener: err: %v", err)
-	}
 
-	c.sendStartSignal()
-
-	select {
-	case err = <-c.errorsChan:
-		log.Errorf("Received error on the collector errors chan: err: %v", err)
-		return fmt.Errorf("Error during event handling: err: %v", err)
-	case <-c.quitChan:
-		return nil
+		select {
+		case err = <-c.errorsChan:
+			log.Errorf("Received error on chan, restarting collector: err: %v", err)
+			// nil this out to kill start signal, not needed at this point
+			c.startChan = nil
+			// Stop the old listener before starting new one
+			go func() {
+				if err := c.listen.Stop(true); err != nil {
+					log.Errorf("Error stopping listener")
+				}
+			}()
+		case <-c.quitChan:
+			return nil
+		}
 	}
 }
 
@@ -289,14 +309,31 @@ func (c *EventCollector) startListener() error {
 	defer c.mutex.Unlock()
 	c.mutex.Lock()
 
-	c.listen = listener.NewEventListener(c.wsClient, c.watchers)
+	wsClient, killChan, err := c.initWsClient()
+	if err != nil {
+		return fmt.Errorf("startupListener: Unable to create new websocket client: err: %v", err)
+	}
+
+	c.listen = listener.NewEventListener(wsClient, c.watchers)
 	if c.listen == nil {
 		return errors.New("startupListener: Listener should not be nil")
 	}
 
-	err := c.listen.Start()
+	err = c.listen.Start()
 	if err != nil {
 		return fmt.Errorf("startupListener: Listener should have started with no errors: %v", err)
+	}
+
+	cleanupFn := func() {
+		if killChan != nil {
+			close(killChan)
+		}
+		wsClient = nil
+		if c.wsEthURL != "" {
+			// if we have the ws url, nil out the set wsClient so we
+			// potentially create a new one
+			c.wsClient = nil
+		}
 	}
 
 	go func(quit <-chan bool, errors chan<- error) {
@@ -352,8 +389,16 @@ func (c *EventCollector) startListener() error {
 						)
 					}
 				}(event, errors)
+
+			case err := <-c.listen.Errors:
+				// Any errors from the watchers
+				log.Infof("startupListener: watcher error chan: %v", err)
+				cleanupFn()
+				return
+
 			case <-quit:
 				log.Infof("startupListener: Quit event recv loop")
+				cleanupFn()
 				return
 			}
 		}
@@ -363,7 +408,7 @@ func (c *EventCollector) startListener() error {
 }
 
 // StopCollection is for stopping the listener
-func (c *EventCollector) StopCollection() error {
+func (c *EventCollector) StopCollection(unsubWatchers bool) error {
 	var err error
 	if c.crawlerPubSub != nil {
 		err = c.crawlerPubSub.StopPublishers()
@@ -371,9 +416,8 @@ func (c *EventCollector) StopCollection() error {
 			return err
 		}
 	}
-
 	if c.listen != nil {
-		err = c.listen.Stop()
+		err = c.listen.Stop(unsubWatchers)
 	}
 	if c.quitChan != nil {
 		close(c.quitChan)
@@ -399,6 +443,27 @@ func (c *EventCollector) sendStartSignal() {
 	if c.startChan != nil {
 		close(c.startChan)
 	}
+}
+
+func (c *EventCollector) isListenerEnabled() bool {
+	if c.wsEthURL == "" && c.wsClient == nil {
+		return false
+	}
+	return true
+}
+
+func (c *EventCollector) initWsClient() (bind.ContractBackend, chan bool, error) {
+	var killChan chan bool
+	if c.wsClient != nil {
+		return c.wsClient, nil, nil
+	}
+	killChan = make(chan bool)
+	ethclient, err := utils.SetupWebsocketEthClient(c.wsEthURL, killChan, wsPingDelaySecs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to setup ws client: err: %v", err)
+	}
+	wsClient := bind.ContractBackend(ethclient)
+	return wsClient, killChan, nil
 }
 
 // UpdateStartingBlocks updates starting blocks for retriever based on persistence
@@ -456,6 +521,7 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 			blockNum.Int64(),
 		) // Debug, remove later
 		header, err = c.retryChain.HeaderByNumberWithRetry(event.BlockNumber(), 10, 500)
+
 		log.Infof(
 			"updateEventTimeFromBlockHeader: done calling headerbynumber: %v",
 			header.TxHash.Hex(),

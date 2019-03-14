@@ -6,9 +6,10 @@ package watcher
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/golang/glog"
-	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,6 +30,7 @@ func NewCivilPLCRVotingContractWatchers(contractAddress common.Address) *CivilPL
 }
 
 type CivilPLCRVotingContractWatchers struct {
+	errors          chan error
 	contractAddress common.Address
 	contract        *contract.CivilPLCRVotingContract
 	activeSubs      []event.Subscription
@@ -42,22 +44,25 @@ func (w *CivilPLCRVotingContractWatchers) ContractName() string {
 	return "CivilPLCRVotingContract"
 }
 
-func (w *CivilPLCRVotingContractWatchers) StopWatchers() error {
-	for _, sub := range w.activeSubs {
-		sub.Unsubscribe()
+func (w *CivilPLCRVotingContractWatchers) StopWatchers(unsub bool) error {
+	if unsub {
+		for _, sub := range w.activeSubs {
+			sub.Unsubscribe()
+		}
 	}
 	w.activeSubs = nil
 	return nil
 }
 
 func (w *CivilPLCRVotingContractWatchers) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
-	return w.StartCivilPLCRVotingContractWatchers(client, eventRecvChan)
+	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	return w.StartCivilPLCRVotingContractWatchers(client, eventRecvChan, errs)
 }
 
 // StartCivilPLCRVotingContractWatchers starts up the event watchers for CivilPLCRVotingContract
 func (w *CivilPLCRVotingContractWatchers) StartCivilPLCRVotingContractWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	w.errors = errs
 	contract, err := contract.NewCivilPLCRVotingContract(w.contractAddress, client)
 	if err != nil {
 		log.Errorf("Error initializing StartCivilPLCRVotingContract: err: %v", err)
@@ -110,9 +115,7 @@ func (w *CivilPLCRVotingContractWatchers) StartCivilPLCRVotingContractWatchers(c
 
 func (w *CivilPLCRVotingContractWatchers) startWatchPollCreated(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilPLCRVotingContractPollCreated, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilPLCRVotingContractPollCreated)
@@ -128,12 +131,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchPollCreated(eventRecvChan ch
 						log.Infof("startupFn: Unsubscribing WatchPollCreated")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchPollCreated: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchPollCreated started")
 				return sub, recvChan, nil
@@ -142,6 +140,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchPollCreated(eventRecvChan ch
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchPollCreated: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -155,8 +157,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchPollCreated(eventRecvChan ch
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting PollCreated: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old PollCreated")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart PollCreated")
 			case event := <-recvChan:
@@ -179,27 +183,18 @@ func (w *CivilPLCRVotingContractWatchers) startWatchPollCreated(eventRecvChan ch
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchPollCreated, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchPollCreated, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchPollCreated, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchPollCreated (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchPollCreated, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchPollCreated, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchPollCreated (b): %v", err)
+				log.Infof("Quitting loop for WatchPollCreated")
 				return nil
 			}
 		}
@@ -208,9 +203,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchPollCreated(eventRecvChan ch
 
 func (w *CivilPLCRVotingContractWatchers) startWatchTokensRescued(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilPLCRVotingContractTokensRescued, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilPLCRVotingContractTokensRescued)
@@ -226,12 +219,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchTokensRescued(eventRecvChan 
 						log.Infof("startupFn: Unsubscribing WatchTokensRescued")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchTokensRescued: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchTokensRescued started")
 				return sub, recvChan, nil
@@ -240,6 +228,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchTokensRescued(eventRecvChan 
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchTokensRescued: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -253,8 +245,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchTokensRescued(eventRecvChan 
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting TokensRescued: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old TokensRescued")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart TokensRescued")
 			case event := <-recvChan:
@@ -277,27 +271,18 @@ func (w *CivilPLCRVotingContractWatchers) startWatchTokensRescued(eventRecvChan 
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchTokensRescued, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchTokensRescued, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchTokensRescued, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchTokensRescued (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchTokensRescued, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchTokensRescued, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchTokensRescued (b): %v", err)
+				log.Infof("Quitting loop for WatchTokensRescued")
 				return nil
 			}
 		}
@@ -306,9 +291,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchTokensRescued(eventRecvChan 
 
 func (w *CivilPLCRVotingContractWatchers) startWatchVoteCommitted(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilPLCRVotingContractVoteCommitted, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilPLCRVotingContractVoteCommitted)
@@ -324,12 +307,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteCommitted(eventRecvChan 
 						log.Infof("startupFn: Unsubscribing WatchVoteCommitted")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchVoteCommitted: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchVoteCommitted started")
 				return sub, recvChan, nil
@@ -338,6 +316,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteCommitted(eventRecvChan 
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchVoteCommitted: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -351,8 +333,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteCommitted(eventRecvChan 
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting VoteCommitted: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old VoteCommitted")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart VoteCommitted")
 			case event := <-recvChan:
@@ -375,27 +359,18 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteCommitted(eventRecvChan 
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchVoteCommitted, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchVoteCommitted, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchVoteCommitted, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchVoteCommitted (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchVoteCommitted, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchVoteCommitted, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchVoteCommitted (b): %v", err)
+				log.Infof("Quitting loop for WatchVoteCommitted")
 				return nil
 			}
 		}
@@ -404,9 +379,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteCommitted(eventRecvChan 
 
 func (w *CivilPLCRVotingContractWatchers) startWatchVoteRevealed(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilPLCRVotingContractVoteRevealed, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilPLCRVotingContractVoteRevealed)
@@ -423,12 +396,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteRevealed(eventRecvChan c
 						log.Infof("startupFn: Unsubscribing WatchVoteRevealed")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchVoteRevealed: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchVoteRevealed started")
 				return sub, recvChan, nil
@@ -437,6 +405,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteRevealed(eventRecvChan c
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchVoteRevealed: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -450,8 +422,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteRevealed(eventRecvChan c
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting VoteRevealed: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old VoteRevealed")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart VoteRevealed")
 			case event := <-recvChan:
@@ -474,27 +448,18 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteRevealed(eventRecvChan c
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchVoteRevealed, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchVoteRevealed, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchVoteRevealed, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchVoteRevealed (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchVoteRevealed, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchVoteRevealed, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchVoteRevealed (b): %v", err)
+				log.Infof("Quitting loop for WatchVoteRevealed")
 				return nil
 			}
 		}
@@ -503,9 +468,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVoteRevealed(eventRecvChan c
 
 func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsGranted(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilPLCRVotingContractVotingRightsGranted, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilPLCRVotingContractVotingRightsGranted)
@@ -520,12 +483,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsGranted(eventRec
 						log.Infof("startupFn: Unsubscribing WatchVotingRightsGranted")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchVotingRightsGranted: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchVotingRightsGranted started")
 				return sub, recvChan, nil
@@ -534,6 +492,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsGranted(eventRec
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchVotingRightsGranted: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -547,8 +509,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsGranted(eventRec
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting VotingRightsGranted: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old VotingRightsGranted")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart VotingRightsGranted")
 			case event := <-recvChan:
@@ -571,27 +535,18 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsGranted(eventRec
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchVotingRightsGranted, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchVotingRightsGranted, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchVotingRightsGranted, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchVotingRightsGranted (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchVotingRightsGranted, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchVotingRightsGranted, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchVotingRightsGranted (b): %v", err)
+				log.Infof("Quitting loop for WatchVotingRightsGranted")
 				return nil
 			}
 		}
@@ -600,9 +555,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsGranted(eventRec
 
 func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsWithdrawn(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
-		maxRetries := 5
 		startupFn := func() (event.Subscription, chan *contract.CivilPLCRVotingContractVotingRightsWithdrawn, error) {
-			retry := 0
 			for {
 				opts := &bind.WatchOpts{}
 				recvChan := make(chan *contract.CivilPLCRVotingContractVotingRightsWithdrawn)
@@ -617,12 +570,7 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsWithdrawn(eventR
 						log.Infof("startupFn: Unsubscribing WatchVotingRightsWithdrawn")
 						sub.Unsubscribe()
 					}
-					if retry >= maxRetries {
-						return nil, nil, err
-					}
-					retry++
-					log.Warningf("startupFn: Retrying start WatchVotingRightsWithdrawn: retry: %v: %v", retry, err)
-					continue
+					return nil, nil, err
 				}
 				log.Infof("startupFn: WatchVotingRightsWithdrawn started")
 				return sub, recvChan, nil
@@ -631,6 +579,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsWithdrawn(eventR
 		sub, recvChan, err := startupFn()
 		if err != nil {
 			log.Errorf("Error starting WatchVotingRightsWithdrawn: %v", err)
+			if sub != nil {
+				sub.Unsubscribe()
+			}
+			w.errors <- err
 			return err
 		}
 		defer sub.Unsubscribe()
@@ -644,8 +596,10 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsWithdrawn(eventR
 				sub, recvChan, err = startupFn()
 				if err != nil {
 					log.Errorf("Error starting VotingRightsWithdrawn: %v", err)
+					w.errors <- err
 					return err
 				}
+				log.Infof("Attempting to unsub old VotingRightsWithdrawn")
 				oldSub.Unsubscribe()
 				log.Infof("Done preemptive restart VotingRightsWithdrawn")
 			case event := <-recvChan:
@@ -668,27 +622,18 @@ func (w *CivilPLCRVotingContractWatchers) startWatchVotingRightsWithdrawn(eventR
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with WatchVotingRightsWithdrawn, fatal (a): %v", err)
-					sub.Unsubscribe()
-					sub, recvChan, err = startupFn()
-					if err != nil {
-						log.Errorf("Error restarting WatchVotingRightsWithdrawn, fatal (a): %v", err)
-						return err
-					}
-					log.Errorf("Done error with WatchVotingRightsWithdrawn, fatal (a): %v", err)
+					w.errors <- err
+					return err
 				case <-quit:
 					log.Infof("Quit WatchVotingRightsWithdrawn (a): %v", err)
 					return nil
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with WatchVotingRightsWithdrawn, fatal (b): %v", err)
-				sub.Unsubscribe()
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("WATCHER: Error restarting WatchVotingRightsWithdrawn, fatal (b): %v", err)
-					return err
-				}
+				w.errors <- err
+				return err
 			case <-quit:
-				log.Infof("Quit WatchVotingRightsWithdrawn (b): %v", err)
+				log.Infof("Quitting loop for WatchVotingRightsWithdrawn")
 				return nil
 			}
 		}
