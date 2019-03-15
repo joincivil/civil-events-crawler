@@ -148,9 +148,15 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 				return eventPayload, errors.New("Could not convert to string")
 			}
 			eventPayload[eventFieldName] = stringVal
+		case "bytes32":
+			bytesVal, ok := eventField.Bytes32()
+			if !ok {
+				return eventPayload, errors.New("Could not convert to bytes32")
+			}
+			eventPayload[eventFieldName] = bytesVal
 		default:
-			return eventPayload, fmt.Errorf("unsupported type encountered when parsing %v field for %v event %v",
-				input.Type.String(), contractName, eventType)
+			return eventPayload, fmt.Errorf("unsupported type encountered when parsing %v %v field for %v event %v",
+				eventFieldName, input.Type.String(), contractName, eventType)
 		}
 	}
 
@@ -415,6 +421,13 @@ func (v *EventPayloadValue) Int64() (int64, bool) {
 // Returns bool as false if unable to assert value as type big.Int
 func (v *EventPayloadValue) BigInt() (*big.Int, bool) {
 	val, ok := v.value.Value().(*big.Int)
+	return val, ok
+}
+
+// Bytes32 returns the value as a bytes32 object
+// Returns bool as false if unable to assert value
+func (v *EventPayloadValue) Bytes32() ([32]byte, bool) {
+	val, ok := v.value.Value().([32]byte)
 	return val, ok
 }
 
