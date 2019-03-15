@@ -424,7 +424,7 @@ func (v *EventPayloadValue) BigInt() (*big.Int, bool) {
 	return val, ok
 }
 
-// BigInt returns the value as a bytes32 object
+// Bytes32 returns the value as a bytes32 object
 // Returns bool as false if unable to assert value
 func (v *EventPayloadValue) Bytes32() ([32]byte, bool) {
 	val, ok := v.value.Value().([32]byte)
