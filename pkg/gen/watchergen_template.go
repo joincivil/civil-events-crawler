@@ -9,10 +9,13 @@ const watcherTmpl = `
 package {{.PackageName}}
 
 import (
+	// "fmt"
+	"time"
+	"context"
+
 	log "github.com/golang/glog"
 	"github.com/davecgh/go-spew/spew"
-	"fmt"
-	"time"
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -52,12 +55,15 @@ func (w *{{.ContractTypeName}}Watchers) ContractName() string {
 	return "{{.ContractTypeName}}"
 }
 
+func (w *{{.ContractTypeName}}Watchers) cancelFunc(cancelFn context.CancelFunc, killCancel <-chan bool) {
+}
+
 func (w *{{.ContractTypeName}}Watchers) StopWatchers(unsub bool) error {
-	if unsub {
-		for _, sub := range w.activeSubs {
-			sub.Unsubscribe()
-		}
-	}
+	// if unsub {
+	// 	for _, sub := range w.activeSubs {
+	// 		sub.Unsubscribe()
+	// 	}
+	// }
 	w.activeSubs = nil
 	return nil
 }
@@ -74,7 +80,7 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
     contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(w.contractAddress, client)
 	if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
-		return nil, err
+		return nil, errors.Wrap(err, "error initializing Start{{.ContractTypeName}}")
 	}
 	w.contract = contract
 
@@ -85,7 +91,7 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 
     sub, err = w.startWatch{{.EventMethod}}(eventRecvChan)
 	if err != nil {
-        return nil, fmt.Errorf("Error starting start{{.EventMethod}}: err: %v", err)
+        return nil, errors.WithMessage(err, "error starting start{{.EventMethod}}")
 	}
 	subs = append(subs, sub)
 
@@ -102,29 +108,41 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan *model.Event) (event.Subscription, error) {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
 		startupFn := func() (event.Subscription, chan *{{$.ContractTypePackage}}.{{.EventType}}, error) {
-			for {
-				opts := &bind.WatchOpts{}
-				recvChan := make(chan *{{$.ContractTypePackage}}.{{.EventType}})
-				log.Infof("startupFn: Starting Watch{{.EventMethod}}")
-				sub, err := w.contract.Watch{{.EventMethod}}(
-					opts,
-					recvChan,
-					{{- if .ParamValues -}}
-					{{range .ParamValues}}
-						[]{{.Type}}{},
-					{{- end}}
-					{{end}}
-				)
-				if err != nil {
-					if sub != nil {
-						log.Infof("startupFn: Unsubscribing Watch{{.EventMethod}}")
-						sub.Unsubscribe()
-					}
-					return nil, nil, err
+			ctx := context.Background()
+			ctx, cancelFn := context.WithCancel(ctx)
+			opts := &bind.WatchOpts{Context: ctx}
+			killCancel := make(chan bool)
+			// 10 sec timeout mechanism for starting up watcher
+			go func(cancelFn context.CancelFunc, killCancel <-chan bool) {
+				timeoutSecs := 10
+				select {
+				case <-time.After(time.Duration(timeoutSecs) * time.Second):
+					log.Errorf("Watch{{.EventMethod}} start timeout, cancelling...")
+					cancelFn()
+				case <-killCancel:
 				}
-				log.Infof("startupFn: Watch{{.EventMethod}} started")
-				return sub, recvChan, nil
+			}(cancelFn, killCancel)
+			recvChan := make(chan *{{$.ContractTypePackage}}.{{.EventType}})
+			log.Infof("startupFn: Starting Watch{{.EventMethod}}")
+			sub, err := w.contract.Watch{{.EventMethod}}(
+				opts,
+				recvChan,
+				{{- if .ParamValues -}}
+				{{range .ParamValues}}
+					[]{{.Type}}{},
+				{{- end}}
+				{{end}}
+			)
+			close(killCancel)
+			if err != nil {
+				if sub != nil {
+					log.Infof("startupFn: Unsubscribing Watch{{.EventMethod}}")
+					sub.Unsubscribe()
+				}
+				return nil, nil, errors.Wrap(err, "startupFn: error starting Watch{{.EventMethod}}")
 			}
+			log.Infof("startupFn: Watch{{.EventMethod}} started")
+			return sub, recvChan, nil
 		}
 		sub, recvChan, err := startupFn()
 		if err != nil {
@@ -139,8 +157,8 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 		log.Infof("Starting up Watch{{.EventMethod}} for contract %v", w.contractAddress.Hex())
 		for {
 			select {
-			// 15 min premptive resubscribe
-			case <-time.After(time.Second * time.Duration(60*15)):
+			// 30 min premptive resubscribe
+			case <-time.After(time.Second * time.Duration(60*30)):
 				log.Infof("Premptive restart of {{.EventMethod}}")
 				oldSub := sub
 				sub, recvChan, err = startupFn()
@@ -172,6 +190,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 					}
 				case err := <-sub.Err():
 					log.Errorf("Error with Watch{{.EventMethod}}, fatal (a): %v", err)
+					err = errors.Wrap(err, "error with Watch{{.EventMethod}}")
 					w.errors <- err
 					return err
 				case <-quit:
@@ -180,6 +199,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 				}
 			case err := <-sub.Err():
 				log.Errorf("Error with Watch{{.EventMethod}}, fatal (b): %v", err)
+				err = errors.Wrap(err, "error with Watch{{.EventMethod}}")
 				w.errors <- err
 				return err
 			case <-quit:

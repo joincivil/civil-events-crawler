@@ -2,13 +2,15 @@
 package model // import "github.com/joincivil/civil-events-crawler/pkg/model"
 
 import (
-	"errors"
 	"fmt"
-	log "github.com/golang/glog"
 	"math/big"
 	"reflect"
 	"strconv"
 	"strings"
+
+	log "github.com/golang/glog"
+
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -36,7 +38,7 @@ func ReturnEventFromABI(_abi abi.ABI, eventType string) (abi.Event, error) {
 	if !ok {
 		event, ok = _abi.Events[fmt.Sprintf("_%s", eventType)]
 		if !ok {
-			return abi.Event{}, fmt.Errorf("No event type %v in contract", eventType)
+			return abi.Event{}, errors.Errorf("no event type %v in contract", eventType)
 		}
 	}
 	return event, nil
@@ -126,30 +128,30 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 		eventFieldName := strings.Title(input.Name)
 		eventField, ok := payload.Value(eventFieldName)
 		if !ok {
-			return eventPayload, errors.New("Can't get event name in event")
+			return eventPayload, errors.New("can't get event name in event")
 		}
 		switch input.Type.String() {
 		case "address":
 			addressVal, ok := eventField.Address()
 			if !ok {
-				return eventPayload, errors.New("Could not convert to common.address type")
+				return eventPayload, errors.New("could not convert to common.address type")
 			}
 			eventPayload[eventFieldName] = addressVal
 
 		case "uint256":
 			bigintVal, ok := eventField.BigInt()
 			if !ok {
-				return eventPayload, errors.New("Could not convert to big.int")
+				return eventPayload, errors.New("could not convert to big.int")
 			}
 			eventPayload[eventFieldName] = bigintVal
 		case "string":
 			stringVal, ok := eventField.String()
 			if !ok {
-				return eventPayload, errors.New("Could not convert to string")
+				return eventPayload, errors.New("could not convert to string")
 			}
 			eventPayload[eventFieldName] = stringVal
 		default:
-			return eventPayload, fmt.Errorf("unsupported type encountered when parsing %v field for %v event %v",
+			return eventPayload, errors.Errorf("unsupported type encountered when parsing %v field for %v event %v",
 				input.Type.String(), contractName, eventType)
 		}
 	}
@@ -161,15 +163,15 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 func AbiJSON(contractName string) (abi.ABI, error) {
 	contractType, ok := NameToContractTypes.GetFromContractName(contractName)
 	if !ok {
-		return abi.ABI{}, errors.New("Contract Name does not exist")
+		return abi.ABI{}, errors.New("contract name does not exist")
 	}
 	contractSpecs, ok := ContractTypeToSpecs.Get(contractType)
 	if !ok {
-		return abi.ABI{}, errors.New("Invalid contract type")
+		return abi.ABI{}, errors.New("invalid contract type")
 	}
 	_abi, err := abi.JSON(strings.NewReader(contractSpecs.AbiStr()))
 	if err != nil {
-		return abi.ABI{}, errors.New("Cannot parse abi string")
+		return abi.ABI{}, errors.New("cannot parse abi string")
 	}
 	return _abi, nil
 }
@@ -177,11 +179,11 @@ func AbiJSON(contractName string) (abi.ABI, error) {
 func extractRawFieldFromEvent(payload *EventPayload) (*types.Log, error) {
 	rawPayload, ok := payload.Value("Raw")
 	if !ok {
-		return &types.Log{}, errors.New("Can't get raw value for event")
+		return &types.Log{}, errors.New("can't get raw value for event")
 	}
 	logPayload, ok := rawPayload.Log()
 	if !ok {
-		return &types.Log{}, errors.New("Can't get log field of raw value for event")
+		return &types.Log{}, errors.New("can't get log field of raw value for event")
 	}
 	return logPayload, nil
 }
