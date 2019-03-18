@@ -17,11 +17,12 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/event"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	ctime "github.com/joincivil/go-common/pkg/time"
 {{if .ContractImportPath -}}
@@ -44,7 +45,7 @@ type {{.ContractTypeName}}Watchers struct {
 	errors chan error
 	contractAddress common.Address
 	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
-	activeSubs []event.Subscription
+	activeSubs []utils.WatcherSubscription
 }
 
 func (w *{{.ContractTypeName}}Watchers) ContractAddress() common.Address {
@@ -59,23 +60,23 @@ func (w *{{.ContractTypeName}}Watchers) cancelFunc(cancelFn context.CancelFunc, 
 }
 
 func (w *{{.ContractTypeName}}Watchers) StopWatchers(unsub bool) error {
-	// if unsub {
-	// 	for _, sub := range w.activeSubs {
-	// 		sub.Unsubscribe()
-	// 	}
-	// }
+	if unsub {
+		for _, sub := range w.activeSubs {
+			sub.Unsubscribe()
+		}
+	}
 	w.activeSubs = nil
 	return nil
 }
 
 func (w *{{.ContractTypeName}}Watchers) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event, errs chan error) ([]utils.WatcherSubscription, error) {
 	return w.Start{{.ContractTypeName}}Watchers(client, eventRecvChan, errs)
 }
 
 // Start{{.ContractTypeName}}Watchers starts up the event watchers for {{.ContractTypeName}}
 func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event, errs chan error) ([]utils.WatcherSubscription, error) {
 	w.errors = errs
     contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(w.contractAddress, client)
 	if err != nil {
@@ -84,8 +85,8 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 	}
 	w.contract = contract
 
-    var sub event.Subscription
-	subs := []event.Subscription{}
+    var sub utils.WatcherSubscription
+	subs := []utils.WatcherSubscription{}
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
@@ -105,18 +106,19 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan *model.Event) (event.Subscription, error) {
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		startupFn := func() (event.Subscription, chan *{{$.ContractTypePackage}}.{{.EventType}}, error) {
+func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan *model.Event) (utils.WatcherSubscription, error) {
+	killCancelTimeoutSecs := 10
+	preemptiveTimeoutSecs := 60 * 30
+	return utils.NewWatcherSubscription(func(quit <-chan struct{}) error {
+		startupFn := func() (utils.WatcherSubscription, chan *{{$.ContractTypePackage}}.{{.EventType}}, error) {
 			ctx := context.Background()
 			ctx, cancelFn := context.WithCancel(ctx)
 			opts := &bind.WatchOpts{Context: ctx}
 			killCancel := make(chan bool)
 			// 10 sec timeout mechanism for starting up watcher
 			go func(cancelFn context.CancelFunc, killCancel <-chan bool) {
-				timeoutSecs := 10
 				select {
-				case <-time.After(time.Duration(timeoutSecs) * time.Second):
+				case <-time.After(time.Duration(killCancelTimeoutSecs) * time.Second):
 					log.Errorf("Watch{{.EventMethod}} start timeout, cancelling...")
 					cancelFn()
 				case <-killCancel:
@@ -158,7 +160,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 		for {
 			select {
 			// 30 min premptive resubscribe
-			case <-time.After(time.Second * time.Duration(60*30)):
+			case <-time.After(time.Second * time.Duration(preemptiveTimeoutSecs)):
 				log.Infof("Premptive restart of {{.EventMethod}}")
 				oldSub := sub
 				sub, recvChan, err = startupFn()

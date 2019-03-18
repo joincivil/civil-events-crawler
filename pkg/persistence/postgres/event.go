@@ -130,7 +130,6 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 	abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
 		return event, errors.Wrap(err, "error getting abi from contract name")
-		// return event, fmt.Errorf("Error getting abi from contract name: %v", err)
 	}
 	eventPayload := make(map[string]interface{})
 	abiEvent, err := model.ReturnEventFromABI(abi, c.EventType)

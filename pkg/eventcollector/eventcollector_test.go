@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/event"
 
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	"github.com/joincivil/civil-events-crawler/pkg/eventcollector"
@@ -21,6 +20,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	"github.com/joincivil/go-common/pkg/generated/contract"
 )
@@ -151,7 +151,7 @@ func (t *testErrorWatcher) StopWatchers(unsub bool) error {
 }
 
 func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event, errs chan error) ([]utils.WatcherSubscription, error) {
 	return nil, errors.New("this is an error starting watchers")
 }
 

@@ -4,13 +4,13 @@ package listener_test
 import (
 	"errors"
 	"math/big"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/event"
 
 	ctime "github.com/joincivil/go-common/pkg/time"
 
@@ -18,6 +18,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	"github.com/joincivil/go-common/pkg/generated/contract"
 )
@@ -47,11 +48,11 @@ func TestListenerStop(t *testing.T) {
 	listener := setupListener(t, contracts.Client, watchers)
 
 	// Simple test is if each watcher loop goroutine is shut down by Stop(true)
-	// initialNumRoutines := runtime.NumGoroutine()
+	initialNumRoutines := runtime.NumGoroutine()
 	listener.Stop(true)
-	// if initialNumRoutines <= runtime.NumGoroutine() {
-	// 	t.Errorf("Number of goroutines has not gone down since listener.Stop")
-	// }
+	if initialNumRoutines <= runtime.NumGoroutine() {
+		t.Errorf("Number of goroutines has not gone down since listener.Stop")
+	}
 }
 
 type testErrorWatcher struct{}
@@ -69,7 +70,7 @@ func (t *testErrorWatcher) StopWatchers(unsub bool) error {
 }
 
 func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event, errs chan error) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event, errs chan error) ([]utils.WatcherSubscription, error) {
 	return nil, errors.New("This is an error starting watchers")
 }
 
@@ -198,29 +199,29 @@ func TestListenerAddWatchers(t *testing.T) {
 	fireContractEventsSequence(t, contracts, listener)
 }
 
-// func TestListenerRemoveWatchersNoMoreWatchers(t *testing.T) {
-// 	contracts, err := cutils.SetupAllTestContracts()
-// 	if err != nil {
-// 		t.Fatalf("Unable to setup the contracts: err: %v", err)
-// 	}
-// 	w := watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr)
-// 	watchers := []model.ContractWatchers{
-// 		w,
-// 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
-// 	}
-// 	listener := setupListener(t, contracts.Client, watchers)
-// 	defer listener.Stop(true)
+func TestListenerRemoveWatchersNoMoreWatchers(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: err: %v", err)
+	}
+	w := watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr)
+	watchers := []model.ContractWatchers{
+		w,
+		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
+	}
+	listener := setupListener(t, contracts.Client, watchers)
+	defer listener.Stop(true)
 
-// 	// Remove the newsroom watchers and see if we still receive the TCR events.
-// 	listener.RemoveWatchers(w)
+	// Remove the newsroom watchers and see if we still receive the TCR events.
+	listener.RemoveWatchers(w)
 
-// 	quitChan := make(chan interface{})
-// 	eventRecv := make(chan bool)
+	quitChan := make(chan interface{})
+	eventRecv := make(chan bool)
 
-// 	setupEventRecvLoop(t, listener, quitChan, eventRecv)
-// 	expectedNumEvents := makeTheCalls(t, contracts)
-// 	checkNotRecvEvents(t, quitChan, eventRecv, expectedNumEvents)
-// }
+	setupEventRecvLoop(t, listener, quitChan, eventRecv)
+	expectedNumEvents := makeTheCalls(t, contracts)
+	checkNotRecvEvents(t, quitChan, eventRecv, expectedNumEvents)
+}
 
 func TestListenerRemoveWatchers(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
@@ -315,21 +316,21 @@ Loop:
 	}
 }
 
-// func checkNotRecvEvents(t *testing.T, quitChan chan interface{}, eventRecv chan bool,
-// 	expectedNumEvents int) {
-// Loop:
-// 	for {
-// 		select {
-// 		case <-eventRecv:
-// 			t.Errorf("Should not have received events")
-// 			close(quitChan)
-// 			break Loop
-// 		case <-time.After(5 * time.Second):
-// 			close(quitChan)
-// 			break Loop
-// 		}
-// 	}
-// }
+func checkNotRecvEvents(t *testing.T, quitChan chan interface{}, eventRecv chan bool,
+	expectedNumEvents int) {
+Loop:
+	for {
+		select {
+		case <-eventRecv:
+			t.Errorf("Should not have received events")
+			close(quitChan)
+			break Loop
+		case <-time.After(5 * time.Second):
+			close(quitChan)
+			break Loop
+		}
+	}
+}
 
 func setupListener(t *testing.T, client bind.ContractBackend, watchers []model.ContractWatchers) *listener.EventListener {
 	listener := listener.NewEventListener(client, watchers)
