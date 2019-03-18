@@ -2,10 +2,8 @@
 package eventcollector // import "github.com/joincivil/civil-events-crawler/pkg/eventcollector"
 
 import (
-	"errors"
-	"fmt"
-
 	log "github.com/golang/glog"
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
@@ -40,7 +38,7 @@ func (n *AddNewsroomWatchersTrigger) Run(collector *EventCollector,
 		watcher.NewNewsroomContractWatchers(newsroomAddr),
 	)
 	if err != nil {
-		return fmt.Errorf("Error adding watchers: err: %v", err)
+		return errors.WithMessage(err, "error adding watchers")
 	}
 	log.Infof("Adding watchers for newsroom at address: %v", newsroomAddr.Hex())
 	return nil
@@ -72,7 +70,7 @@ func (n *RemoveNewsroomWatchersTrigger) Run(collector *EventCollector,
 		watcher.NewNewsroomContractWatchers(newsroomAddr),
 	)
 	if err != nil {
-		return fmt.Errorf("Error removing watchers: err: %v", err)
+		return errors.WithMessage(err, "error removing watchers")
 	}
 	log.Infof("Removing watchers for newsroom at address: %v", newsroomAddr.Hex())
 	return nil

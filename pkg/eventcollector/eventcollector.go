@@ -2,7 +2,6 @@
 package eventcollector // import "github.com/joincivil/civil-events-crawler/pkg/eventcollector"
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"runtime"
@@ -11,8 +10,10 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/golang/glog"
+	"github.com/pkg/errors"
 
 	"github.com/Jeffail/tunny"
+	"github.com/lib/pq"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -137,86 +138,6 @@ type EventCollector struct {
 	pollingIntervalSecs int
 }
 
-type handleEventInputs struct {
-	event  *model.Event
-	errors chan<- error
-}
-
-// handleEvent is the func used for the goroutine pool that handles
-// incoming events fromt the watchers
-func (c *EventCollector) handleEvent(payload interface{}) interface{} {
-	inputs := payload.(handleEventInputs)
-	eventType := inputs.event.EventType() // Debug, remove later
-	hash := inputs.event.Hash()           // Debug, remove later
-	txHash := inputs.event.TxHash()       // Debug, remove later
-	log.Infof("handleEvent: handling event: %v, tx: %v, hsh: %v", eventType,
-		txHash.Hex(), hash) // Debug, remove later
-	event := inputs.event
-
-	err := c.updateEventTimeFromBlockHeader(event)
-	if err != nil {
-		return fmt.Errorf("Error updating date for event: err: %v", err)
-	}
-	log.Infof("handleEvent: updated event time from block header: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
-
-	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
-	if err != nil {
-		return fmt.Errorf("Error saving events: err: %v", err)
-	}
-	log.Infof("handleEvent: events saved: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
-
-	if c.crawlerPubSub != nil {
-		err = c.crawlerPubSub.PublishProcessorTriggerMessage()
-		if err != nil {
-			return fmt.Errorf("Error sending message for event %v to pubsub: %v", event.Hash(), err)
-		}
-	}
-
-	// Update last block in persistence in case of error
-	err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
-	if err != nil {
-		return fmt.Errorf("Error updating last block: err: %v", err)
-	}
-	log.Infof("handleEvent: updated last block data: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
-
-	// Call event triggers
-	err = c.callTriggers(event)
-	if err != nil {
-		return fmt.Errorf("Error calling triggers: err: %v", err)
-	}
-	log.Infof("handleEvent: triggers called: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
-
-	// We need to get past newsroom events for the newsroom contract of a newly added watcher
-	if event.EventType() == "Application" {
-		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
-		newsroomEvents, err := c.FilterAddedNewsroomContract(newsroomAddr)
-		if err != nil {
-			return fmt.Errorf("Error filtering new newsroom contract: err: %v", err)
-		}
-		log.Infof("Found %v newsroom events for address %v after filtering: hsh: %v",
-			len(newsroomEvents), newsroomAddr.Hex(), hash) // Debug, remove later
-		err = c.eventDataPersister.SaveEvents(newsroomEvents)
-		if err != nil {
-			return fmt.Errorf("Error saving events for application %v", err)
-		}
-		log.Infof("Saved newsroom events at address %v, hsh: %v", newsroomAddr.Hex(), hash) //Debug, remove later
-
-		if c.crawlerPubSub != nil {
-			err := c.crawlerPubSub.PublishNewsroomExceptionMessage(newsroomAddr.Hex())
-			if err != nil {
-				return fmt.Errorf("Error sending message for event %v to pubsub: %v", event.Hash(), err)
-			}
-		}
-	}
-
-	log.Infof("handleEvent: done: %v, tx: %v, hsh: %v", eventType, txHash.Hex(), hash) // Debug, remove later
-	return nil
-}
-
 // FilterAddedNewsroomContract runs a filterer on the newly watched newsroom contract to ensure we have all events.
 func (c *EventCollector) FilterAddedNewsroomContract(newsroomAddr common.Address) ([]*model.Event, error) {
 	nwsrmFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
@@ -242,7 +163,11 @@ func (c *EventCollector) StartCollection() error {
 		err := c.runRetriever()
 		if err != nil {
 			once.Do(func() { c.sendStartSignal() })
-			return err
+			if !c.isAllowedErrRetriever(err) {
+				log.Errorf("Error running retriever: err: %v", err)
+				return errors.WithMessage(err, "error running retriever in startcol")
+			}
+			log.Errorf("Error running retriever, recovering: err: %v", err)
 		}
 
 		if c.crawlerPubSub != nil {
@@ -273,7 +198,8 @@ func (c *EventCollector) StartCollection() error {
 		err = c.startListener()
 		if err != nil {
 			once.Do(func() { c.sendStartSignal() })
-			return fmt.Errorf("Error starting listener: err: %v", err)
+			log.Errorf("Error starting listener: err: %v", err)
+			return errors.WithMessage(err, "error starting listener in startcol")
 		}
 
 		once.Do(func() { c.sendStartSignal() })
@@ -285,154 +211,15 @@ func (c *EventCollector) StartCollection() error {
 			// nil this out to kill start signal, not needed at this point
 			c.startChan = nil
 			// Stop the old listener before starting new one
-			go func() {
-				if err := c.listen.Stop(true); err != nil {
-					log.Errorf("Error stopping listener")
-				}
-			}()
+			if err := c.listen.Stop(true); err != nil {
+				log.Errorf("Error stopping listener")
+			}
+
 		case <-c.quitChan:
 			log.Infof("Received quitChan signal, stopping collection")
 			return nil
 		}
 	}
-}
-
-func (c *EventCollector) runRetriever() error {
-	err := c.retrieveEvents(c.filterers)
-	if err != nil {
-		return fmt.Errorf("Error retrieving events: err: %v", err)
-	}
-	pastEvents := c.retrieve.PastEvents
-
-	// Check pastEvents for any new newsrooms to track
-	additionalEvents, err := c.CheckRetrievedEventsForNewsroom(pastEvents)
-	if err != nil {
-		return fmt.Errorf("Error checking newsroom events during filterer, err: %v", err)
-	}
-	if len(additionalEvents) > 0 {
-		pastEvents = append(pastEvents, additionalEvents...)
-	}
-	err = c.retrieve.SortEventsByBlock(pastEvents)
-	if err != nil {
-		return fmt.Errorf("Error sorting retrieved events: %v", err)
-	}
-	err = c.updateEventTimesFromBlockHeaders(pastEvents)
-	if err != nil {
-		return fmt.Errorf("Error updating dates for events: err: %v", err)
-	}
-	err = c.eventDataPersister.SaveEvents(pastEvents)
-	if err != nil {
-		return fmt.Errorf("Error persisting events: err: %v", err)
-	}
-	err = c.persistRetrieverLastBlockData()
-	if err != nil {
-		return fmt.Errorf("Error persisting last block data: err: %v", err)
-	}
-	return nil
-}
-
-func (c *EventCollector) startListener() error {
-	defer c.mutex.Unlock()
-	c.mutex.Lock()
-
-	wsClient, killChan, err := c.initWsClient()
-	if err != nil {
-		return fmt.Errorf("startupListener: Unable to create new websocket client: err: %v", err)
-	}
-
-	c.listen = listener.NewEventListener(wsClient, c.watchers)
-	if c.listen == nil {
-		return errors.New("startupListener: Listener should not be nil")
-	}
-
-	err = c.listen.Start()
-	if err != nil {
-		return fmt.Errorf("startupListener: Listener should have started with no errors: %v", err)
-	}
-
-	cleanupFn := func() {
-		if killChan != nil {
-			close(killChan)
-		}
-		wsClient = nil
-		if c.wsEthURL != "" {
-			// if we have the ws url, nil out the set wsClient so we
-			// potentially create a new one
-			c.wsClient = nil
-		}
-	}
-
-	go func(quit <-chan bool, errors chan<- error) {
-		multiplier := 1
-		numCPUs := runtime.NumCPU() * multiplier
-		pool := tunny.NewFunc(numCPUs, c.handleEvent)
-		defer pool.Close()
-
-		for {
-			select {
-			case event := <-c.listen.EventRecvChan:
-				if log.V(2) {
-					log.Infof(
-						"startupListener: Recv loop event received: %v",
-						spew.Sprintf("%#+v", event),
-					)
-				} else {
-					log.Infof(
-						"startupListener: Recv loop event received: eventType: %v, hash: %v, ts: %v",
-						event.EventType(),
-						event.Hash(),
-						event.Timestamp(),
-					)
-				}
-				go func(e *model.Event, errs chan<- error) {
-					result := pool.Process(
-						handleEventInputs{
-							event:  e,
-							errors: errs,
-						},
-					)
-					if result != nil {
-						err := result.(error)
-						if err != nil {
-							log.Errorf(
-								"startupListener: pool.Process Error processing: err: %v: %v",
-								err,
-								spew.Sdump(event),
-							)
-						}
-					}
-					if log.V(2) {
-						log.Infof(
-							"startupListener: pool.Process done: %v",
-							spew.Sprintf("%#+v", event),
-						)
-					} else {
-						log.Infof(
-							"startupListener: pool.Process done: %v, %v, %v",
-							event.EventType(),
-							event.Hash(),
-							event.Timestamp(),
-						)
-					}
-				}(event, errors)
-
-			case err := <-c.listen.Errors:
-				// Any errors from the watchers
-				log.Infof("startupListener: watcher error chan: %v", err)
-				cleanupFn()
-				// make sure we send these errors to the main errors chan
-				c.errorsChan <- err
-				return
-
-			case <-quit:
-				log.Infof("startupListener: Quit event recv loop")
-				cleanupFn()
-				return
-			}
-		}
-	}(c.quitChan, c.errorsChan)
-
-	return nil
 }
 
 // StopCollection is for stopping the listener
@@ -467,6 +254,288 @@ func (c *EventCollector) RemoveWatchers(w model.ContractWatchers) error {
 	return c.listen.RemoveWatchers(w)
 }
 
+// CheckRetrievedEventsForNewsroom checks pastEvents for TCR events that may include new newsroom events,
+// creates new Newsroom filterers and watchers upon valid events, filters for events, and then returns those events
+func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Event) ([]*model.Event, error) {
+	existingFiltererNewsroomAddr := c.getExistingNewsroomFilterers()
+	existingWatcherNewsroomAddr := c.getExistingNewsroomWatchers()
+	watchersToAdd := map[common.Address]*watcher.NewsroomContractWatchers{}
+	additionalNewsroomFilterers := []model.ContractFilterers{}
+	additionalEvents := []*model.Event{}
+
+	for _, event := range pastEvents {
+		// NOTE(IS): We should track events from "Application" so we don't miss other events.
+		if event.EventType() == "Application" {
+			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
+			if !ok {
+				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
+			}
+			if _, ok := existingFiltererNewsroomAddr[newsroomAddr]; !ok {
+				log.Infof("Adding Newsroom filterer for %v", newsroomAddr.Hex())
+				newFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
+				additionalNewsroomFilterers = append(additionalNewsroomFilterers, newFilterer)
+				existingFiltererNewsroomAddr[newsroomAddr] = true
+			}
+			if _, ok := existingWatcherNewsroomAddr[newsroomAddr]; !ok {
+				newWatcher := watcher.NewNewsroomContractWatchers(newsroomAddr)
+				watchersToAdd[newsroomAddr] = newWatcher
+				existingWatcherNewsroomAddr[newsroomAddr] = true
+			}
+		}
+		if event.EventType() == "ListingRemoved" {
+			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
+			if !ok {
+				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
+			}
+			watchersToAdd[newsroomAddr] = nil
+		}
+	}
+	for addr, watcher := range watchersToAdd {
+		if watcher != nil {
+			log.Infof("Adding Newsroom watcher for %v", addr.Hex())
+			c.watchers = append(c.watchers, watcher)
+		} else {
+			log.Infof("Not adding %v to watchers because it was removed.", addr.Hex())
+		}
+
+	}
+
+	if len(additionalNewsroomFilterers) > 0 {
+		// NOTE(IS): This overwrites the previous retriever with the new filterers
+		// TODO(IS): Better solution for this
+		err := c.retrieveEvents(additionalNewsroomFilterers)
+		if err != nil {
+			return additionalEvents, errors.WithMessage(err, "error retrieving new Newsroom events")
+		}
+		additionalEvents = append(additionalEvents, c.retrieve.PastEvents...)
+	}
+	return additionalEvents, nil
+}
+
+func (c *EventCollector) runRetriever() error {
+	err := c.retrieveEvents(c.filterers)
+	if err != nil {
+		return errors.WithMessage(err, "error retrieving events")
+	}
+	pastEvents := c.retrieve.PastEvents
+
+	// Check pastEvents for any new newsrooms to track
+	additionalEvents, err := c.CheckRetrievedEventsForNewsroom(pastEvents)
+	if err != nil {
+		return errors.WithMessage(err, "error checking newsroom events during filterer")
+	}
+
+	if len(additionalEvents) > 0 {
+		pastEvents = append(pastEvents, additionalEvents...)
+	}
+
+	err = c.retrieve.SortEventsByBlock(pastEvents)
+	if err != nil {
+		return errors.WithMessage(err, "error sorting retrieved events")
+	}
+
+	err = c.updateEventTimesFromBlockHeaders(pastEvents)
+	if err != nil {
+		return errors.WithMessage(err, "error updating dates for events")
+	}
+
+	err = c.eventDataPersister.SaveEvents(pastEvents)
+	if err != nil {
+		return errors.WithMessage(err, "error persisting events")
+	}
+
+	err = c.persistRetrieverLastBlockData()
+	if err != nil {
+		return errors.WithMessage(err, "error persisting last block data")
+	}
+	return nil
+}
+
+func (c *EventCollector) startListener() error {
+	defer c.mutex.Unlock()
+	c.mutex.Lock()
+
+	wsClient, killChan, err := c.initWsClient()
+	if err != nil {
+		return errors.WithMessage(err, "startupListener: Unable to create new websocket client")
+	}
+
+	c.listen = listener.NewEventListener(wsClient, c.watchers)
+	if c.listen == nil {
+		return errors.New("startupListener: Listener should not be nil")
+	}
+
+	err = c.listen.Start()
+	if err != nil {
+		return errors.WithMessage(err, "startupListener: Listener should have started with no errors")
+	}
+
+	cleanupFn := func() {
+		if killChan != nil {
+			close(killChan)
+		}
+		wsClient = nil
+		if c.wsEthURL != "" {
+			// if we have the ws url, nil out the set wsClient so we
+			// potentially create a new one
+			c.wsClient = nil
+		}
+	}
+
+	go func(quit <-chan bool, errs chan<- error) {
+		multiplier := 1
+		numCPUs := runtime.NumCPU() * multiplier
+		pool := tunny.NewFunc(numCPUs, c.handleEvent)
+		defer pool.Close()
+
+		for {
+			select {
+			case event := <-c.listen.EventRecvChan:
+				if log.V(2) {
+					log.Infof(
+						"startupListener: Recv loop event received: %v",
+						spew.Sprintf("%#+v", event),
+					)
+				} else {
+					log.Infof(
+						"startupListener: Recv loop event received: eventType: %v, hash: %v, ts: %v",
+						event.EventType(),
+						event.Hash(),
+						event.Timestamp(),
+					)
+				}
+				go func(e *model.Event, errs chan<- error) {
+					result := pool.Process(
+						handleEventInputs{
+							event:  e,
+							errors: errs,
+						},
+					)
+					// Handler error from event processing
+					if result != nil {
+						err := result.(error)
+						if err != nil {
+							log.Errorf(
+								"startupListener: pool.Process Error processing, recovering: err: %v: %v",
+								err,
+								spew.Sdump(event),
+							)
+						}
+					}
+					if log.V(2) {
+						log.Infof(
+							"startupListener: pool.Process done: %v",
+							spew.Sprintf("%#+v", event),
+						)
+					} else {
+						log.Infof(
+							"startupListener: pool.Process done: %v, %v, %v",
+							event.EventType(),
+							event.Hash(),
+							event.Timestamp(),
+						)
+					}
+				}(event, errs)
+
+			case err := <-c.listen.Errors:
+				// Any errors from the watchers
+				log.Infof("startupListener: watcher error chan: %v", err)
+				cleanupFn()
+				// make sure we send these errors to the main errors chan
+				c.errorsChan <- errors.WithMessage(err, "startListener: c.listen.Errors")
+				return
+
+			case <-quit:
+				log.Infof("startupListener: Quit event recv loop")
+				cleanupFn()
+				return
+			}
+		}
+	}(c.quitChan, c.errorsChan)
+
+	return nil
+}
+
+type handleEventInputs struct {
+	event  *model.Event
+	errors chan<- error
+}
+
+// handleEvent is the func used for the goroutine pool that handles
+// incoming events fromt the watchers
+func (c *EventCollector) handleEvent(payload interface{}) interface{} {
+	inputs := payload.(handleEventInputs)
+	eventType := inputs.event.EventType() // Debug, remove later
+	hash := inputs.event.Hash()           // Debug, remove later
+	txHash := inputs.event.TxHash()       // Debug, remove later
+	log.Infof("handleEvent: handling event: %v, tx: %v, hsh: %v", eventType,
+		txHash.Hex(), hash) // Debug, remove later
+	event := inputs.event
+
+	err := c.updateEventTimeFromBlockHeader(event)
+	if err != nil {
+		return errors.WithMessage(err, "error updating date for event")
+	}
+	log.Infof("handleEvent: updated event time from block header: %v, tx: %v, hsh: %v",
+		eventType, txHash.Hex(), hash) // Debug, remove later
+
+	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
+	if err != nil {
+		return errors.WithMessage(err, "error saving events")
+	}
+	log.Infof("handleEvent: events saved: %v, tx: %v, hsh: %v",
+		eventType, txHash.Hex(), hash) // Debug, remove later
+
+	if c.crawlerPubSub != nil {
+		err = c.crawlerPubSub.PublishProcessorTriggerMessage()
+		if err != nil {
+			return errors.WithMessagef(err, "error sending message for event %v to pubsub", event.Hash())
+		}
+	}
+
+	// Update last block in persistence in case of error
+	err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
+	if err != nil {
+		return errors.WithMessage(err, "error updating last block")
+	}
+	log.Infof("handleEvent: updated last block data: %v, tx: %v, hsh: %v",
+		eventType, txHash.Hex(), hash) // Debug, remove later
+
+	// Call event triggers
+	err = c.callTriggers(event)
+	if err != nil {
+		return errors.WithMessage(err, "error calling triggers")
+	}
+	log.Infof("handleEvent: triggers called: %v, tx: %v, hsh: %v",
+		eventType, txHash.Hex(), hash) // Debug, remove later
+
+	// We need to get past newsroom events for the newsroom contract of a newly added watcher
+	if event.EventType() == "Application" {
+		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
+		newsroomEvents, err := c.FilterAddedNewsroomContract(newsroomAddr)
+		if err != nil {
+			return errors.WithMessage(err, "error filtering new newsroom contract")
+		}
+		log.Infof("Found %v newsroom events for address %v after filtering: hsh: %v",
+			len(newsroomEvents), newsroomAddr.Hex(), hash) // Debug, remove later
+		err = c.eventDataPersister.SaveEvents(newsroomEvents)
+		if err != nil {
+			return errors.WithMessage(err, "error saving events for application")
+		}
+		log.Infof("Saved newsroom events at address %v, hsh: %v", newsroomAddr.Hex(), hash) //Debug, remove later
+
+		if c.crawlerPubSub != nil {
+			err := c.crawlerPubSub.PublishNewsroomExceptionMessage(newsroomAddr.Hex())
+			if err != nil {
+				return errors.WithMessagef(err, "error sending message for event %v to pubsub", event.Hash())
+			}
+		}
+	}
+
+	log.Infof("handleEvent: done: %v, tx: %v, hsh: %v", eventType, txHash.Hex(), hash) // Debug, remove later
+	return nil
+}
+
 func (c *EventCollector) sendStartSignal() {
 	if c.startChan != nil {
 		close(c.startChan)
@@ -488,7 +557,7 @@ func (c *EventCollector) initWsClient() (bind.ContractBackend, chan bool, error)
 	killChan = make(chan bool)
 	ethclient, err := utils.SetupWebsocketEthClient(c.wsEthURL, killChan, wsPingDelaySecs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to setup ws client: err: %v", err)
+		return nil, nil, errors.WithMessage(err, "unable to setup ws client")
 	}
 	wsClient := bind.ContractBackend(ethclient)
 	return wsClient, killChan, nil
@@ -566,7 +635,7 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 		c.headerCache.AddHeader(event.BlockNumber(), header)
 	}
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error update event time")
 	}
 	event.SetTimestamp(header.Time.Int64())
 	return nil
@@ -576,64 +645,6 @@ func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers) err
 	c.updateRetrieverStartingBlocks(filterers)
 	c.retrieve = retriever.NewEventRetriever(c.httpClient, filterers)
 	return c.retrieve.Retrieve()
-}
-
-// CheckRetrievedEventsForNewsroom checks pastEvents for TCR events that may include new newsroom events,
-// creates new Newsroom filterers and watchers upon valid events, filters for events, and then returns those events
-func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Event) ([]*model.Event, error) {
-	existingFiltererNewsroomAddr := c.getExistingNewsroomFilterers()
-	existingWatcherNewsroomAddr := c.getExistingNewsroomWatchers()
-	watchersToAdd := map[common.Address]*watcher.NewsroomContractWatchers{}
-	additionalNewsroomFilterers := []model.ContractFilterers{}
-	additionalEvents := []*model.Event{}
-
-	for _, event := range pastEvents {
-		// NOTE(IS): We should track events from "Application" so we don't miss other events.
-		if event.EventType() == "Application" {
-			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
-			if !ok {
-				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
-			}
-			if _, ok := existingFiltererNewsroomAddr[newsroomAddr]; !ok {
-				log.Infof("Adding Newsroom filterer for %v", newsroomAddr.Hex())
-				newFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
-				additionalNewsroomFilterers = append(additionalNewsroomFilterers, newFilterer)
-				existingFiltererNewsroomAddr[newsroomAddr] = true
-			}
-			if _, ok := existingWatcherNewsroomAddr[newsroomAddr]; !ok {
-				newWatcher := watcher.NewNewsroomContractWatchers(newsroomAddr)
-				watchersToAdd[newsroomAddr] = newWatcher
-				existingWatcherNewsroomAddr[newsroomAddr] = true
-			}
-		}
-		if event.EventType() == "ListingRemoved" {
-			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
-			if !ok {
-				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
-			}
-			watchersToAdd[newsroomAddr] = nil
-		}
-	}
-	for addr, watcher := range watchersToAdd {
-		if watcher != nil {
-			log.Infof("Adding Newsroom watcher for %v", addr.Hex())
-			c.watchers = append(c.watchers, watcher)
-		} else {
-			log.Infof("Not adding %v to watchers because it was removed.", addr.Hex())
-		}
-
-	}
-
-	if len(additionalNewsroomFilterers) > 0 {
-		// NOTE(IS): This overwrites the previous retriever with the new filterers
-		// TODO(IS): Better solution for this
-		err := c.retrieveEvents(additionalNewsroomFilterers)
-		if err != nil {
-			return additionalEvents, fmt.Errorf("Error retrieving new Newsroom events: err: %v", err)
-		}
-		additionalEvents = append(additionalEvents, c.retrieve.PastEvents...)
-	}
-	return additionalEvents, nil
 }
 
 func (c *EventCollector) getExistingNewsroomFilterers() map[common.Address]bool {
@@ -676,4 +687,25 @@ func (c *EventCollector) persistRetrieverLastBlockData() error {
 		err = c.retrieverPersister.UpdateLastBlockData(filter.LastEvents())
 	}
 	return err
+}
+
+// isAllowedErrRetriever returns if an error should be ignored or not in the
+// filterers. This is used in the eventcollector to ensure we only fail on
+// particular errors and recover on others.
+// ex. if an event hash already exists, we ignore, since that would be "correct" as
+// sometimes we may receive the same event and do not want to save it again.
+func (c *EventCollector) isAllowedErrRetriever(err error) bool {
+	switch causeErr := errors.Cause(err).(type) {
+	case *pq.Error:
+		log.Infof("*pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
+			causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
+		return true
+	case pq.Error:
+		log.Infof("pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
+			causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
+		return true
+	default:
+		log.Infof("not allowed error type: %T", causeErr)
+	}
+	return false
 }

@@ -2,13 +2,13 @@ package postgres // import "github.com/joincivil/civil-events-crawler/pkg/persis
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
 
 	log "github.com/golang/glog"
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -93,11 +93,11 @@ func NewDbEventFromEvent(event *model.Event) (*Event, error) {
 func (c *Event) EventDataToDB(eventData map[string]interface{}) error {
 	abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
-		return fmt.Errorf("Error getting ABI from contract name: %v", err)
+		return errors.Wrap(err, "error getting abi from contract name")
 	}
 	abiEvent, err := model.ReturnEventFromABI(abi, c.EventType)
 	if err != nil {
-		return fmt.Errorf("Error parsing ABI to get events, err: %v", err)
+		return errors.Wrap(err, "error parsing abi to get events")
 	}
 	eventPayload := make(cpostgres.JsonbPayload)
 
@@ -116,7 +116,7 @@ func (c *Event) EventDataToDB(eventData map[string]interface{}) error {
 		case "string":
 			eventPayload[eventFieldName] = eventField.(string)
 		case "default":
-			return fmt.Errorf("unsupported type")
+			return errors.New("unsupported event data type")
 		}
 	}
 	c.EventPayload = eventPayload
@@ -129,7 +129,8 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 	event := &model.Event{}
 	abi, err := model.AbiJSON(c.ContractName)
 	if err != nil {
-		return event, fmt.Errorf("Error getting abi from contract name: %v", err)
+		return event, errors.Wrap(err, "error getting abi from contract name")
+		// return event, fmt.Errorf("Error getting abi from contract name: %v", err)
 	}
 	eventPayload := make(map[string]interface{})
 	abiEvent, err := model.ReturnEventFromABI(abi, c.EventType)
@@ -141,20 +142,20 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 		eventFieldName := strings.Title(input.Name)
 		eventField, ok := c.EventPayload[eventFieldName]
 		if !ok {
-			return event, fmt.Errorf("Cannot get %v field of DB Event", eventFieldName)
+			return event, errors.Errorf("cannot get %v field of DB Event", eventFieldName)
 		}
 		switch input.Type.String() {
 		case "address":
 			address, addressOk := eventField.(string)
 			if !addressOk {
-				return event, errors.New("Cannot cast DB contract address to string")
+				return event, errors.New("cannot cast DB contract address to string")
 			}
 			eventPayload[eventFieldName] = common.HexToAddress(address)
 		case "uint256":
 			// NOTE: Ints are converted to float64 and stored in DB as float64
 			num, numOk := eventField.(float64)
 			if !numOk {
-				return event, errors.New("Cannot cast DB float to float64")
+				return event, errors.New("cannot cast DB float to float64")
 			}
 			bigInt := new(big.Int)
 			bigInt.SetString(strconv.FormatFloat(num, 'f', -1, 64), 10)
@@ -162,11 +163,11 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 		case "string":
 			str, stringOk := eventField.(string)
 			if !stringOk {
-				return event, errors.New("Cannot cast DB string val to string")
+				return event, errors.New("cannot cast DB string val to string")
 			}
 			eventPayload[eventFieldName] = str
 		default:
-			return event, fmt.Errorf("unsupported type in %v field encountered in %v event",
+			return event, errors.Errorf("unsupported type in %v field encountered in %v event",
 				eventFieldName, c.EventHash)
 		}
 	}

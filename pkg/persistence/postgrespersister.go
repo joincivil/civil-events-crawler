@@ -8,6 +8,7 @@ import (
 	"time"
 
 	log "github.com/golang/glog"
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/jmoiron/sqlx"
@@ -36,7 +37,7 @@ func NewPostgresPersister(host string, port int, user string, password string, d
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
 	db, err := sqlx.Connect("postgres", psqlInfo)
 	if err != nil {
-		return pgPersister, fmt.Errorf("Error connecting to sqlx: %v", err)
+		return pgPersister, errors.Wrap(err, "error connecting to sqlx")
 	}
 	pgPersister.db = db
 	db.SetMaxOpenConns(maxOpenConns)
@@ -83,7 +84,7 @@ func (p *PostgresPersister) UpdateLastBlockData(events []*model.Event) error {
 	for _, event := range events {
 		err := p.parseEventToPersist(event)
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "error updating last block data")
 		}
 	}
 	return nil
@@ -98,7 +99,7 @@ func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
 	for _, event := range events {
 		modelEvent, err := event.DBToEventData()
 		if err != nil {
-			return err
+			return errors.WithMessage(err, "error converting db event to event")
 		}
 		blockData := PersisterBlockData{}
 		logPayload := modelEvent.LogPayload()
@@ -118,14 +119,14 @@ func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
 func (p *PostgresPersister) CreateTables() error {
 	eventTableQuery := postgres.CreateEventTableQuery()
 	_, err := p.db.Exec(eventTableQuery)
-	return err
+	return errors.Wrap(err, "error creating tables")
 }
 
 // CreateIndices creates the indices for DB if they don't exist
 func (p *PostgresPersister) CreateIndices() error {
 	indexQuery := postgres.CreateEventTableIndices()
 	_, err := p.db.Exec(indexQuery)
-	return err
+	return errors.Wrap(err, "error creating indexes")
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {
@@ -134,7 +135,7 @@ func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName s
 	for _, event := range events {
 		err := p.saveEventToTable(queryString, event)
 		if err != nil {
-			return fmt.Errorf("Error saving %v to db, err: %v", event.Hash(), err)
+			return errors.WithMessagef(err, "error saving %v to db", event.Hash())
 		}
 		log.Infof("saveEventsToTable: saved: %v, %v", event.EventType(), event.Hash()) // Debug, remove later
 	}
@@ -146,11 +147,11 @@ func (p *PostgresPersister) retrieveEventsFromTable(tableName string, criteria *
 	dbEvents := []postgres.Event{}
 	nstmt, err := p.db.PrepareNamed(queryString)
 	if err != nil {
-		return nil, fmt.Errorf("Error preparing query with sqlx: %v", err)
+		return nil, errors.Wrap(err, "error preparing query with sqlx")
 	}
 	err = nstmt.Select(&dbEvents, criteria)
 	if err != nil {
-		return nil, fmt.Errorf("Error retrieving events from table: %v", err)
+		return nil, errors.Wrap(err, "error retrieving events from table")
 	}
 	events := make([]*model.Event, len(dbEvents))
 	for index, dbEvent := range dbEvents {
@@ -220,7 +221,7 @@ func (p *PostgresPersister) saveEventToTable(query string, event *model.Event) e
 	}
 	_, err = p.db.NamedExec(query, dbEvent)
 	if err != nil {
-		return fmt.Errorf("Error saving event to table: err %v: event: %T", err, dbEvent.LogPayload["Data"])
+		return errors.Wrap(err, "error saving event to table")
 	}
 	log.Infof("saveEventToTable: done") // Debug, remove later
 	return nil
@@ -230,6 +231,9 @@ func (p *PostgresPersister) getLatestEvents(tableName string) ([]postgres.Event,
 	queryString := p.retrieveLatestEventsQueryString(tableName)
 	events := []postgres.Event{}
 	err := p.db.Select(&events, queryString)
+	if err != nil {
+		return nil, errors.Wrap(err, "error getting latest events")
+	}
 	return events, err
 }
 

@@ -1,12 +1,12 @@
 package utils
 
 import (
-	"fmt"
 	"net/url"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	log "github.com/golang/glog"
 	"github.com/joincivil/go-common/pkg/eth"
+	"github.com/pkg/errors"
 )
 
 // TODO(PN): Move this to go-common
@@ -27,15 +27,15 @@ func IsWebsocketURL(rawurl string) bool {
 // SetupHTTPEthClient returns an HTTP ethclient if URL is valid
 func SetupHTTPEthClient(ethURL string) (*ethclient.Client, error) {
 	if IsWebsocketURL(ethURL) {
-		return nil, fmt.Errorf(
-			"Fatal: Valid HTTP eth client URL required: configured url: %v",
+		return nil, errors.Errorf(
+			"fatal: Valid HTTP eth client URL required: configured url: %v",
 			ethURL,
 		)
 	}
 
 	client, err := ethclient.Dial(ethURL)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error dialing http client")
 	}
 
 	return client, nil
@@ -50,15 +50,15 @@ func SetupWebsocketEthClient(ethURL string, killChan <-chan bool, pingDelay int)
 	}
 
 	if !IsWebsocketURL(ethURL) {
-		return nil, fmt.Errorf(
-			"Fatal: Valid websocket eth client URL required: configured url: %v",
+		return nil, errors.Errorf(
+			"fatal: Valid websocket eth client URL required: configured url: %v",
 			ethURL,
 		)
 	}
 
 	client, err := ethclient.Dial(ethURL)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error dialing ws client")
 	}
 
 	if killChan != nil && pingDelay != 0 {

@@ -3,10 +3,10 @@
 package listener // import "github.com/joincivil/civil-events-crawler/pkg/listener"
 
 import (
-	"errors"
 	"sync"
 
 	log "github.com/golang/glog"
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/event"
@@ -76,7 +76,7 @@ func (l *EventListener) Start() error {
 	}
 
 	if !hasSubs {
-		return errors.New("No watchers have been started")
+		return errors.New("no watchers have been started")
 	}
 
 	l.ActiveSubs = allSubs
