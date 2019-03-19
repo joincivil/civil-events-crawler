@@ -1,6 +1,13 @@
 package utils
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
+
+const (
+	completeTimeoutSecs = 5
+)
 
 // WatcherSubscription is represents a subscription to a stream of watcher events.
 // This is a modification/custom version of the Subscription struct in the go-ethereum package,
@@ -19,8 +26,9 @@ type WatcherSubscription interface {
 // https://github.com/ethereum/go-ethereum/blob/master/event/subscription.go
 // Differs in how it handles completion of the producer function with separate channel to prevent
 // deadlocks.
-func NewWatcherSubscription(producer func(<-chan struct{}) error) WatcherSubscription {
+func NewWatcherSubscription(watcherName string, producer func(<-chan struct{}) error) WatcherSubscription {
 	s := &funcSub{quit: make(chan struct{}), err: make(chan error, 1), complete: make(chan struct{})}
+	s.watcherName = watcherName
 	go func() {
 		defer close(s.err)
 		err := producer(s.quit)
@@ -47,6 +55,7 @@ type funcSub struct {
 	mu           sync.Mutex
 	muComp       sync.Mutex
 	unsubscribed bool
+	watcherName  string
 }
 
 func (s *funcSub) Unsubscribe() {
@@ -62,11 +71,12 @@ func (s *funcSub) Unsubscribe() {
 	// Wait for producer shutdown.
 	s.muComp.Lock()
 	if s.complete != nil {
-		<-s.complete
-		s.muComp.Unlock()
-	} else {
-		s.muComp.Unlock()
+		select {
+		case <-s.complete:
+		case <-time.After(time.Second * time.Duration(completeTimeoutSecs)):
+		}
 	}
+	s.muComp.Unlock()
 }
 
 func (s *funcSub) Err() <-chan error {

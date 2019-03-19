@@ -109,7 +109,7 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan *model.Event) (utils.WatcherSubscription, error) {
 	killCancelTimeoutSecs := 10
 	preemptiveTimeoutSecs := 60 * 30
-	return utils.NewWatcherSubscription(func(quit <-chan struct{}) error {
+	return utils.NewWatcherSubscription("Watch{{.EventMethod}}", func(quit <-chan struct{}) error {
 		startupFn := func() (utils.WatcherSubscription, chan *{{$.ContractTypePackage}}.{{.EventType}}, error) {
 			ctx := context.Background()
 			ctx, cancelFn := context.WithCancel(ctx)

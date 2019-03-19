@@ -443,6 +443,23 @@ func (c *EventCollector) startListener() error {
 				cleanupFn()
 				// make sure we send these errors to the main errors chan
 				c.errorsChan <- errors.WithMessage(err, "startListener: c.listen.Errors")
+
+				// Flush errors chan since we are only handling the first we receive
+				// and killing this consumer. It is possible a number of watchers
+				// receive the same error and push it this channel. Without flushing
+				// the channel may block indefinitely.
+				go func() {
+					for {
+						select {
+						case e := <-c.listen.Errors:
+							if e != nil {
+								log.Infof("Flushed error: %v", e)
+							}
+						case <-time.After(time.Second * time.Duration(60*5)):
+							return
+						}
+					}
+				}()
 				return
 
 			case <-quit:

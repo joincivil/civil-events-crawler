@@ -7,7 +7,7 @@ import (
 )
 
 func TestWatcherSubscriptionUnsubFirst(t *testing.T) {
-	func1 := NewWatcherSubscription(func(quit <-chan struct{}) error {
+	func1 := NewWatcherSubscription("WatcherTest", func(quit <-chan struct{}) error {
 		time.Sleep(time.Second * 3)
 		return nil
 	})
@@ -28,7 +28,7 @@ func TestWatcherSubscriptionUnsubFirst(t *testing.T) {
 }
 
 func TestWatcherSubscriptionUnsubAfter(t *testing.T) {
-	func1 := NewWatcherSubscription(func(quit <-chan struct{}) error {
+	func1 := NewWatcherSubscription("WatcherTest", func(quit <-chan struct{}) error {
 		return nil
 	})
 
@@ -50,7 +50,7 @@ func TestWatcherSubscriptionUnsubAfter(t *testing.T) {
 }
 
 func TestWatcherSubscriptionError(t *testing.T) {
-	func1 := NewWatcherSubscription(func(quit <-chan struct{}) error {
+	func1 := NewWatcherSubscription("WatcherTest", func(quit <-chan struct{}) error {
 		time.Sleep(2 * time.Second)
 		return errors.New("this is an error")
 	})
