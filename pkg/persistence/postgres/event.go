@@ -100,7 +100,6 @@ func (c *Event) EventDataToDB(eventData map[string]interface{}) error {
 		return errors.Wrap(err, "error parsing abi to get events")
 	}
 	eventPayload := make(cpostgres.JsonbPayload)
-
 	for _, input := range abiEvent.Inputs {
 		eventFieldName := strings.Title(input.Name)
 		eventField := eventData[eventFieldName]
@@ -115,6 +114,8 @@ func (c *Event) EventDataToDB(eventData map[string]interface{}) error {
 			eventPayload[eventFieldName] = val
 		case "string":
 			eventPayload[eventFieldName] = eventField.(string)
+		case "bytes32":
+			eventPayload[eventFieldName] = eventField.([32]byte)
 		case "default":
 			return errors.New("unsupported event data type")
 		}
@@ -165,6 +166,12 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 				return event, errors.New("cannot cast DB string val to string")
 			}
 			eventPayload[eventFieldName] = str
+		case "bytes32":
+			b32, b32Ok := eventField.([32]byte)
+			if !b32Ok {
+				return event, errors.New("Cannot cast DB bytes to bytes")
+			}
+			eventPayload[eventFieldName] = b32
 		default:
 			return event, errors.Errorf("unsupported type in %v field encountered in %v event",
 				eventFieldName, c.EventHash)
