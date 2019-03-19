@@ -3,13 +3,15 @@
 package listener // import "github.com/joincivil/civil-events-crawler/pkg/listener"
 
 import (
-	"errors"
-	log "github.com/golang/glog"
 	"sync"
+
+	log "github.com/golang/glog"
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
 const (
@@ -37,6 +39,12 @@ type EventListener struct {
 	// EventRecvChan is the channel to send and receive Events
 	EventRecvChan chan *model.Event
 
+	// ActiveSubs is the list of active event subscriptions handled
+	// by the watchers
+	ActiveSubs []utils.WatcherSubscription
+
+	Errors chan error
+
 	watchers []model.ContractWatchers
 
 	active bool
@@ -48,11 +56,14 @@ type EventListener struct {
 func (l *EventListener) Start() error {
 	defer l.mutex.Unlock()
 	l.mutex.Lock()
+	l.Errors = make(chan error)
+	allSubs := []utils.WatcherSubscription{}
 	hasSubs := false
 	for _, watchers := range l.watchers {
 		newSubs, err := watchers.StartWatchers(
 			l.client,
 			l.EventRecvChan,
+			l.Errors,
 		)
 		if err != nil {
 			log.Errorf("Error starting watchers for %v at %v: err: %v",
@@ -61,12 +72,14 @@ func (l *EventListener) Start() error {
 		if len(newSubs) > 0 {
 			hasSubs = true
 		}
+		allSubs = append(allSubs, newSubs...)
 	}
 
 	if !hasSubs {
-		return errors.New("No watchers have been started")
+		return errors.New("no watchers have been started")
 	}
 
+	l.ActiveSubs = allSubs
 	l.active = true
 	return nil
 }
@@ -83,6 +96,7 @@ func (l *EventListener) AddWatchers(w model.ContractWatchers) error {
 		_, err := w.StartWatchers(
 			l.client,
 			l.EventRecvChan,
+			l.Errors,
 		)
 		if err != nil {
 			log.Errorf("Error starting watchers for %v at %v: err: %v",
@@ -104,7 +118,7 @@ func (l *EventListener) RemoveWatchers(w model.ContractWatchers) error {
 			if w.ContractAddress() == ew.ContractAddress() &&
 				w.ContractName() == ew.ContractName() {
 				if l.active {
-					_ = ew.StopWatchers() // nolint: gosec
+					_ = ew.StopWatchers(true) // nolint: gosec
 				}
 				// Delete the item in the watchers list.
 				copy(l.watchers[index:], l.watchers[index+1:])
@@ -118,12 +132,12 @@ func (l *EventListener) RemoveWatchers(w model.ContractWatchers) error {
 }
 
 // Stop shuts down the event listener and performs clean up
-func (l *EventListener) Stop() error {
+func (l *EventListener) Stop(unsub bool) error {
 	defer l.mutex.Unlock()
 	l.mutex.Lock()
 	if l.watchers != nil && len(l.watchers) > 0 {
 		for _, w := range l.watchers {
-			_ = w.StopWatchers() // nolint: gosec
+			_ = w.StopWatchers(unsub) // nolint: gosec
 		}
 	}
 	l.active = false

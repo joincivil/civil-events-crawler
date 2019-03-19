@@ -31,6 +31,10 @@ type CrawlerConfig struct {
 	EthWsAPIURL   string `envconfig:"eth_ws_api_url" desc:"Ethereum Websocket API address (optional, disables watchers if empty)"`
 	EthStartBlock uint64 `envconfig:"eth_start_block" desc:"Sets the start Eth block (default 0)" default:"0"`
 
+	// Enables polling mode, disables websockets
+	PollingEnabled      bool `envconfig:"polling_enabled" desc:"Enable polling mode (true disables listeners)"`
+	PollingIntervalSecs int  `envconfig:"polling_int_secs" desc:"Sets the polling interval"`
+
 	// CivilListingsGraphqlURL enables call to retrieve newsroom listings from Civil.
 	// Should pass in the URL to the GraphQL endpoint to enable.
 	CivilListingsGraphqlURL string `envconfig:"civil_listing_graphql_url" desc:"URL of the Civil Listings GraphQL endpoint"`
