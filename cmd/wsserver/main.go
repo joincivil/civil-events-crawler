@@ -17,7 +17,14 @@ import (
 var (
 	startTime = 0
 
-	timeToCloseConnSecs = 90
+	// If true, closes connect after timetoCloseConnSecs. Tests
+	// handling of EOF errors.
+	closeConnTest       = true
+	timeToCloseConnSecs = 30
+
+	// If true, does not send valid responses for eth_subscribe. Tests
+	// timeout of eth_subscribe call.
+	noRespTest = false
 )
 
 type ethSubscribe struct {
@@ -52,7 +59,10 @@ func waitCloseConn(ws *websocket.Conn) {
 }
 
 func testWsCloseServer(ws *websocket.Conn) {
-	go waitCloseConn(ws)
+	if closeConnTest {
+		go waitCloseConn(ws)
+	}
+
 	for {
 
 		var msg ethSubscribe
@@ -62,15 +72,17 @@ func testWsCloseServer(ws *websocket.Conn) {
 			return
 		}
 
-		respMsg := &ethSubscribeResp{
-			JSONRPC: "2.0",
-			ID:      msg.ID,
-		}
+		if !noRespTest {
+			respMsg := &ethSubscribeResp{
+				JSONRPC: "2.0",
+				ID:      msg.ID,
+			}
 
-		respMsg.genResult()
-		if err := websocket.JSON.Send(ws, respMsg); err != nil {
-			fmt.Printf("Error writing resp : %v\n", err)
-			return
+			respMsg.genResult()
+			if err := websocket.JSON.Send(ws, respMsg); err != nil {
+				fmt.Printf("Error writing resp : %v\n", err)
+				return
+			}
 		}
 
 		fmt.Printf("done responding\n")

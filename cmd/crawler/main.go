@@ -124,7 +124,9 @@ func cleanup(eventCol *eventcollector.EventCollector, killChan chan<- bool) {
 	if err != nil {
 		log.Errorf("Error stopping collection: err: %v", err)
 	}
-	close(killChan)
+	if killChan != nil {
+		close(killChan)
+	}
 	log.Info("Crawler stopped")
 }
 
@@ -210,7 +212,7 @@ func main() {
 
 	err = startUp(config)
 	if err != nil {
-		log.Errorf("Crawler error: err: %v\n", err)
+		log.Errorf("Crawler error: err: %+v\n", err)
 		os.Exit(2)
 	}
 	log.Info("Crawler stopped")
