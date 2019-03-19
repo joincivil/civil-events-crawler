@@ -166,6 +166,12 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 				return event, errors.New("Cannot cast DB string val to string")
 			}
 			eventPayload[eventFieldName] = str
+		case "bytes32":
+			b32, b32Ok := eventField.([32]byte)
+			if !b32Ok {
+				return event, errors.New("Cannot cast DB bytes to bytes")
+			}
+			eventPayload[eventFieldName] = b32
 		default:
 			return event, fmt.Errorf("unsupported type in %v field encountered in %v event",
 				eventFieldName, c.EventHash)
