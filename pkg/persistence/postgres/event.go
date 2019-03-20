@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/big"
+	// "reflect"
 	"strconv"
 	"strings"
 
@@ -115,7 +116,9 @@ func (c *Event) EventDataToDB(eventData map[string]interface{}) error {
 		case "string":
 			eventPayload[eventFieldName] = eventField.(string)
 		case "bytes32":
-			eventPayload[eventFieldName] = eventField.([32]byte)
+			val := eventField.([32]byte)
+			valbytesarr := val[:]
+			eventPayload[eventFieldName] = base64.StdEncoding.EncodeToString(valbytesarr)
 		case "default":
 			return errors.New("unsupported event data type")
 		}
@@ -167,11 +170,9 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 			}
 			eventPayload[eventFieldName] = str
 		case "bytes32":
-			b32, b32Ok := eventField.([32]byte)
-			if !b32Ok {
-				return event, errors.New("Cannot cast DB bytes to bytes")
-			}
-			eventPayload[eventFieldName] = b32
+			var array32 [32]byte
+			copy(array32[:], c.typeInferData(eventField))
+			eventPayload[eventFieldName] = array32
 		default:
 			return event, errors.Errorf("unsupported type in %v field encountered in %v event",
 				eventFieldName, c.EventHash)
