@@ -42,7 +42,7 @@ var (
 		},
 	}
 	testEvent2 = &contract.ParameterizerContractProposalExpired{
-		PropID: [32]byte{},
+		PropID: [32]byte{0x00, 0x01},
 		Raw: types.Log{
 			Address: common.HexToAddress(testAddress),
 			Topics: []common.Hash{
