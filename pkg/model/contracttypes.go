@@ -28,6 +28,9 @@ const (
 
 	// CivilParameterizerContractType is the enum value for the Civil Parameterizer type
 	CivilParameterizerContractType
+
+	// CivilGovernmentContractType is the enum value for the Civil Government type
+	CivilGovernmentContractType
 )
 
 var (
@@ -70,6 +73,13 @@ var (
 				name:        "ParameterizerContract",
 				simpleName:  "civilparameterizer",
 				abiStr:      contract.ParameterizerContractABI,
+				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
+				typePackage: "contract",
+			},
+			CivilGovernmentContractType: {
+				name:        "GovernmentContract",
+				simpleName:  "civilgovernment",
+				abiStr:      contract.GovernmentContractABI,
 				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
 				typePackage: "contract",
 			},
