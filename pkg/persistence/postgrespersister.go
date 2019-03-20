@@ -90,16 +90,21 @@ func (p *PostgresPersister) UpdateLastBlockData(events []*model.Event) error {
 	return nil
 }
 
-// PopulateBlockDataFromDB will fill the persistence with data from the DB.
+// PopulateBlockDataFromDB will determine the block data for latest occurrence of each event type
+// and store it into an internal map. One of the purposes of this map determines at which block
+// to start looking for each type of event.
 func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
 	events, err := p.getLatestEvents(tableName)
 	if err != nil {
 		return err
 	}
+	var lasterr error
 	for _, event := range events {
 		modelEvent, err := event.DBToEventData()
 		if err != nil {
-			return errors.WithMessage(err, "error converting db event to event")
+			log.Errorf("Error converting db event to event: %v", err)
+			lasterr = errors.WithMessage(err, "error converting db event to event")
+			continue
 		}
 		blockData := PersisterBlockData{}
 		logPayload := modelEvent.LogPayload()
@@ -112,7 +117,7 @@ func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
 		}
 		p.eventToBlockData[contractAddress][modelEvent.EventType()] = blockData
 	}
-	return nil
+	return lasterr
 }
 
 // CreateTables creates tables in DB if they don't exist
@@ -131,15 +136,20 @@ func (p *PostgresPersister) CreateIndices() error {
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {
 	queryString := cpostgres.InsertIntoDBQueryString(tableName, postgres.Event{})
+	var lasterr error
 	// There is no way to batch insert using sqlx, so doing a loop here
 	for _, event := range events {
 		err := p.saveEventToTable(queryString, event)
 		if err != nil {
-			return errors.WithMessagef(err, "error saving %v to db", event.Hash())
+			// We want to ensure we save as much as possible before returning error
+			// so just return the last error we saw
+			log.Errorf("saveEventsToTable: err saving %v to db: err: %v", event.Hash(), err)
+			lasterr = errors.WithMessagef(err, "error saving %v to db", event.Hash())
+			continue
 		}
 		log.Infof("saveEventsToTable: saved: %v, %v", event.EventType(), event.Hash()) // Debug, remove later
 	}
-	return nil
+	return lasterr
 }
 
 func (p *PostgresPersister) retrieveEventsFromTable(tableName string, criteria *model.RetrieveEventsCriteria) ([]*model.Event, error) {
@@ -154,15 +164,17 @@ func (p *PostgresPersister) retrieveEventsFromTable(tableName string, criteria *
 		return nil, errors.Wrap(err, "error retrieving events from table")
 	}
 	events := make([]*model.Event, len(dbEvents))
+	var lasterr error
 	for index, dbEvent := range dbEvents {
 		modelEvent, err := dbEvent.DBToEventData()
 		if err != nil {
 			log.Errorf("Error converting db to event data: err: %v", err)
+			lasterr = errors.WithMessage(err, "error converting db to event data")
 			continue
 		}
 		events[index] = modelEvent
 	}
-	return events, nil
+	return events, lasterr
 }
 
 func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *model.RetrieveEventsCriteria) string {
