@@ -62,40 +62,11 @@ type CrawlerConfig struct {
 // FetchListingAddresses retrieves the list of Civil newsroom listings if given
 // the endpoint URL
 func (c *CrawlerConfig) FetchListingAddresses() error {
-	if c.CivilListingsGraphqlURL == "" {
-		return nil
-	}
-
-	var listingQuery struct {
-		Listings []struct {
-			Name            graphql.String
-			ContractAddress graphql.String
-		} `graphql:"listings(whitelistedOnly: true)"`
-	}
-
-	client := graphql.NewClient(c.CivilListingsGraphqlURL, nil)
-	err := client.Query(context.Background(), &listingQuery, nil)
-	if err != nil {
-		return err
-	}
-
-	newsroomContractName := "newsroom"
-	var addressStrings []string
-	var addressObjs []common.Address
-
-	if c.ContractAddresses[newsroomContractName] != "" {
-		addressStrings = strings.Split(c.ContractAddresses[newsroomContractName], "|")
-	}
-
-	for _, listing := range listingQuery.Listings {
-		log.Infof("adding newsroom contract: %v, %v", listing.Name, string(listing.ContractAddress))
-		addressStrings = append(addressStrings, string(listing.ContractAddress))
-		addressObjs = append(addressObjs, common.HexToAddress(string(listing.ContractAddress)))
-	}
-
-	c.ContractAddresses["newsroom"] = strings.Join(addressStrings, "|")
-	c.ContractAddressObjs["newsroom"] = append(c.ContractAddressObjs["newsroom"], addressObjs...)
-	return nil
+	return fetchListingAddresses(
+		c.CivilListingsGraphqlURL,
+		c.ContractAddresses,
+		c.ContractAddressObjs,
+	)
 }
 
 // OutputUsage prints the usage string to os.Stdout
@@ -143,19 +114,123 @@ func (c *CrawlerConfig) populatePersisterType() error {
 }
 
 func (c *CrawlerConfig) populateContractAddressObjs() {
-	c.ContractAddressObjs = map[string][]common.Address{}
-	for contractName, addrStr := range c.ContractAddresses {
-		addrs := splitStrByPipe(addrStr)
-		addrList := make([]common.Address, len(addrs))
-		for i, addr := range addrs {
-			addrList[i] = common.HexToAddress(addr)
-		}
-		c.ContractAddressObjs[contractName] = addrList
+	var err error
+	c.ContractAddressObjs, err = populateContractAddressObjs(c.ContractAddresses)
+	if err != nil {
+		log.Errorf("Error populating contract address objs: %v", err)
 	}
 }
 
 func (c *CrawlerConfig) validateContractAddresses() error {
-	for _, addrStr := range c.ContractAddresses {
+	return validateContractAddresses(c.ContractAddresses)
+}
+
+func (c *CrawlerConfig) validateAPIURL() error {
+	return validateAPIURL(c.EthAPIURL)
+}
+
+func (c *CrawlerConfig) validatePersister() error {
+	var err error
+	if c.PersisterType == cconfig.PersisterTypePostgresql {
+		err = validatePostgresqlPersister(
+			c.PersisterPostgresAddress,
+			c.PersisterPostgresPort,
+			c.PersisterPostgresDbname,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Address returns the IP address or domain of the persister
+// Implements PersisterConfig
+func (c *CrawlerConfig) Address() string {
+	return c.PersisterPostgresAddress
+}
+
+// Port returns the port of the persister
+// Implements PersisterConfig
+func (c *CrawlerConfig) Port() int {
+	return c.PersisterPostgresPort
+}
+
+// Type returns the persister type
+// Implements PersisterConfig
+func (c *CrawlerConfig) Type() cconfig.PersisterType {
+	return c.PersisterType
+}
+
+// Username returns the username to access the persister
+// Implements PersisterConfig
+func (c *CrawlerConfig) Username() string {
+	return c.PersisterPostgresUser
+}
+
+// Password returns the password to access the persister
+// Implements PersisterConfig
+func (c *CrawlerConfig) Password() string {
+	return c.PersisterPostgresPw
+}
+
+// Dbname returns the "dbname" to access the persister
+// Implements PersisterConfig
+func (c *CrawlerConfig) Dbname() string {
+	return c.PersisterPostgresDbname
+}
+
+func splitStrByPipe(str string) []string {
+	return strings.Split(str, "|")
+}
+
+func fetchListingAddresses(graphqlURL string, contractAddresses map[string]string,
+	contractAddressesObjs map[string][]common.Address) error {
+	if graphqlURL == "" {
+		return nil
+	}
+
+	var listingQuery struct {
+		Listings []struct {
+			Name            graphql.String
+			ContractAddress graphql.String
+		} `graphql:"listings(whitelistedOnly: true)"`
+	}
+
+	client := graphql.NewClient(graphqlURL, nil)
+	err := client.Query(context.Background(), &listingQuery, nil)
+	if err != nil {
+		return err
+	}
+
+	newsroomContractName := "newsroom"
+	var addressStrings []string
+	var addressObjs []common.Address
+
+	if contractAddresses[newsroomContractName] != "" {
+		addressStrings = strings.Split(contractAddresses[newsroomContractName], "|")
+	}
+
+	for _, listing := range listingQuery.Listings {
+		log.Infof("adding newsroom contract: %v, %v", listing.Name, string(listing.ContractAddress))
+		addressStrings = append(addressStrings, string(listing.ContractAddress))
+		addressObjs = append(addressObjs, common.HexToAddress(string(listing.ContractAddress)))
+	}
+
+	contractAddresses["newsroom"] = strings.Join(addressStrings, "|")
+	contractAddressesObjs["newsroom"] = append(contractAddressesObjs["newsroom"], addressObjs...)
+	return nil
+}
+
+func validateAPIURL(url string) error {
+	if url == "" || !cstrings.IsValidEthAPIURL(url) {
+		return fmt.Errorf("Invalid eth API URL: '%v'", url)
+	}
+	return nil
+}
+
+func validateContractAddresses(contractAddresses map[string]string) error {
+	for _, addrStr := range contractAddresses {
 		if addrStr == "" {
 			return fmt.Errorf("Invalid contract address: '%v'", addrStr)
 		}
@@ -169,37 +244,28 @@ func (c *CrawlerConfig) validateContractAddresses() error {
 	return nil
 }
 
-func (c *CrawlerConfig) validateAPIURL() error {
-	if c.EthAPIURL == "" || !cstrings.IsValidEthAPIURL(c.EthAPIURL) {
-		return fmt.Errorf("Invalid eth API URL: '%v'", c.EthAPIURL)
-	}
-	return nil
-}
-
-func (c *CrawlerConfig) validatePersister() error {
-	var err error
-	if c.PersisterType == cconfig.PersisterTypePostgresql {
-		err = c.validatePostgresqlPersister()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *CrawlerConfig) validatePostgresqlPersister() error {
-	if c.PersisterPostgresAddress == "" {
+func validatePostgresqlPersister(address string, port int, dbname string) error {
+	if address == "" {
 		return errors.New("Postgresql address required")
 	}
-	if c.PersisterPostgresPort == 0 {
+	if port == 0 {
 		return errors.New("Postgresql port required")
 	}
-	if c.PersisterPostgresDbname == "" {
+	if dbname == "" {
 		return errors.New("Postgresql db name required")
 	}
 	return nil
 }
 
-func splitStrByPipe(str string) []string {
-	return strings.Split(str, "|")
+func populateContractAddressObjs(contractAddresses map[string]string) (map[string][]common.Address, error) {
+	contractAddressObjs := map[string][]common.Address{}
+	for contractName, addrStr := range contractAddresses {
+		addrs := splitStrByPipe(addrStr)
+		addrList := make([]common.Address, len(addrs))
+		for i, addr := range addrs {
+			addrList[i] = common.HexToAddress(addr)
+		}
+		contractAddressObjs[contractName] = addrList
+	}
+	return contractAddressObjs, nil
 }

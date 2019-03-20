@@ -48,6 +48,7 @@ type RetrieveEventsCriteria struct {
 	FromTs    int64  `db:"fromts"`
 	BeforeTs  int64  `db:"beforets"`
 	EventType string `db:"eventtype"`
+	TxHash    string `db:"txhash"`
 }
 
 // EventDataPersister handles storing the received Event data.

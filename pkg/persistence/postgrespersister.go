@@ -202,6 +202,10 @@ func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *mode
 			p.addWhereAnd(queryBuf)
 			queryBuf.WriteString(" e.contract_address = :contract_address") // nolint: gosec
 		}
+		if criteria.TxHash != "" {
+			p.addWhereAnd(queryBuf)
+			queryBuf.WriteString(" e.log_payload->>'TxHash' = :txhash") // nolint: gosec
+		}
 		//TODO(IS): the following query DOES NOT WORK
 		if len(criteria.ExcludeHashes) > 0 {
 			sFields, _ := cpostgres.StructFieldsForQuery(postgres.Event{}, false, "")

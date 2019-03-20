@@ -3,7 +3,6 @@ package eventcollector // import "github.com/joincivil/civil-events-crawler/pkg/
 
 import (
 	"fmt"
-	"math/big"
 	"runtime"
 	"sync"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
@@ -70,7 +68,7 @@ type Config struct {
 func NewEventCollector(config *Config) *EventCollector {
 	eventcollector := &EventCollector{
 		chain:               config.Chain,
-		retryChain:          eth.RetryChainReader{ChainReader: config.Chain},
+		retryChain:          &eth.RetryChainReader{ChainReader: config.Chain},
 		httpClient:          config.HTTPClient,
 		wsClient:            config.WsClient,
 		wsEthURL:            config.WsEthURL,
@@ -96,7 +94,7 @@ func NewEventCollector(config *Config) *EventCollector {
 type EventCollector struct {
 	chain ethereum.ChainReader
 
-	retryChain eth.RetryChainReader
+	retryChain *eth.RetryChainReader
 
 	httpClient bind.ContractBackend
 
@@ -621,53 +619,11 @@ func (c *EventCollector) updateFiltererStartingBlock(filter model.ContractFilter
 }
 
 func (c *EventCollector) updateEventTimesFromBlockHeaders(events []*model.Event) error {
-	for _, event := range events {
-		err := c.updateEventTimeFromBlockHeader(event)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return UpdateEventTimesFromBlockHeaders(events, c.retryChain, c.headerCache)
 }
 
 func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) error {
-	var header *types.Header
-	var err error
-
-	inCache := false
-	if c.headerCache == nil {
-		c.headerCache = eth.NewBlockHeaderCache(blockHeaderExpirySecs)
-	} else {
-		header = c.headerCache.HeaderByBlockNumber(event.BlockNumber())
-		if header != nil {
-			inCache = true
-		}
-	}
-	if !inCache {
-		blockNum := big.NewInt(0)
-		blockNum.SetUint64(event.BlockNumber())
-
-		log.Infof(
-			"updateEventTimeFromBlockHeader: calling headerbynumber: %v, %v",
-			event.BlockNumber(),
-			blockNum.Int64(),
-		) // Debug, remove later
-
-		header, err = c.retryChain.HeaderByNumberWithRetry(event.BlockNumber(), 10, 500)
-		if err == nil && header != nil {
-			log.Infof(
-				"updateEventTimeFromBlockHeader: done calling headerbynumber: %v",
-				header.TxHash.Hex(),
-			) // Debug, remove later
-		}
-
-		c.headerCache.AddHeader(event.BlockNumber(), header)
-	}
-	if err != nil {
-		return errors.Wrap(err, "error update event time")
-	}
-	event.SetTimestamp(header.Time.Int64())
-	return nil
+	return UpdateEventTimeFromBlockHeader(event, c.retryChain, c.headerCache)
 }
 
 func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers) error {

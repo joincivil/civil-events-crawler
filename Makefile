@@ -163,6 +163,10 @@ generate-civil-handler-lists: ## Runs handlerlistgen to generate handler list wr
 build: ## Builds the code.
 	$(GOBUILD) -o ./build/crawler cmd/crawler/main.go
 
+.PHONY: build-recrawler
+build-recrawler: ## Builds the code.
+	$(GOBUILD) -o ./build/recrawler cmd/recrawler/main.go
+
 .PHONY: test
 test: ## Runs unit tests and tests code coverage.
 	@echo 'mode: atomic' > coverage.txt && $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=5m ./...
