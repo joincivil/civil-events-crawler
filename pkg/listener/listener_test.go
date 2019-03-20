@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/event"
 
 	ctime "github.com/joincivil/go-common/pkg/time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	"github.com/joincivil/go-common/pkg/generated/contract"
 )
@@ -33,7 +33,7 @@ func TestListener(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop()
+	defer listener.Stop(true)
 }
 
 func TestListenerStop(t *testing.T) {
@@ -47,9 +47,9 @@ func TestListenerStop(t *testing.T) {
 	}
 	listener := setupListener(t, contracts.Client, watchers)
 
-	// Simple test is if each watcher loop goroutine is shut down by Stop()
+	// Simple test is if each watcher loop goroutine is shut down by Stop(true)
 	initialNumRoutines := runtime.NumGoroutine()
-	listener.Stop()
+	listener.Stop(true)
 	if initialNumRoutines <= runtime.NumGoroutine() {
 		t.Errorf("Number of goroutines has not gone down since listener.Stop")
 	}
@@ -65,12 +65,12 @@ func (t *testErrorWatcher) ContractAddress() common.Address {
 	return common.HexToAddress("0xf86a8a467666c752fa99bb7ca954d269ab6136bf")
 }
 
-func (t *testErrorWatcher) StopWatchers() error {
+func (t *testErrorWatcher) StopWatchers(unsub bool) error {
 	return nil
 }
 
 func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
+	eventRecvChan chan *model.Event, errs chan error) ([]utils.WatcherSubscription, error) {
 	return nil, errors.New("This is an error starting watchers")
 }
 
@@ -120,7 +120,7 @@ func TestListenerEventChan(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop()
+	defer listener.Stop(true)
 	quitChan := make(chan interface{})
 	eventRecv := make(chan bool)
 
@@ -177,7 +177,7 @@ func TestListenerContractEvents(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop()
+	defer listener.Stop(true)
 
 	fireContractEventsSequence(t, contracts, listener)
 }
@@ -191,7 +191,7 @@ func TestListenerAddWatchers(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop()
+	defer listener.Stop(true)
 
 	watchersToAdd := watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr)
 	listener.AddWatchers(watchersToAdd)
@@ -210,7 +210,7 @@ func TestListenerRemoveWatchersNoMoreWatchers(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop()
+	defer listener.Stop(true)
 
 	// Remove the newsroom watchers and see if we still receive the TCR events.
 	listener.RemoveWatchers(w)
@@ -234,7 +234,7 @@ func TestListenerRemoveWatchers(t *testing.T) {
 		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop()
+	defer listener.Stop(true)
 
 	// Remove the newsroom watchers and see if we still receive the TCR events.
 	listener.RemoveWatchers(w)

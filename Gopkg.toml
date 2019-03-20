@@ -63,3 +63,7 @@
 [[constraint]]
   name = "github.com/davecgh/go-spew"
   version = "1.1.1"
+
+[[constraint]]
+  name = "github.com/pkg/errors"
+  version = "0.8.1"
