@@ -16,14 +16,33 @@ import (
 )
 
 var (
-	contractAddress = "0x77e5aaBddb760FBa989A1C4B2CDd4aA8Fa3d311d"
-	testAddress     = "0xDFe273082089bB7f70Ee36Eebcde64832FE97E55"
-	testEvent       = &contract.CivilTCRContractApplication{
+	contractAddress  = "0x77e5aaBddb760FBa989A1C4B2CDd4aA8Fa3d311d"
+	pContractAddress = "0x4f4b97A4FaeBf2BD835a10C479E61faccEf8755D"
+	testAddress      = "0xDFe273082089bB7f70Ee36Eebcde64832FE97E55"
+	testEvent        = &contract.CivilTCRContractApplication{
 		ListingAddress: common.HexToAddress(testAddress),
 		Deposit:        big.NewInt(1000),
 		AppEndDate:     big.NewInt(1653860896),
 		Data:           "DATA",
 		Applicant:      common.HexToAddress(testAddress),
+		Raw: types.Log{
+			Address: common.HexToAddress(testAddress),
+			Topics: []common.Hash{
+				common.HexToHash("0x09cd8dcaf170a50a26316b5fe0727dd9fb9581a688d65e758b16a1650da65c0b"),
+				common.HexToHash("0x0000000000000000000000002652c60cf04bbf6bb6cc8a5e6f1c18143729d440"),
+				common.HexToHash("0x00000000000000000000000025bf9a1595d6f6c70e6848b60cba2063e4d9e552"),
+			},
+			Data:        []byte("thisisadatastring"),
+			BlockNumber: 8888888,
+			TxHash:      common.Hash{},
+			TxIndex:     2,
+			BlockHash:   common.Hash{},
+			Index:       2,
+			Removed:     false,
+		},
+	}
+	testEvent2 = &contract.ParameterizerContractProposalExpired{
+		PropID: [32]byte{0x00, 0x01},
 		Raw: types.Log{
 			Address: common.HexToAddress(testAddress),
 			Topics: []common.Hash{
@@ -239,4 +258,30 @@ func TestCreateEventTableIndices(t *testing.T) {
 		t.Errorf("Should have returned CREATE TABLE values")
 	}
 
+}
+
+func TestByte32Conversions(t *testing.T) {
+	mEvent, err := model.NewEventFromContractEvent(
+		"ProposalExpired",
+		"ParameterizerContract",
+		common.HexToAddress(pContractAddress),
+		testEvent2,
+		ctime.CurrentEpochSecsInInt64(),
+		model.Filterer,
+	)
+	if err != nil {
+		t.Errorf("error creating new event, err: %v", err)
+	}
+	dbEvent, err := setupDBEventFromEvent(mEvent)
+	if err != nil {
+		t.Errorf("setupDBEventFromEvent should have succeeded: err: %v", err)
+	}
+	// fmt.Println(dbEvent)
+	newDBEvent, err := dbEvent.DBToEventData()
+	if err != nil {
+		t.Errorf("Should have not received error when converted to model event: err: %v", err)
+	}
+	if newDBEvent.EventPayload()["PropID"] == nil {
+		t.Error("Should have PropID field in event payload")
+	}
 }

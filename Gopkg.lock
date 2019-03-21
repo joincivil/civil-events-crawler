@@ -266,6 +266,14 @@
   version = "v1.1"
 
 [[projects]]
+  digest = "1:cf31692c14422fa27c83a05292eb5cbe0fb2775972e8f1f8446a71549bd8980b"
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
+  version = "v0.8.1"
+
+[[projects]]
   digest = "1:31d83d1b1c288073c91abadee3caec87de2a1fb5dbe589039264a802e67a26b8"
   name = "github.com/rjeczalik/notify"
   packages = ["."]
@@ -577,7 +585,9 @@
     "github.com/joincivil/go-common/pkg/time",
     "github.com/kelseyhightower/envconfig",
     "github.com/lib/pq",
+    "github.com/pkg/errors",
     "github.com/shurcooL/graphql",
+    "golang.org/x/net/websocket",
     "gopkg.in/alecthomas/kingpin.v2",
   ]
   solver-name = "gps-cdcl"
