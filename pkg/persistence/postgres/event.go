@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 
+	cbytes "github.com/joincivil/go-common/pkg/bytes"
 	cpostgres "github.com/joincivil/go-common/pkg/persistence/postgres"
 )
 
@@ -116,9 +117,7 @@ func (c *Event) EventDataToDB(eventData map[string]interface{}) error {
 		case "string":
 			eventPayload[eventFieldName] = eventField.(string)
 		case "bytes32":
-			val := eventField.([32]byte)
-			valbytesarr := val[:]
-			eventPayload[eventFieldName] = base64.StdEncoding.EncodeToString(valbytesarr)
+			eventPayload[eventFieldName] = cbytes.Byte32ToHexString(eventField.([32]byte))
 		case "default":
 			return errors.New("unsupported event data type")
 		}
@@ -170,9 +169,11 @@ func (c *Event) DBToEventData() (*model.Event, error) {
 			}
 			eventPayload[eventFieldName] = str
 		case "bytes32":
-			var array32 [32]byte
-			copy(array32[:], c.typeInferData(eventField))
-			eventPayload[eventFieldName] = array32
+			fieldName, bytesErr := cbytes.HexStringToByte32(eventField.(string))
+			if bytesErr != nil {
+				return event, errors.New("cannot convert DB string val to bytes32")
+			}
+			eventPayload[eventFieldName] = fieldName
 		default:
 			return event, errors.Errorf("unsupported type in %v field encountered in %v event",
 				eventFieldName, c.EventHash)

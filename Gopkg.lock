@@ -223,9 +223,10 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4c47be06c2d48fd1db9419b5def740846a3d6a61ecf777fe202bcfeec340056b"
+  digest = "1:db09553612b0b09335ec90f0c4781024ca2c6818518c0fb99e9f1e5e474cba47"
   name = "github.com/joincivil/go-common"
   packages = [
+    "pkg/bytes",
     "pkg/config",
     "pkg/eth",
     "pkg/gen",
@@ -237,7 +238,7 @@
     "pkg/time",
   ]
   pruneopts = "UT"
-  revision = "5e7a7ece289b75720891e4e7d94627129115cc77"
+  revision = "d4e05cc02e2b21958822ca4bb22b8480967e6a24"
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
@@ -569,12 +570,12 @@
     "github.com/ethereum/go-ethereum/core/types",
     "github.com/ethereum/go-ethereum/crypto",
     "github.com/ethereum/go-ethereum/ethclient",
-    "github.com/ethereum/go-ethereum/event",
     "github.com/ethereum/go-ethereum/log",
     "github.com/ethereum/go-ethereum/rlp",
     "github.com/fatih/structs",
     "github.com/golang/glog",
     "github.com/jmoiron/sqlx",
+    "github.com/joincivil/go-common/pkg/bytes",
     "github.com/joincivil/go-common/pkg/config",
     "github.com/joincivil/go-common/pkg/eth",
     "github.com/joincivil/go-common/pkg/gen",
