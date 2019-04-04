@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	elog "github.com/ethereum/go-ethereum/log"
 	log "github.com/golang/glog"
@@ -19,7 +20,32 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	cconfig "github.com/joincivil/go-common/pkg/config"
+	cerrors "github.com/joincivil/go-common/pkg/errors"
 )
+
+func initErrorReporter(config *utils.CrawlerConfig) (cerrors.ErrorReporter, error) {
+	errRepConfig := &cerrors.MetaErrorReporterConfig{
+		StackDriverProjectID:      "civil-media",
+		StackDriverServiceName:    "crawler",
+		StackDriverServiceVersion: "1.0",
+		SentryDSN:                 config.SentryDsn,
+		SentryDebug:               false,
+		SentryEnv:                 config.SentryEnv,
+		SentryLoggerName:          "crawler_logger",
+		SentryRelease:             "1.0",
+		SentrySampleRate:          1.0,
+	}
+	reporter, err := cerrors.NewMetaErrorReporter(errRepConfig)
+	if err != nil {
+		log.Errorf("Error creating meta reporter: %v", err)
+		return nil, err
+	}
+	if reporter == nil {
+		log.Infof("Enabling null error reporter")
+		return &cerrors.NullErrorReporter{}, nil
+	}
+	return reporter, nil
+}
 
 func contractFilterers(config *utils.CrawlerConfig) []model.ContractFilterers {
 	return handlerlist.ContractFilterers(config.ContractAddressObjs)
@@ -147,7 +173,7 @@ func enableGoEtherumLogging() {
 	elog.Root().SetHandler(glog)
 }
 
-func startUp(config *utils.CrawlerConfig) error {
+func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 	killChan := make(chan bool)
 
 	httpClient, err := utils.SetupHTTPEthClient(config.EthAPIURL)
@@ -170,6 +196,7 @@ func startUp(config *utils.CrawlerConfig) error {
 			Chain:               httpClient,
 			HTTPClient:          httpClient,
 			WsEthURL:            config.EthWsAPIURL,
+			ErrRep:              errRep,
 			Filterers:           contractFilterers(config),
 			Watchers:            contractWatchers(config),
 			RetrieverPersister:  retrieverMetaDataPersister(config),
@@ -210,9 +237,18 @@ func main() {
 		os.Exit(2)
 	}
 
-	err = startUp(config)
+	errRep, err := initErrorReporter(config)
+	if err != nil {
+		log.Errorf("Error init error reporting: err: %+v\n", err)
+		os.Exit(2)
+	}
+
+	err = startUp(config, errRep)
 	if err != nil {
 		log.Errorf("Crawler error: err: %+v\n", err)
+		errRep.Error(err, nil)
+		// XXX(PN): Ensure the error gets sent before we die
+		time.Sleep(3 * time.Second)
 		os.Exit(2)
 	}
 	log.Info("Crawler stopped")
