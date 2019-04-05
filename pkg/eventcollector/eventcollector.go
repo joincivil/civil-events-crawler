@@ -28,6 +28,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
+	cerrors "github.com/joincivil/go-common/pkg/errors"
 	"github.com/joincivil/go-common/pkg/eth"
 )
 
@@ -52,6 +53,7 @@ type Config struct {
 	HTTPClient          bind.ContractBackend
 	WsClient            bind.ContractBackend
 	WsEthURL            string
+	ErrRep              cerrors.ErrorReporter
 	Filterers           []model.ContractFilterers
 	Watchers            []model.ContractWatchers
 	RetrieverPersister  model.RetrieverMetaDataPersister
@@ -72,6 +74,7 @@ func NewEventCollector(config *Config) *EventCollector {
 		httpClient:          config.HTTPClient,
 		wsClient:            config.WsClient,
 		wsEthURL:            config.WsEthURL,
+		errRep:              config.ErrRep,
 		filterers:           config.Filterers,
 		watchers:            config.Watchers,
 		retrieverPersister:  config.RetrieverPersister,
@@ -100,6 +103,8 @@ type EventCollector struct {
 	wsClient bind.ContractBackend
 
 	wsEthURL string
+
+	errRep cerrors.ErrorReporter
 
 	triggers []Trigger
 
@@ -168,12 +173,14 @@ func (c *EventCollector) StartCollection() error {
 				return errors.WithMessage(err, "error running retriever in startcol")
 			}
 			log.Errorf("Error running retriever, recovering: err: %v", err)
+			c.errRep.Error(err, nil)
 		}
 
 		if c.crawlerPubSub != nil {
 			err = c.crawlerPubSub.PublishProcessorTriggerMessage()
 			if err != nil {
 				log.Errorf("Error publishing trigger message: err: %v", err)
+				c.errRep.Error(err, nil)
 			}
 		}
 
@@ -208,11 +215,13 @@ func (c *EventCollector) StartCollection() error {
 		// All errors from the watchers and startListener loop get funnelled here.
 		case err = <-c.errorsChan:
 			log.Errorf("Received error on chan, restarting collector: err: %v", err)
+			c.errRep.Error(err, nil)
 			// nil this out to kill start signal, not needed at this point
 			c.startChan = nil
 			// Stop the old listener before starting new one
 			if err := c.listen.Stop(true); err != nil {
-				log.Errorf("Error stopping listener")
+				log.Errorf("Error stopping listener: err: %v", err)
+				c.errRep.Error(err, nil)
 			}
 
 		case <-c.quitChan:
@@ -420,6 +429,7 @@ func (c *EventCollector) startListener() error {
 								err,
 								spew.Sdump(event),
 							)
+							c.errRep.Error(err, nil)
 						}
 					}
 					if log.V(2) {
@@ -642,12 +652,14 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 			event.BlockNumber(),
 			blockNum.Int64(),
 		) // Debug, remove later
-		header, err = c.retryChain.HeaderByNumberWithRetry(event.BlockNumber(), 10, 500)
 
-		log.Infof(
-			"updateEventTimeFromBlockHeader: done calling headerbynumber: %v",
-			header.TxHash.Hex(),
-		) // Debug, remove later
+		header, err = c.retryChain.HeaderByNumberWithRetry(event.BlockNumber(), 10, 500)
+		if err == nil && header != nil {
+			log.Infof(
+				"updateEventTimeFromBlockHeader: done calling headerbynumber: %v",
+				header.TxHash.Hex(),
+			) // Debug, remove later
+		}
 
 		c.headerCache.AddHeader(event.BlockNumber(), header)
 	}
