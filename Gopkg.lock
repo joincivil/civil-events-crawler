@@ -2,10 +2,12 @@
 
 
 [[projects]]
-  digest = "1:3663b5e9fe8e3fffe68c0d7bebc2823ddd7a9fbd01c51eea06a59ace9b900a20"
+  digest = "1:c98a29d4088336aa0ff6923426abf6bea429d512a1d9be780391f34b804ab475"
   name = "cloud.google.com/go"
   packages = [
     "compute/metadata",
+    "errorreporting",
+    "errorreporting/apiv1beta1",
     "iam",
     "internal/optional",
     "internal/version",
@@ -70,6 +72,14 @@
   packages = ["btcec"]
   pruneopts = "UT"
   revision = "86fed781132ac890ee03e906e4ecd5d6fa180c64"
+
+[[projects]]
+  digest = "1:fed1f537c2f1269fe475a8556c393fe466641682d73ef8fd0491cd3aa1e47bad"
+  name = "github.com/certifi/gocertifi"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "deb3ae2ef2610fde3330947281941c562861188b"
+  version = "2018.01.18"
 
 [[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
@@ -150,6 +160,14 @@
   version = "v1.0"
 
 [[projects]]
+  digest = "1:d18f6f088d7d8365df47f49dfa24b6ff6701a941118ffda30c589d1bd954074b"
+  name = "github.com/getsentry/raven-go"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f04e7487e9a6b9d9837d52743fb5f40576c56411"
+  version = "v0.2.0"
+
+[[projects]]
   digest = "1:c4a2528ccbcabf90f9f3c464a5fc9e302d592861bbfd0b7135a7de8a943d0406"
   name = "github.com/go-stack/stack"
   packages = ["."]
@@ -166,7 +184,7 @@
   revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
-  digest = "1:19e1717be26f549febea402e08b46db7919d164324a24ff67e0c81dfb11316b8"
+  digest = "1:ec0bde6dc8cf3cb9254f79603bd8489c366a0a8584949cac5a73fa10b9f47c21"
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
@@ -175,6 +193,7 @@
     "ptypes/any",
     "ptypes/duration",
     "ptypes/empty",
+    "ptypes/struct",
     "ptypes/timestamp",
   ]
   pruneopts = "UT"
@@ -223,10 +242,12 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4c47be06c2d48fd1db9419b5def740846a3d6a61ecf777fe202bcfeec340056b"
+  digest = "1:fe9d826e1d7cbb533383cd5fffe86e75550c16ffa4ebacd789662f7efae0583b"
   name = "github.com/joincivil/go-common"
   packages = [
+    "pkg/bytes",
     "pkg/config",
+    "pkg/errors",
     "pkg/eth",
     "pkg/gen",
     "pkg/generated/contract",
@@ -237,7 +258,7 @@
     "pkg/time",
   ]
   pruneopts = "UT"
-  revision = "5e7a7ece289b75720891e4e7d94627129115cc77"
+  revision = "0363615657eccffde8bafc2418e7787a8a568702"
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
@@ -485,10 +506,13 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5cffeff3e13de303233d2f992e1d7ebf8ba89b061b63380adbb92d8710fc4c4e"
+  digest = "1:643818f117fbb5fe0247f23ce176a2334e7dd78f04e0b5644d836a9721c3bbfa"
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
+    "googleapis/api/label",
+    "googleapis/api/monitoredres",
+    "googleapis/devtools/clouderrorreporting/v1beta1",
     "googleapis/iam/v1",
     "googleapis/pubsub/v1",
     "googleapis/rpc/status",
@@ -569,13 +593,14 @@
     "github.com/ethereum/go-ethereum/core/types",
     "github.com/ethereum/go-ethereum/crypto",
     "github.com/ethereum/go-ethereum/ethclient",
-    "github.com/ethereum/go-ethereum/event",
     "github.com/ethereum/go-ethereum/log",
     "github.com/ethereum/go-ethereum/rlp",
     "github.com/fatih/structs",
     "github.com/golang/glog",
     "github.com/jmoiron/sqlx",
+    "github.com/joincivil/go-common/pkg/bytes",
     "github.com/joincivil/go-common/pkg/config",
+    "github.com/joincivil/go-common/pkg/errors",
     "github.com/joincivil/go-common/pkg/eth",
     "github.com/joincivil/go-common/pkg/gen",
     "github.com/joincivil/go-common/pkg/generated/contract",

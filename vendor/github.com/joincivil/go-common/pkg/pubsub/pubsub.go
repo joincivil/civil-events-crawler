@@ -362,7 +362,7 @@ func (g *GooglePubSub) subscriber(wg *sync.WaitGroup) {
 	g.subscribeMutex.Unlock()
 	sub := g.client.Subscription(g.subscribeConfig.Name)
 	err := sub.Receive(g.subscribeContext, func(ctx context.Context, msg *pubsub.Message) {
-		log.Infof("Got message: %v: %v\n", msg.ID, msg)
+		log.Infof("Got message: %v @ %v: %v\n", msg.ID, msg.PublishTime, string(msg.Data))
 		g.SubscribeChan <- msg
 		if g.subscribeConfig.AutoAck {
 			msg.Ack()

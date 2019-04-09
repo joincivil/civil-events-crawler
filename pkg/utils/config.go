@@ -54,6 +54,9 @@ type CrawlerConfig struct {
 
 	PubSubProjectID string `split_words:"true" desc:"Sets the Google Cloud Project ID name"`
 	PubSubTopicName string `split_words:"true" desc:"Sets the Google Cloud PubSub Topic name"`
+
+	SentryDsn string `split_words:"true" desc:"Sets the Sentry DSN"`
+	SentryEnv string `split_words:"true" desc:"Sets the Sentry environment"`
 }
 
 // FetchListingAddresses retrieves the list of Civil newsroom listings if given
