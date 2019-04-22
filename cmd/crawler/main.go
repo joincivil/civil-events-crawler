@@ -4,16 +4,13 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
-	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	elog "github.com/ethereum/go-ethereum/log"
 	log "github.com/golang/glog"
-
-	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/joincivil/civil-events-crawler/pkg/eventcollector"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/handlerlist"
@@ -24,12 +21,32 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	cconfig "github.com/joincivil/go-common/pkg/config"
-	"github.com/joincivil/go-common/pkg/eth"
+	cerrors "github.com/joincivil/go-common/pkg/errors"
 )
 
-const (
-	websocketPingDelaySecs = 10 // 10 secs
-)
+func initErrorReporter(config *utils.CrawlerConfig) (cerrors.ErrorReporter, error) {
+	errRepConfig := &cerrors.MetaErrorReporterConfig{
+		StackDriverProjectID:      "civil-media",
+		StackDriverServiceName:    "crawler",
+		StackDriverServiceVersion: "1.0",
+		SentryDSN:                 config.SentryDsn,
+		SentryDebug:               false,
+		SentryEnv:                 config.SentryEnv,
+		SentryLoggerName:          "crawler_logger",
+		SentryRelease:             "1.0",
+		SentrySampleRate:          1.0,
+	}
+	reporter, err := cerrors.NewMetaErrorReporter(errRepConfig)
+	if err != nil {
+		log.Errorf("Error creating meta reporter: %v", err)
+		return nil, err
+	}
+	if reporter == nil {
+		log.Infof("Enabling null error reporter")
+		return &cerrors.NullErrorReporter{}, nil
+	}
+	return reporter, nil
+}
 
 func contractFilterers(config *utils.CrawlerConfig) []model.ContractFilterers {
 	return handlerlist.ContractFilterers(config.ContractAddressObjs)
@@ -129,18 +146,20 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 	// Populate persistence with latest block data from events table
 	err = persister.PopulateBlockDataFromDB(postgres.EventTableBaseName)
 	if err != nil {
-		log.Errorf("Error populating persistence from Postgresql, stopping...; err: %v", err)
+		log.Errorf("Error populating event last occurrence block data: err: %v", err)
 	}
 	return persister
 }
 
 func cleanup(eventCol *eventcollector.EventCollector, killChan chan<- bool) {
 	log.Info("Stopping crawler...")
-	err := eventCol.StopCollection()
+	err := eventCol.StopCollection(false)
 	if err != nil {
 		log.Errorf("Error stopping collection: err: %v", err)
 	}
-	close(killChan)
+	if killChan != nil {
+		close(killChan)
+	}
 	log.Info("Crawler stopped")
 }
 
@@ -154,53 +173,6 @@ func setupKillNotify(eventCol *eventcollector.EventCollector, killChan chan<- bo
 	}()
 }
 
-func isWebsocketURL(rawurl string) bool {
-	u, err := url.Parse(rawurl)
-	if err != nil {
-		log.Infof("Unable to parse URL: err: %v", err)
-		return false
-	}
-	if u.Scheme == "ws" || u.Scheme == "wss" {
-		return true
-	}
-	return false
-}
-
-func setupHTTPEthClient(config *utils.CrawlerConfig) (*ethclient.Client, error) {
-	if isWebsocketURL(config.EthAPIURL) {
-		return nil, fmt.Errorf(
-			"Fatal: Valid HTTP eth client URL required: configured url: %v",
-			config.EthAPIURL,
-		)
-	}
-
-	client, err := ethclient.Dial(config.EthAPIURL)
-	if err != nil {
-		return nil, err
-	}
-
-	return client, nil
-}
-
-func setupWebsocketEthClient(config *utils.CrawlerConfig, killChan <-chan bool) (*ethclient.Client, error) {
-	if config.EthWsAPIURL == "" {
-		return nil, nil
-	}
-
-	if !isWebsocketURL(config.EthWsAPIURL) {
-		return nil, nil
-	}
-
-	client, err := ethclient.Dial(config.EthWsAPIURL)
-	if err != nil {
-		return nil, err
-	}
-
-	go eth.WebsocketPing(client, killChan, websocketPingDelaySecs)
-
-	return client, nil
-}
-
 func enableGoEtherumLogging() {
 	glog := elog.NewGlogHandler(elog.StreamHandler(os.Stderr, elog.TerminalFormat(false)))
 	glog.Verbosity(elog.Lvl(elog.LvlDebug)) // nolint: unconvert
@@ -208,15 +180,10 @@ func enableGoEtherumLogging() {
 	elog.Root().SetHandler(glog)
 }
 
-func startUp(config *utils.CrawlerConfig) error {
+func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 	killChan := make(chan bool)
 
-	httpClient, err := setupHTTPEthClient(config)
-	if err != nil {
-		return err
-	}
-
-	wsClient, err := setupWebsocketEthClient(config, killChan)
+	httpClient, err := utils.SetupHTTPEthClient(config.EthAPIURL)
 	if err != nil {
 		return err
 	}
@@ -233,17 +200,20 @@ func startUp(config *utils.CrawlerConfig) error {
 
 	eventCol := eventcollector.NewEventCollector(
 		&eventcollector.Config{
-			Chain:              httpClient,
-			HTTPClient:         httpClient,
-			WsClient:           wsClient,
-			Filterers:          contractFilterers(config),
-			Watchers:           contractWatchers(config),
-			RetrieverPersister: retrieverMetaDataPersister(config),
-			ListenerPersister:  listenerMetaDataPersister(config),
-			EventDataPersister: eventDataPersister(config),
-			Triggers:           eventTriggers(config),
-			StartBlock:         config.EthStartBlock,
-			CrawlerPubSub:      crawlerPubSub(config),
+			Chain:               httpClient,
+			HTTPClient:          httpClient,
+			WsEthURL:            config.EthWsAPIURL,
+			ErrRep:              errRep,
+			Filterers:           contractFilterers(config),
+			Watchers:            contractWatchers(config),
+			RetrieverPersister:  retrieverMetaDataPersister(config),
+			ListenerPersister:   listenerMetaDataPersister(config),
+			EventDataPersister:  eventDataPersister(config),
+			Triggers:            eventTriggers(config),
+			StartBlock:          config.EthStartBlock,
+			CrawlerPubSub:       crawlerPubSub(config),
+			PollingEnabled:      config.PollingEnabled,
+			PollingIntervalSecs: config.PollingIntervalSecs,
 		},
 	)
 
@@ -274,9 +244,18 @@ func main() {
 		os.Exit(2)
 	}
 
-	err = startUp(config)
+	errRep, err := initErrorReporter(config)
 	if err != nil {
-		log.Errorf("Crawler error: err: %v\n", err)
+		log.Errorf("Error init error reporting: err: %+v\n", err)
+		os.Exit(2)
+	}
+
+	err = startUp(config, errRep)
+	if err != nil {
+		log.Errorf("Crawler error: err: %+v\n", err)
+		errRep.Error(err, nil)
+		// XXX(PN): Ensure the error gets sent before we die
+		time.Sleep(3 * time.Second)
 		os.Exit(2)
 	}
 	log.Info("Crawler stopped")

@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/event"
 
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	"github.com/joincivil/civil-events-crawler/pkg/eventcollector"
@@ -21,6 +20,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	"github.com/joincivil/go-common/pkg/generated/contract"
 )
@@ -146,13 +146,13 @@ func (t *testErrorWatcher) ContractAddress() common.Address {
 	return common.HexToAddress("0xf86a8a467666c752fa99bb7ca954d269ab6136bf")
 }
 
-func (t *testErrorWatcher) StopWatchers() error {
+func (t *testErrorWatcher) StopWatchers(unsub bool) error {
 	return nil
 }
 
 func (t *testErrorWatcher) StartWatchers(client bind.ContractBackend,
-	eventRecvChan chan *model.Event) ([]event.Subscription, error) {
-	return nil, errors.New("This is an error starting watchers")
+	eventRecvChan chan *model.Event, errs chan error) ([]utils.WatcherSubscription, error) {
+	return nil, errors.New("this is an error starting watchers")
 }
 
 func collectionStart(collector *eventcollector.EventCollector, t *testing.T,
@@ -336,6 +336,8 @@ func TestNewEventCollector(t *testing.T) {
 	errChan := make(chan error)
 	go collectionStart(collector, t, errChan)
 
+	<-collector.StartChan()
+
 	select {
 	case err := <-errChan:
 		t.Errorf("Should not have received error on start collection: err: %v", err)
@@ -353,6 +355,7 @@ func TestNewEventCollectorBadWatcher(t *testing.T) {
 	if err == nil {
 		t.Errorf("Should have received error on start collection: err: %v", err)
 	}
+	<-collector.StartChan()
 }
 
 func TestEventCollectorStopCollection(t *testing.T) {
@@ -367,7 +370,7 @@ func TestEventCollectorStopCollection(t *testing.T) {
 
 	<-collector.StartChan()
 
-	err = collector.StopCollection()
+	err = collector.StopCollection(true)
 	if err != nil {
 		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
 	}
@@ -399,7 +402,7 @@ func TestEventCollectorAddRemoveWatchers(t *testing.T) {
 		t.Errorf("Should not have returned an error when adding watcher: err: %v", err)
 	}
 
-	err = collector.StopCollection()
+	err = collector.StopCollection(true)
 	if err != nil {
 		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
 	}
@@ -452,9 +455,12 @@ func TestEventCollectorCollection(t *testing.T) {
 
 	if len(events) != 6 {
 		t.Errorf("Should have seen 6 events in the persister, saw %v instead", len(events))
+		for _, event := range events {
+			t.Logf("event = %v", event.EventType())
+		}
 	}
 
-	err = collector.StopCollection()
+	err = collector.StopCollection(true)
 	if err != nil {
 		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
 	}
@@ -521,7 +527,7 @@ func TestEventCollectorWithOldNewsroomEvents(t *testing.T) {
 		t.Errorf("Should have seen 8 events in the persister, saw %v instead", len(events))
 	}
 
-	err = collector.StopCollection()
+	err = collector.StopCollection(true)
 	if err != nil {
 		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
 	}
@@ -553,7 +559,7 @@ func TestNewEventCollectorBadEventSave(t *testing.T) {
 	contracts.Client.Commit()
 	wg.Wait()
 
-	err = collector.StopCollection()
+	err = collector.StopCollection(true)
 	if err != nil {
 		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
 	}
@@ -581,7 +587,7 @@ func TestNewEventCollectorBadUpdateBlockData(t *testing.T) {
 	}
 	contracts.Client.Commit()
 
-	err = collector.StopCollection()
+	err = collector.StopCollection(true)
 	if err != nil {
 		t.Errorf("Should not have returned an error when stopping collection: err: %v", err)
 	}

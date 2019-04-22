@@ -31,6 +31,10 @@ type CrawlerConfig struct {
 	EthWsAPIURL   string `envconfig:"eth_ws_api_url" desc:"Ethereum Websocket API address (optional, disables watchers if empty)"`
 	EthStartBlock uint64 `envconfig:"eth_start_block" desc:"Sets the start Eth block (default 0)" default:"0"`
 
+	// Enables polling mode, disables websockets
+	PollingEnabled      bool `envconfig:"polling_enabled" desc:"Enable polling mode (true disables listeners)"`
+	PollingIntervalSecs int  `envconfig:"polling_int_secs" desc:"Sets the polling interval"`
+
 	// CivilListingsGraphqlURL enables call to retrieve newsroom listings from Civil.
 	// Should pass in the URL to the GraphQL endpoint to enable.
 	CivilListingsGraphqlURL string `envconfig:"civil_listing_graphql_url" desc:"URL of the Civil Listings GraphQL endpoint"`
@@ -53,6 +57,9 @@ type CrawlerConfig struct {
 
 	// VersionNumber is the version of DB for postgres persistence
 	VersionNumber string `split_words:"true" desc:"Sets the version for table"`
+
+	SentryDsn string `split_words:"true" desc:"Sets the Sentry DSN"`
+	SentryEnv string `split_words:"true" desc:"Sets the Sentry environment"`
 }
 
 // FetchListingAddresses retrieves the list of Civil newsroom listings if given

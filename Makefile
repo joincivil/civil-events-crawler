@@ -131,6 +131,8 @@ generate-civil-watchers: ## Runs watchergen to generate contract Watch* wrapper 
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom watcher watcher > ./$(GENERATED_WATCHER_DIR)/newsroom.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilplcrvoting watcher watcher > ./$(GENERATED_WATCHER_DIR)/civilplcrvoting.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) cvltoken watcher watcher > ./$(GENERATED_WATCHER_DIR)/cvltoken.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilparameterizer watcher watcher > ./$(GENERATED_WATCHER_DIR)/civilparameterizer.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilgovernment watcher watcher > ./$(GENERATED_WATCHER_DIR)/civilgovernment.go
 
 .PHONY: generate-civil-filterers
 generate-civil-filterers: ## Runs filterergen to generate contract Filter* wrapper code for Civil.
@@ -139,6 +141,8 @@ generate-civil-filterers: ## Runs filterergen to generate contract Filter* wrapp
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroom.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilplcrvoting filterer filterer > ./$(GENERATED_FILTERER_DIR)/civilplcrvoting.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) cvltoken filterer filterer > ./$(GENERATED_FILTERER_DIR)/cvltoken.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilparameterizer filterer filterer > ./$(GENERATED_FILTERER_DIR)/civilparameterizer.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilgovernment filterer filterer > ./$(GENERATED_FILTERER_DIR)/civilgovernment.go
 
 .PHONY: generate-civil-common
 generate-civil-common: ## Runs commongen to generate common contract wrapper code for Civil.
@@ -147,6 +151,8 @@ generate-civil-common: ## Runs commongen to generate common contract wrapper cod
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom common common > ./$(GENERATED_COMMON_DIR)/newsroom.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilplcrvoting common common > ./$(GENERATED_COMMON_DIR)/civilplcrvoting.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) cvltoken common common > ./$(GENERATED_COMMON_DIR)/cvltoken.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilparameterizer common common > ./$(GENERATED_COMMON_DIR)/civilparameterizer.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilgovernment common common > ./$(GENERATED_COMMON_DIR)/civilgovernment.go
 
 .PHONY: generate-civil-handler-lists
 generate-civil-handler-lists: ## Runs handlerlistgen to generate handler list wrapper code for Civil.

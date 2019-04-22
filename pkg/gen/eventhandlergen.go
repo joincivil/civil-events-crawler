@@ -46,7 +46,6 @@ type TemplateData struct {
 // ContractType. It will output the generated code to the given io.Writer.
 func GenerateEventHandlers(writer io.Writer, contractType model.ContractType, packageName string,
 	handlerName string) error {
-
 	contractSpecs, ok := model.ContractTypeToSpecs.Get(contractType)
 	if !ok {
 		return errors.New("Invalid ContractType")
