@@ -193,36 +193,56 @@ func testGraphqlResponse(w http.ResponseWriter, r *http.Request) {
 	message := `
 	{
 		"data": {
-			"listings": [
-				{
-					"name": "The Intercept",
-					"contractAddress": "0xADbB46098E06dBE18aFF2416920FF03EA6814e7b"
-				},
-				{
-					"name": "Spectrum News - NY1",
-					"contractAddress": "0x5572DBfa985b1127219ff38f4A10AdB10311725b"
-				},
-				{
-					"name": "New York Times",
-					"contractAddress": "0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA"
-				},
-				{
-					"name": "The Drudge Report",
-					"contractAddress": "0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9"
-				},
-				{
-					"name": "WWMT",
-					"contractAddress": "0xA3a7056f4727d9E8094957D937b993adB35f21fF"
-				},
-				{
-					"name": "Project Veritas",
-					"contractAddress": "0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8"
-				},
-				{
-					"name": "The Los Angeles Times",
-					"contractAddress": "0xcFfd0E01AD3712B776740aa9766034850dbA2725"
+			"tcrListings": {
+				"edges": [
+					{
+						"node": {
+							"name": "The Intercept",
+							"contractAddress": "0xADbB46098E06dBE18aFF2416920FF03EA6814e7b"
+						}
+					},
+					{
+						"node": {
+							"name": "Spectrum News - NY1",
+							"contractAddress": "0x5572DBfa985b1127219ff38f4A10AdB10311725b"
+						}
+					},
+					{
+						"node": {
+							"name": "New York Times",
+							"contractAddress": "0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA"
+						}
+					},
+					{
+						"node": {
+							"name": "The Drudge Report",
+							"contractAddress": "0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9"
+						}
+					},
+					{
+						"node": {
+							"name": "WWMT",
+							"contractAddress": "0xA3a7056f4727d9E8094957D937b993adB35f21fF"
+						}
+					},
+					{
+						"node": {
+							"name": "Project Veritas",
+							"contractAddress": "0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8"
+						}
+					},
+					{
+						"node": {
+							"name": "The Los Angeles Times",
+							"contractAddress": "0xcFfd0E01AD3712B776740aa9766034850dbA2725"
+						}
+					}
+				],
+				"pageInfo": {
+					"endCursor": "b2Zmc2V0fHx8MzY=",
+					"hasNextPage": false
 				}
-			]
+			}
 		}
 	}`
 	w.Write([]byte(message))
@@ -282,7 +302,8 @@ func TestFetchListingAddresses(t *testing.T) {
 		t.Errorf("Should have fetched listing addresses: len: %v, err: %v",
 			len(config.ContractAddresses["newsroom"]), err)
 	}
-	if len(config.ContractAddressObjs["newsroom"]) != 8 {
+	// 1 newsroom from config, 14 from graphql
+	if len(config.ContractAddressObjs["newsroom"]) != 15 {
 		t.Errorf("Should have fetched listing 8 address objs: len: %v, err: %v",
 			len(config.ContractAddressObjs["newsroom"]), err)
 	}
