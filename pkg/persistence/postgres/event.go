@@ -20,16 +20,12 @@ import (
 )
 
 const (
-	eventTableName = "event"
+	// EventTableBaseName is the type of table this code defines
+	EventTableBaseName = "event"
 )
 
-// CreateEventTableQuery returns the query to create the event table
-func CreateEventTableQuery() string {
-	return CreateEventTableQueryString(eventTableName)
-}
-
-// CreateEventTableQueryString returns the query to create this table
-func CreateEventTableQueryString(tableName string) string {
+// CreateEventTableQuery returns the query to create this table
+func CreateEventTableQuery(tableName string) string {
 	queryString := fmt.Sprintf(`
         CREATE TABLE IF NOT EXISTS %s(
             id SERIAL PRIMARY KEY,
@@ -46,13 +42,8 @@ func CreateEventTableQueryString(tableName string) string {
 	return queryString
 }
 
-// CreateEventTableIndices returns the query to create indices for this table
-func CreateEventTableIndices() string {
-	return CreateEventTableIndicesString(eventTableName)
-}
-
-// CreateEventTableIndicesString returns the query to create this table
-func CreateEventTableIndicesString(tableName string) string {
+// CreateEventTableIndices returns the query to create this table
+func CreateEventTableIndices(tableName string) string {
 	queryString := fmt.Sprintf(`
 		CREATE INDEX IF NOT EXISTS event_event_type_idx ON %s (event_type);
 		CREATE INDEX IF NOT EXISTS event_contract_address_idx ON %s (contract_address);

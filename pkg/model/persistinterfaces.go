@@ -59,3 +59,15 @@ type EventDataPersister interface {
 	// on date in which it was received
 	RetrieveEvents(criteria *RetrieveEventsCriteria) ([]*Event, error)
 }
+
+// VersionDataPersister handles storing and receiving version table data.
+type VersionDataPersister interface {
+	// PersisterVersion retrieves the latest version for the table type
+	PersisterVersion(tableType string) (string, error)
+
+	// SaveVersion saves the version number for this table type with the current timestamp
+	SaveVersion(tableType string, versionNumber string) error
+
+	// OldVersions retrieves all the versions except for most recent for this service name
+	OldVersions(serviceName string) ([]string, error)
+}
