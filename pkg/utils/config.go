@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	envVarPrefix = "crawl"
+	envVarPrefix       = "crawl"
+	listingsPerRequest = 50
 )
 
 // NOTE(PN): After envconfig populates CrawlerConfig with the environment vars,
@@ -62,6 +63,39 @@ type CrawlerConfig struct {
 	SentryEnv string `split_words:"true" desc:"Sets the Sentry environment"`
 }
 
+// Edge represents an edge field in the query
+type Edge struct {
+	Node struct {
+		Name            graphql.String
+		ContractAddress graphql.String
+		Whitelisted     graphql.Boolean
+		ApprovalDate    graphql.Int
+		LastGovState    graphql.String
+	}
+}
+
+// PageInfo represents a pageinfo field in the query
+type PageInfo struct {
+	EndCursor   graphql.String
+	HasNextPage graphql.Boolean
+}
+
+// NOTE(PN): These are two separate queries because whitelistedOnly will always return
+// the value of true or false for this flag and can't be mixed with other params right now
+type whitelistedListingQuery struct {
+	TcrListings struct {
+		Edges    []Edge
+		PageInfo PageInfo
+	} `graphql:"tcrListings(first: $first, after: $after, whitelistedOnly: true)"`
+}
+
+type currentAppActiveChallengeListingQuery struct {
+	TcrListings struct {
+		Edges    []Edge
+		PageInfo PageInfo
+	} `graphql:"tcrListings(first: $first, after: $after, activeChallenge: true, currentApplication: true)"`
+}
+
 // FetchListingAddresses retrieves the list of Civil newsroom listings if given
 // the endpoint URL
 func (c *CrawlerConfig) FetchListingAddresses() error {
@@ -69,35 +103,85 @@ func (c *CrawlerConfig) FetchListingAddresses() error {
 		return nil
 	}
 
-	var listingQuery struct {
-		Listings []struct {
-			Name            graphql.String
-			ContractAddress graphql.String
-		} `graphql:"listings(whitelistedOnly: true)"`
-	}
+	first := listingsPerRequest
+	after := graphql.String("")
 
-	client := graphql.NewClient(c.CivilListingsGraphqlURL, nil)
-	err := client.Query(context.Background(), &listingQuery, nil)
-	if err != nil {
-		return err
-	}
-
-	newsroomContractName := "newsroom"
 	var addressStrings []string
 	var addressObjs []common.Address
 
+	newsroomContractName := "newsroom"
 	if c.ContractAddresses[newsroomContractName] != "" {
 		addressStrings = strings.Split(c.ContractAddresses[newsroomContractName], "|")
 	}
 
-	for _, listing := range listingQuery.Listings {
-		log.Infof("adding newsroom contract: %v, %v", listing.Name, string(listing.ContractAddress))
-		addressStrings = append(addressStrings, string(listing.ContractAddress))
-		addressObjs = append(addressObjs, common.HexToAddress(string(listing.ContractAddress)))
+	client := graphql.NewClient(c.CivilListingsGraphqlURL, nil)
+
+	// Fetch all the current applications and actively challenged
+LoopA:
+	for {
+		vars := map[string]interface{}{
+			"first": graphql.Int(first),
+			"after": after,
+		}
+
+		q := currentAppActiveChallengeListingQuery{}
+		err := client.Query(context.Background(), &q, vars)
+		if err != nil {
+			return err
+		}
+		// Look at all the result edges and capture name/addresses
+		edges := q.TcrListings.Edges
+		for _, edge := range edges {
+			listing := edge.Node
+			log.Infof("adding newsroom contract: %v, %v", listing.Name, string(listing.ContractAddress))
+			addressStrings = append(addressStrings, string(listing.ContractAddress))
+			addressObjs = append(addressObjs, common.HexToAddress(string(listing.ContractAddress)))
+		}
+
+		// Figure out next page cursor
+		if !q.TcrListings.PageInfo.HasNextPage {
+			break LoopA
+		}
+		after = q.TcrListings.PageInfo.EndCursor
 	}
 
-	c.ContractAddresses["newsroom"] = strings.Join(addressStrings, "|")
-	c.ContractAddressObjs["newsroom"] = append(c.ContractAddressObjs["newsroom"], addressObjs...)
+	// Reset after value
+	after = graphql.String("")
+
+	// Fetch all the whitelisted
+LoopB:
+	for {
+		vars := map[string]interface{}{
+			"first": graphql.Int(first),
+			"after": after,
+		}
+
+		q := whitelistedListingQuery{}
+		err := client.Query(context.Background(), &q, vars)
+		if err != nil {
+			return err
+		}
+		// Look at all the result edges and capture name/addresses
+		edges := q.TcrListings.Edges
+		for _, edge := range edges {
+			listing := edge.Node
+			log.Infof("adding newsroom contract: %v, %v", listing.Name, string(listing.ContractAddress))
+			addressStrings = append(addressStrings, string(listing.ContractAddress))
+			addressObjs = append(addressObjs, common.HexToAddress(string(listing.ContractAddress)))
+		}
+
+		// Figure out next page cursor
+		if !q.TcrListings.PageInfo.HasNextPage {
+			break LoopB
+		}
+		after = q.TcrListings.PageInfo.EndCursor
+	}
+
+	c.ContractAddresses[newsroomContractName] = strings.Join(addressStrings, "|")
+	c.ContractAddressObjs[newsroomContractName] = append(
+		c.ContractAddressObjs[newsroomContractName], addressObjs...)
+
+	log.Infof("addresses len = %v", len(addressStrings))
 	return nil
 }
 
