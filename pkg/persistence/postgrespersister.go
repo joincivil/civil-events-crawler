@@ -68,6 +68,9 @@ func (p *PostgresPersister) OldVersions(serviceName string) ([]string, error) {
 
 // GetTableName formats tabletype with version of this persister to return the table name
 func (p *PostgresPersister) GetTableName(tableType string) string {
+	if p.version == nil || *p.version == "" {
+		return tableType
+	}
 	return fmt.Sprintf("%s_%s", tableType, *p.version)
 }
 
@@ -80,6 +83,9 @@ func (p *PostgresPersister) DropTable(tableName string) error {
 // UpdateExistenceFalseForVersionTable updates the tableName's exists field to false in the version table
 func (p *PostgresPersister) UpdateExistenceFalseForVersionTable(tableName string, versionNumber string,
 	serviceName string) error {
+	if versionNumber == "" {
+		return nil
+	}
 	dbVersionStruct := postgres.Version{
 		Version:     &versionNumber,
 		ServiceName: serviceName,
@@ -97,6 +103,9 @@ func (p *PostgresPersister) UpdateExistenceFalseForVersionTable(tableName string
 
 // SaveVersion saves the version for this persistence
 func (p *PostgresPersister) SaveVersion(versionNumber *string) error {
+	if versionNumber == nil || *versionNumber == "" {
+		return nil
+	}
 	err := p.saveVersionToTable(postgres.VersionTableName, versionNumber)
 	if err != nil {
 		return err
@@ -183,20 +192,31 @@ func (p *PostgresPersister) CreateVersionTable(version *string) error {
 		return err
 	}
 
+	// Check to see if there is an existing latest version
 	currentVersion, err := p.PersisterVersion()
-	if err != nil && version == nil {
-		if err == cpersist.ErrPersisterNoResults {
-			return fmt.Errorf("No version in version table, specify a version: err %v", err)
-		}
+	if err != nil && err != cpersist.ErrPersisterNoResults {
 		return err
 	}
-	if currentVersion == version {
+
+	// If no version found anywhere, don't use versioned tables
+	if (currentVersion == nil || *currentVersion == "") && (version == nil || *version == "") {
+		log.Infof("No version found, not using versioned tables")
 		return nil
 	}
-	if version == nil {
+
+	// If the incoming version is the same as the currentVersion, don't do anything
+	if currentVersion != nil && version != nil && *currentVersion == *version {
+		log.Infof("Using data version: %v", *version)
+		return nil
+	}
+
+	// If version does not exist, but currentVersion does, use currentVersion
+	if currentVersion != nil && (version == nil || *version == "") {
 		// NOTE(IS): Use existing version, but update timestamp
 		version = currentVersion
 	}
+
+	log.Infof("Updated data version: %v", *version)
 	p.version = version
 	return p.SaveVersion(version)
 }
