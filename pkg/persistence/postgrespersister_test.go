@@ -27,12 +27,13 @@ import (
 )
 
 const (
-	eventTestTableName = "event_test"
-	postgresPort       = 5432
-	postgresDBName     = "civil_crawler"
-	postgresUser       = "docker"
-	postgresPswd       = "docker"
-	postgresHost       = "localhost"
+	eventTestTableType   = "event_test"
+	versionTestTableName = "version_test"
+	postgresPort         = 5432
+	postgresDBName       = "civil_crawler"
+	postgresUser         = "docker"
+	postgresPswd         = "docker"
+	postgresHost         = "localhost"
 )
 
 var (
@@ -271,7 +272,10 @@ func setupTestTable() (*PostgresPersister, error) {
 	if err != nil {
 		return persister, fmt.Errorf("Error connecting to DB: %v", err)
 	}
-	createTableQuery := postgres.CreateEventTableQueryString(eventTestTableName)
+	version := "f"
+	persister.version = &version
+	eventTestTableName := persister.GetTableName(eventTestTableType)
+	createTableQuery := postgres.CreateEventTableQuery(eventTestTableName)
 	_, err = persister.db.Query(createTableQuery)
 	if err != nil {
 		return persister, fmt.Errorf("Couldn't create test table %v", err)
@@ -281,7 +285,10 @@ func setupTestTable() (*PostgresPersister, error) {
 }
 
 func deleteTestTable(persister *PostgresPersister) error {
-	_, err := persister.db.Query("DROP TABLE event_test;")
+	version := "f"
+	persister.version = &version
+	eventTestTableName := persister.GetTableName(eventTestTableType)
+	_, err := persister.db.Query(fmt.Sprintf("DROP TABLE %v;", eventTestTableName))
 	if err != nil {
 		return err
 	}
@@ -293,12 +300,29 @@ func deleteTestTableForTesting(t *testing.T, persister *PostgresPersister) {
 	if err != nil {
 		t.Errorf("Couldn't delete test table %v", err)
 	}
+	persister.db.Close()
 }
 
 func deleteTestTableForBenchmarks(b *testing.B, persister *PostgresPersister) {
 	err := deleteTestTable(persister)
 	if err != nil {
 		b.Errorf("Couldn't delete test table %v", err)
+	}
+}
+
+func createTestVersionTable(t *testing.T, persister *PostgresPersister) {
+	versionTableQuery := postgres.CreateVersionTableQuery(versionTestTableName)
+	_, err := persister.db.Exec(versionTableQuery)
+	if err != nil {
+		t.Errorf("error %v", err)
+	}
+
+}
+
+func deleteTestVersionTable(t *testing.T, persister *PostgresPersister) {
+	_, err := persister.db.Query(fmt.Sprintf("DROP TABLE %v;", versionTestTableName))
+	if err != nil {
+		t.Errorf("error: %v", err)
 	}
 }
 
@@ -321,22 +345,69 @@ func TestDBConnection(t *testing.T) {
 	}
 }
 
-func TestTableSetup(t *testing.T) {
+func TestGetAllVersions(t *testing.T) {
 	persister, err := setupDBConnection()
 	if err != nil {
 		t.Errorf("Error connecting to DB: %v", err)
 	}
-	err = persister.CreateTables()
+
+	versionNo := "123456"
+	createTestVersionTable(t, persister)
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
+	if err != nil {
+		t.Errorf("Error saving  version: %v", err)
+	}
+	time.Sleep(1 * time.Second)
+	versionNo2 := "1234567"
+	createTestVersionTable(t, persister)
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo2)
+	if err != nil {
+		t.Errorf("Error saving  version: %v", err)
+	}
+	time.Sleep(1 * time.Second)
+	versionNo3 := "1234568"
+	createTestVersionTable(t, persister)
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo3)
+	if err != nil {
+		t.Errorf("Error saving  version: %v", err)
+	}
+
+	v, err := persister.oldVersionsFromTable("crawler", versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting old versions %v", v)
+	}
+	if len(v) != 2 {
+		t.Errorf("Should be ")
+	}
+}
+
+func TestTableSetupNoExistingVersion(t *testing.T) {
+	persister, err := setupDBConnection()
+	if err != nil {
+		t.Errorf("Error connecting to DB: %v", err)
+	}
+
+	versionNo := "123456"
+	createTestVersionTable(t, persister)
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
+	if err != nil {
+		t.Errorf("Error saving  version: %v", err)
+	}
+	persister.version = &versionNo
+	err = persister.CreateEventTable()
 	if err != nil {
 		t.Errorf("Error creating/checking for tables: %v", err)
 	}
-	// check table exists
+
+	tableName := persister.GetTableName("event")
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+
 	var exists bool
-	err = persister.db.QueryRow(`SELECT EXISTS ( SELECT 1
-                                        FROM   information_schema.tables 
-                                        WHERE  table_schema = 'public'
-                                        AND    table_name = 'event'
-                                        );`).Scan(&exists)
+	queryString := fmt.Sprintf("SELECT EXISTS ( SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '%v');",
+		tableName)
+	err = persister.db.QueryRow(queryString).Scan(&exists)
 	if err != nil {
 		t.Errorf("Couldn't get table")
 	}
@@ -344,21 +415,172 @@ func TestTableSetup(t *testing.T) {
 		t.Errorf("event table does not exist")
 	}
 
+	persister.db.Query(fmt.Sprintf("DROP TABLE %v;", tableName))
+	deleteTestVersionTable(t, persister)
 }
 
-func TestIndexCreation(t *testing.T) {
+func TestSaveAndRetrieveFromVersionTable(t *testing.T) {
 	persister, err := setupDBConnection()
 	if err != nil {
 		t.Errorf("Error connecting to DB: %v", err)
 	}
-	err = persister.CreateTables()
+	// Just create the version table and save here
+	createTestVersionTable(t, persister)
+	versionNo := "123456"
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
+	if err != nil {
+		t.Errorf("Error saving versionNo to table: %v", err)
+	}
+
+	versionFromTable, err := persister.retrieveVersionFromTable(versionTestTableName)
+	if err != nil {
+		t.Errorf("Error retrieving from table: %v", err)
+	}
+	if *versionFromTable != versionNo {
+		t.Errorf("Version numbers do not match, %v, %v", versionNo, *versionFromTable)
+	}
+	deleteTestVersionTable(t, persister)
+}
+
+func TestTableSetupExistingVersion(t *testing.T) {
+	persister, err := setupDBConnection()
+	if err != nil {
+		t.Errorf("Error connecting to DB: %v", err)
+	}
+	// Just create the version table and save here
+	createTestVersionTable(t, persister)
+	defer deleteTestVersionTable(t, persister)
+
+	versionNo := "123456"
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
+	if err != nil {
+		t.Errorf("Error saving versionNo to table: %v", err)
+	}
+
+	versionNoCopy, err := persister.persisterVersionFromTable(versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting version %v", err)
+	}
+	if *versionNoCopy != versionNo {
+		t.Errorf("versions don't match %v, %v", versionNo, *versionNoCopy)
+	}
+
+	// reset persister.version to nil, to simulate restarting with a new version
+	persister.version = nil
+
+	newVersionNo := "1234567"
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo)
 	if err != nil {
 		t.Errorf("Error creating/checking for tables: %v", err)
 	}
-	err = persister.CreateIndices()
+
+	newVersionNoCopy, err := persister.persisterVersionFromTable(versionTestTableName)
 	if err != nil {
-		t.Errorf("Error creating indices: %v", err)
+		t.Errorf("Error getting version %v", err)
 	}
+	if *newVersionNoCopy != newVersionNo {
+		t.Errorf("versions don't match %v, %v", *newVersionNoCopy, newVersionNo)
+	}
+
+	// now reset back to old verion. this should do the upsert correctly
+	persister.version = nil
+
+	newVersionNo2 := "123456"
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo2)
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+
+	newVersionNoCopy2, err := persister.persisterVersionFromTable(versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting version %v", err)
+	}
+	if *newVersionNoCopy2 != newVersionNo2 {
+		t.Errorf("versions don't match %v, %v", *newVersionNoCopy2, newVersionNo2)
+	}
+
+}
+
+func TestUpdateExistenceForVersionTable(t *testing.T) {
+	persister, err := setupDBConnection()
+	if err != nil {
+		t.Errorf("Error connecting to DB: %v", err)
+	}
+	// Just create the version table and save here
+	createTestVersionTable(t, persister)
+	defer deleteTestVersionTable(t, persister)
+
+	versionNo := "123456"
+	err = persister.saveVersionToTable(versionTestTableName, &versionNo)
+	if err != nil {
+		t.Errorf("Error saving versionNo to table: %v", err)
+	}
+
+	versionNoCopy, err := persister.persisterVersionFromTable(versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting version %v", err)
+	}
+	if *versionNoCopy != versionNo {
+		t.Errorf("versions don't match %v, %v", versionNo, *versionNoCopy)
+	}
+
+	// reset persister.version to nil, to simulate restarting with a new version
+	persister.version = nil
+
+	newVersionNo := "1234567"
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo)
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+	newVersionNo2 := "1234568"
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo2)
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+	newVersionNo3 := "1234569"
+	time.Sleep(1 * time.Second)
+	err = persister.saveVersionToTable(versionTestTableName, &newVersionNo3)
+	if err != nil {
+		t.Errorf("Error creating/checking for tables: %v", err)
+	}
+
+	newVersionNoCopy, err := persister.persisterVersionFromTable(versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting version %v", err)
+	}
+	if *newVersionNoCopy != newVersionNo3 {
+		t.Errorf("versions don't match %v, %v", *newVersionNoCopy, newVersionNo)
+	}
+
+	//update both of these to false
+	err = persister.UpdateExistenceFalseForVersionTable(versionTestTableName, versionNo, CrawlerServiceName)
+	if err != nil {
+		t.Errorf("Error updating version in table, err: %v", err)
+	}
+	v, err := persister.oldVersionsFromTable("crawler", versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting old versions %v", v)
+	}
+	if len(v) != 2 {
+		t.Errorf("Should have one version but got %v", len(v))
+	}
+
+	err = persister.UpdateExistenceFalseForVersionTable(versionTestTableName, newVersionNo, CrawlerServiceName)
+	if err != nil {
+		t.Errorf("Error updating version in table, err: %v", err)
+	}
+	v, err = persister.oldVersionsFromTable("crawler", versionTestTableName)
+	if err != nil {
+		t.Errorf("Error getting old versions %v", v)
+	}
+	if len(v) != 1 {
+		t.Errorf("Should not have gotten any versions but got %v", len(v))
+	}
+
 }
 
 func TestIndexCreationTestTable(t *testing.T) {
@@ -367,8 +589,8 @@ func TestIndexCreationTestTable(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
-	indexCreationQuery := postgres.CreateEventTableIndicesString(eventTestTableName)
+	eventTestTableName := persister.GetTableName(eventTestTableType)
+	indexCreationQuery := postgres.CreateEventTableIndices(eventTestTableName)
 	_, err = persister.db.Query(indexCreationQuery)
 	if err != nil {
 		t.Errorf("Error creating indices in test table: %v", err)
@@ -387,6 +609,7 @@ func TestDuplicateEvents(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 
 	// create 2 events w same payload hash
 	event1, err := setupApplicationEvent(false)
@@ -415,7 +638,7 @@ func TestMultipleQueries(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	// save each type of test event to table
 	// save many events
 	for i := 1; i <= 100; i++ {
@@ -440,7 +663,7 @@ func TestMultipleQueries(t *testing.T) {
 		}
 
 		// get latest events
-		err = persister.PopulateBlockDataFromDB(eventTestTableName)
+		err = persister.PopulateBlockDataFromDB(eventTestTableType)
 		if err != nil {
 			t.Errorf("Couldn't populate block data %v", err)
 		}
@@ -453,7 +676,7 @@ func TestSaveEvents(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	events, err := setupEvents(true)
 	if err != nil {
 		t.Errorf("Couldn't setup civilEvent from contract %v", err)
@@ -482,7 +705,7 @@ func BenchmarkSavingManyEventsToEventTestTable(b *testing.B) {
 		b.Error(err)
 	}
 	defer deleteTestTableForBenchmarks(b, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	numEvents := 100
 	numEventTypes := 5
 	civilEventsFromContract := make([]*model.Event, 0)
@@ -560,7 +783,7 @@ func TestLatestEventsQuery(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	testEvents, err := setupEvents(true)
 	if err != nil {
 		t.Errorf("Couldn't setup event %v", err)
@@ -609,7 +832,7 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	// create test events, fill test block data
 	numEvents := 3
 	civilEventsFromContract := make([]*model.Event, 0)
@@ -664,7 +887,7 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 	}
 
 	// populate persistence
-	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	err = persister.PopulateBlockDataFromDB(eventTestTableType)
 	if err != nil {
 		t.Errorf("Cannot fill persistence, %v", err)
 	}
@@ -684,6 +907,7 @@ func TestSameTimestampEvents(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 
 	// setup 2 challenge events (same contract address) with the same timestamp..
 	// 2 cases
@@ -711,7 +935,7 @@ func TestSameTimestampEvents(t *testing.T) {
 	}
 
 	// populate persistence
-	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	err = persister.PopulateBlockDataFromDB(eventTestTableType)
 	if err != nil {
 		t.Errorf("Cannot fill persistence, %v", err)
 	}
@@ -745,7 +969,7 @@ func TestSameTimestampEvents(t *testing.T) {
 	}
 
 	// populate persistence
-	err = persister.PopulateBlockDataFromDB(eventTestTableName)
+	err = persister.PopulateBlockDataFromDB(eventTestTableType)
 	if err != nil {
 		t.Errorf("Cannot fill persistence, %v", err)
 	}
@@ -764,7 +988,7 @@ func TestDBToEvent(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	appEvent, err := setupApplicationEvent(true)
 	if err != nil {
 		t.Errorf("setupEvent should have succeeded: err: %v", err)
@@ -854,7 +1078,7 @@ func TestUint256Float64Conversion(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	appEvent, err := setupApplicationEvent(true)
 	if err != nil {
 		t.Errorf("setupEvent should have succeeded: err: %v", err)
@@ -895,7 +1119,7 @@ func TestRetrieveEvents(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
 		t.Errorf("Should not have seen error when saving events to table: %v", err)
@@ -1063,7 +1287,7 @@ func TestRetrieveEventsExcludingHash(t *testing.T) {
 		t.Error(err)
 	}
 	defer deleteTestTableForTesting(t, persister)
-
+	eventTestTableName := persister.GetTableName(eventTestTableType)
 	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
 	if err != nil {
 		t.Errorf("Should not have seen error when saving events to table: %v", err)

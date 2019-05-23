@@ -41,6 +41,9 @@ var (
 			Removed:     false,
 		},
 	}
+
+	fakeVersion = "123"
+
 	testEvent2 = &contract.ParameterizerContractProposalExpired{
 		PropID: [32]byte{0x00, 0x01},
 		Raw: types.Log{
@@ -240,7 +243,7 @@ func TestInt64Overflow(t *testing.T) {
 }
 
 func TestCreateTableQuery(t *testing.T) {
-	query := postgres.CreateEventTableQuery()
+	query := postgres.CreateEventTableQuery(fakeVersion)
 	if query == "" {
 		t.Errorf("Should have returned a value for query")
 	}
@@ -250,7 +253,7 @@ func TestCreateTableQuery(t *testing.T) {
 }
 
 func TestCreateEventTableIndices(t *testing.T) {
-	query := postgres.CreateEventTableIndices()
+	query := postgres.CreateEventTableIndices("event")
 	if query == "" {
 		t.Errorf("Should have returned a value for query")
 	}

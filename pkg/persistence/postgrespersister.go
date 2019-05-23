@@ -19,12 +19,14 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 
+	cpersist "github.com/joincivil/go-common/pkg/persistence"
 	cpostgres "github.com/joincivil/go-common/pkg/persistence/postgres"
+	ctime "github.com/joincivil/go-common/pkg/time"
 )
 
 const (
-	eventTableName = "event"
-
+	//CrawlerServiceName is the name of the crawler service
+	CrawlerServiceName = "crawler"
 	// Could make this configurable later if needed
 	maxOpenConns    = 50
 	maxIdleConns    = 10
@@ -51,15 +53,76 @@ func NewPostgresPersister(host string, port int, user string, password string, d
 type PostgresPersister struct {
 	eventToBlockData map[common.Address]map[string]PersisterBlockData
 	db               *sqlx.DB
+	version          *string
+}
+
+// PersisterVersion returns and sets the latest version of this persistence
+func (p *PostgresPersister) PersisterVersion() (*string, error) {
+	return p.persisterVersionFromTable(postgres.VersionTableName)
+}
+
+// OldVersions returns all versions except for the most recent one for this service
+func (p *PostgresPersister) OldVersions(serviceName string) ([]string, error) {
+	return p.oldVersionsFromTable(serviceName, postgres.VersionTableName)
+}
+
+// GetTableName formats tabletype with version of this persister to return the table name
+func (p *PostgresPersister) GetTableName(tableType string) string {
+	if p.version == nil || *p.version == "" {
+		return tableType
+	}
+	return fmt.Sprintf("%s_%s", tableType, *p.version)
+}
+
+// DropTable drops the table with the specified tableName
+func (p *PostgresPersister) DropTable(tableName string) error {
+	_, err := p.db.Query(fmt.Sprintf("DROP TABLE IF EXISTS %v;", tableName)) // nolint: gosec
+	return err
+}
+
+// UpdateExistenceFalseForVersionTable updates the tableName's exists field to false in the version table
+func (p *PostgresPersister) UpdateExistenceFalseForVersionTable(tableName string, versionNumber string,
+	serviceName string) error {
+	if versionNumber == "" {
+		return nil
+	}
+	dbVersionStruct := postgres.Version{
+		Version:     &versionNumber,
+		ServiceName: serviceName,
+		Exists:      false}
+	onConflict := fmt.Sprintf("%s, %s", postgres.VersionFieldName, postgres.ServiceFieldName)
+	updatedFields := []string{postgres.ExistsFieldName}
+	queryString := p.upsertVersionDataQueryString(tableName, dbVersionStruct, onConflict,
+		updatedFields)
+	_, err := p.db.NamedExec(queryString, dbVersionStruct)
+	if err != nil {
+		return fmt.Errorf("Error saving version to table: %v", err)
+	}
+	return nil
+}
+
+// SaveVersion saves the version for this persistence
+func (p *PostgresPersister) SaveVersion(versionNumber *string) error {
+	if versionNumber == nil || *versionNumber == "" {
+		return nil
+	}
+	err := p.saveVersionToTable(postgres.VersionTableName, versionNumber)
+	if err != nil {
+		return err
+	}
+	p.version = versionNumber
+	return nil
 }
 
 // SaveEvents saves events to events table in DB
 func (p *PostgresPersister) SaveEvents(events []*model.Event) error {
+	eventTableName := p.GetTableName(postgres.EventTableBaseName)
 	return p.saveEventsToTable(events, eventTableName)
 }
 
 // RetrieveEvents retrieves the Events given an offset, count, and asc/dec bool. Ordered by db id.
 func (p *PostgresPersister) RetrieveEvents(criteria *model.RetrieveEventsCriteria) ([]*model.Event, error) {
+	eventTableName := p.GetTableName(postgres.EventTableBaseName)
 	return p.retrieveEventsFromTable(eventTableName, criteria)
 }
 
@@ -93,7 +156,8 @@ func (p *PostgresPersister) UpdateLastBlockData(events []*model.Event) error {
 // PopulateBlockDataFromDB will determine the block data for latest occurrence of each event type
 // and store it into an internal map. One of the purposes of this map determines at which block
 // to start looking for each type of event.
-func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
+func (p *PostgresPersister) PopulateBlockDataFromDB(tableType string) error {
+	tableName := p.GetTableName(tableType)
 	events, err := p.getLatestEvents(tableName)
 	if err != nil {
 		return err
@@ -120,18 +184,132 @@ func (p *PostgresPersister) PopulateBlockDataFromDB(tableName string) error {
 	return lasterr
 }
 
-// CreateTables creates tables in DB if they don't exist
-func (p *PostgresPersister) CreateTables() error {
-	eventTableQuery := postgres.CreateEventTableQuery()
+// CreateVersionTable creates the version table and sets the version with new or existing version
+func (p *PostgresPersister) CreateVersionTable(version *string) error {
+	versionTableQuery := postgres.CreateVersionTableQuery(postgres.VersionTableName)
+	_, err := p.db.Exec(versionTableQuery)
+	if err != nil {
+		return err
+	}
+
+	// Check to see if there is an existing latest version
+	currentVersion, err := p.PersisterVersion()
+	if err != nil && err != cpersist.ErrPersisterNoResults {
+		return err
+	}
+
+	// If no version found anywhere, don't use versioned tables
+	if (currentVersion == nil || *currentVersion == "") && (version == nil || *version == "") {
+		log.Infof("No version found, not using versioned tables")
+		return nil
+	}
+
+	// If the incoming version is the same as the currentVersion, don't do anything
+	if currentVersion != nil && version != nil && *currentVersion == *version {
+		log.Infof("Using data version: %v", *version)
+		return nil
+	}
+
+	// If version does not exist, but currentVersion does, use currentVersion
+	if currentVersion != nil && (version == nil || *version == "") {
+		// NOTE(IS): Use existing version, but update timestamp
+		version = currentVersion
+	}
+
+	log.Infof("Updated data version: %v", *version)
+	p.version = version
+	return p.SaveVersion(version)
+}
+
+// CreateEventTable creates event table
+func (p *PostgresPersister) CreateEventTable() error {
+	eventTableName := p.GetTableName(postgres.EventTableBaseName)
+	eventTableQuery := postgres.CreateEventTableQuery(eventTableName)
 	_, err := p.db.Exec(eventTableQuery)
 	return errors.Wrap(err, "error creating tables")
 }
 
 // CreateIndices creates the indices for DB if they don't exist
 func (p *PostgresPersister) CreateIndices() error {
-	indexQuery := postgres.CreateEventTableIndices()
+	eventTableName := p.GetTableName(postgres.EventTableBaseName)
+	indexQuery := postgres.CreateEventTableIndices(eventTableName)
 	_, err := p.db.Exec(indexQuery)
 	return errors.Wrap(err, "error creating indexes")
+}
+
+func (p *PostgresPersister) persisterVersionFromTable(tableName string) (*string, error) {
+	if p.version == nil {
+		version, err := p.retrieveVersionFromTable(tableName)
+		if err != nil {
+			return nil, err
+		}
+		p.version = version
+	}
+	return p.version, nil
+}
+
+func (p *PostgresPersister) oldVersionsFromTable(serviceName string, tableName string) ([]string, error) {
+	dbVersions := []postgres.Version{}
+	queryStringLargest := fmt.Sprintf(`SELECT MAX(last_updated_timestamp) FROM %s WHERE service_name='%s'`,
+		tableName, serviceName) // nolint: gosec
+	queryString := fmt.Sprintf(`SELECT * FROM %s WHERE service_name=$1 AND exists=true AND last_updated_timestamp !=(%s)`,
+		tableName, queryStringLargest) // nolint: gosec
+	err := p.db.Select(&dbVersions, queryString, serviceName)
+	if err != nil {
+		return []string{}, err
+	}
+	versions := []string{}
+	for _, version := range dbVersions {
+		versions = append(versions, *version.Version)
+	}
+
+	return versions, nil
+}
+
+func (p *PostgresPersister) retrieveVersionFromTable(tableName string) (*string, error) {
+	dbVersion := []postgres.Version{}
+	queryString := fmt.Sprintf(`SELECT * FROM %s WHERE service_name=$1 ORDER BY last_updated_timestamp DESC LIMIT 1;`, tableName) // nolint: gosec
+	err := p.db.Select(&dbVersion, queryString, CrawlerServiceName)
+	if err != nil {
+		return nil, err
+	}
+	if len(dbVersion) == 0 {
+		return nil, cpersist.ErrPersisterNoResults
+	}
+	return dbVersion[0].Version, nil
+}
+
+// saveVersionToTable saves the version
+func (p *PostgresPersister) saveVersionToTable(tableName string, versionNumber *string) error {
+	dbVersionStruct := postgres.Version{
+		Version:           versionNumber,
+		ServiceName:       CrawlerServiceName,
+		LastUpdatedDateTs: ctime.CurrentEpochSecsInInt64(),
+		Exists:            true}
+	onConflict := fmt.Sprintf("%s, %s", postgres.VersionFieldName, postgres.ServiceFieldName)
+	updateFields := []string{postgres.LastUpdatedTsFieldName, postgres.ExistsFieldName}
+	queryString := p.upsertVersionDataQueryString(tableName, dbVersionStruct, onConflict,
+		updateFields)
+	_, err := p.db.NamedExec(queryString, dbVersionStruct)
+	if err != nil {
+		return fmt.Errorf("Error saving version to table: %v", err)
+	}
+	return nil
+}
+
+func (p *PostgresPersister) upsertVersionDataQueryString(tableName string, dbModelStruct interface{},
+	onConflict string, updatedFields []string) string {
+	var queryString strings.Builder
+	fieldNames, fieldNamesColon := cpostgres.StructFieldsForQuery(dbModelStruct, true, "")
+	queryString.WriteString(fmt.Sprintf("INSERT INTO %s (%s) VALUES(%s) ON CONFLICT(%s) DO UPDATE SET ",
+		tableName, fieldNames, fieldNamesColon, onConflict)) // nolint: gosec
+	for idx, field := range updatedFields {
+		queryString.WriteString(fmt.Sprintf("%s=:%s", field, field)) // nolint: gosec
+		if idx+1 < len(updatedFields) {
+			queryString.WriteString(", ") // nolint: gosec
+		}
+	}
+	return queryString.String()
 }
 
 func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {

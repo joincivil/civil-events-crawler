@@ -252,6 +252,7 @@
     "pkg/gen",
     "pkg/generated/contract",
     "pkg/jobs",
+    "pkg/persistence",
     "pkg/persistence/postgres",
     "pkg/pubsub",
     "pkg/strings",
@@ -259,6 +260,7 @@
   ]
   pruneopts = "UT"
   revision = "0363615657eccffde8bafc2418e7787a8a568702"
+
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
@@ -604,6 +606,7 @@
     "github.com/joincivil/go-common/pkg/eth",
     "github.com/joincivil/go-common/pkg/gen",
     "github.com/joincivil/go-common/pkg/generated/contract",
+    "github.com/joincivil/go-common/pkg/persistence",
     "github.com/joincivil/go-common/pkg/persistence/postgres",
     "github.com/joincivil/go-common/pkg/pubsub",
     "github.com/joincivil/go-common/pkg/strings",
