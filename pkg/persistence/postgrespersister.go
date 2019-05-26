@@ -250,10 +250,18 @@ func (p *PostgresPersister) persisterVersionFromTable(tableName string) (*string
 
 func (p *PostgresPersister) oldVersionsFromTable(serviceName string, tableName string) ([]string, error) {
 	dbVersions := []postgres.Version{}
-	queryStringLargest := fmt.Sprintf(`SELECT MAX(last_updated_timestamp) FROM %s WHERE service_name='%s'`,
-		tableName, serviceName) // nolint: gosec
-	queryString := fmt.Sprintf(`SELECT * FROM %s WHERE service_name=$1 AND exists=true AND last_updated_timestamp !=(%s)`,
-		tableName, queryStringLargest) // nolint: gosec
+	// nolint
+	queryStringLargest := fmt.Sprintf(
+		`SELECT MAX(last_updated_timestamp) FROM %s WHERE service_name='%s'`,
+		tableName,
+		serviceName,
+	)
+	// nolint
+	queryString := fmt.Sprintf(
+		`SELECT * FROM %s WHERE service_name=$1 AND exists=true AND last_updated_timestamp !=(%s)`, // nolint: gosec
+		tableName,
+		queryStringLargest,
+	)
 	err := p.db.Select(&dbVersions, queryString, serviceName)
 	if err != nil {
 		return []string{}, err
@@ -301,10 +309,12 @@ func (p *PostgresPersister) upsertVersionDataQueryString(tableName string, dbMod
 	onConflict string, updatedFields []string) string {
 	var queryString strings.Builder
 	fieldNames, fieldNamesColon := cpostgres.StructFieldsForQuery(dbModelStruct, true, "")
+	// nolint
 	queryString.WriteString(fmt.Sprintf("INSERT INTO %s (%s) VALUES(%s) ON CONFLICT(%s) DO UPDATE SET ",
-		tableName, fieldNames, fieldNamesColon, onConflict)) // nolint: gosec
+		tableName, fieldNames, fieldNamesColon, onConflict))
 	for idx, field := range updatedFields {
-		queryString.WriteString(fmt.Sprintf("%s=:%s", field, field)) // nolint: gosec
+		// nolint
+		queryString.WriteString(fmt.Sprintf("%s=:%s", field, field))
 		if idx+1 < len(updatedFields) {
 			queryString.WriteString(", ") // nolint: gosec
 		}
@@ -384,6 +394,7 @@ func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *mode
 		if len(criteria.ExcludeHashes) > 0 {
 			sFields, _ := cpostgres.StructFieldsForQuery(postgres.Event{}, false, "")
 			p.addWhereAnd(queryBuf)
+			// nolint
 			notInQuery := fmt.Sprintf(" NOT EXISTS (SELECT %v FROM %v WHERE e.hash IN ('%v'))", sFields,
 				tableName, strings.Join(criteria.ExcludeHashes, "','"))
 			queryBuf.WriteString(notInQuery) // nolint: gosec

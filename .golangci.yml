@@ -1,0 +1,27 @@
+run:
+  concurrency: 2
+  deadline: 3m
+  issues-exit-code: 1
+  skip-dirs:
+    - go
+    - generated
+    - vendor
+
+linters:
+  enable:
+    - deadcode
+    - errcheck
+    - gofmt
+    - golint
+    - gosec
+    - govet
+    - ineffassign
+    - megacheck
+    - misspell
+    - staticcheck
+    - structcheck
+    - unconvert
+    - varcheck
+    - vet
+    - vetshadow
+  enable-all: false
