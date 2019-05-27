@@ -245,7 +245,7 @@ func testGraphqlResponse(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}`
-	w.Write([]byte(message))
+	w.Write([]byte(message)) // nolint: errcheck
 }
 
 func testServer(t *testing.T, handler func(http.ResponseWriter, *http.Request)) *http.Server {
@@ -307,5 +307,5 @@ func TestFetchListingAddresses(t *testing.T) {
 		t.Errorf("Should have fetched listing 8 address objs: len: %v, err: %v",
 			len(config.ContractAddressObjs["newsroom"]), err)
 	}
-	server.Shutdown(context.TODO())
+	server.Shutdown(context.TODO()) // nolint: errcheck
 }

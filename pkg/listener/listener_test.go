@@ -33,7 +33,7 @@ func TestListener(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop(true)
+	defer listener.Stop(true) // nolint: errcheck
 }
 
 func TestListenerStop(t *testing.T) {
@@ -49,7 +49,7 @@ func TestListenerStop(t *testing.T) {
 
 	// Simple test is if each watcher loop goroutine is shut down by Stop(true)
 	initialNumRoutines := runtime.NumGoroutine()
-	listener.Stop(true)
+	listener.Stop(true) // nolint: errcheck
 	if initialNumRoutines <= runtime.NumGoroutine() {
 		t.Errorf("Number of goroutines has not gone down since listener.Stop")
 	}
@@ -120,7 +120,7 @@ func TestListenerEventChan(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop(true)
+	defer listener.Stop(true) // nolint: errcheck
 	quitChan := make(chan interface{})
 	eventRecv := make(chan bool)
 
@@ -177,7 +177,7 @@ func TestListenerContractEvents(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop(true)
+	defer listener.Stop(true) // nolint: errcheck
 
 	fireContractEventsSequence(t, contracts, listener)
 }
@@ -191,10 +191,10 @@ func TestListenerAddWatchers(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop(true)
+	defer listener.Stop(true) // nolint: errcheck
 
 	watchersToAdd := watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr)
-	listener.AddWatchers(watchersToAdd)
+	listener.AddWatchers(watchersToAdd) // nolint: errcheck
 
 	fireContractEventsSequence(t, contracts, listener)
 }
@@ -210,10 +210,10 @@ func TestListenerRemoveWatchersNoMoreWatchers(t *testing.T) {
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop(true)
+	defer listener.Stop(true) // nolint: errcheck
 
 	// Remove the newsroom watchers and see if we still receive the TCR events.
-	listener.RemoveWatchers(w)
+	listener.RemoveWatchers(w) // nolint: errcheck
 
 	quitChan := make(chan interface{})
 	eventRecv := make(chan bool)
@@ -234,10 +234,10 @@ func TestListenerRemoveWatchers(t *testing.T) {
 		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
 	}
 	listener := setupListener(t, contracts.Client, watchers)
-	defer listener.Stop(true)
+	defer listener.Stop(true) // nolint: errcheck
 
 	// Remove the newsroom watchers and see if we still receive the TCR events.
-	listener.RemoveWatchers(w)
+	listener.RemoveWatchers(w) // nolint: errcheck
 	fireContractEventsSequence(t, contracts, listener)
 }
 
