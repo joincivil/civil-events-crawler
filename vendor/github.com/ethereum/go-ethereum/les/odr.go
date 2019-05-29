@@ -84,10 +84,9 @@ const (
 	MsgBlockBodies = iota
 	MsgCode
 	MsgReceipts
-	MsgProofsV1
 	MsgProofsV2
-	MsgHeaderProofs
 	MsgHelperTrieProofs
+	MsgTxStatus
 )
 
 // Msg encodes a LES message that delivers reply data for a request
@@ -117,7 +116,7 @@ func (odr *LesOdr) Retrieve(ctx context.Context, req light.OdrRequest) (err erro
 		request: func(dp distPeer) func() {
 			p := dp.(*peer)
 			cost := lreq.GetCost(p)
-			p.fcServer.QueueRequest(reqID, cost)
+			p.fcServer.QueuedRequest(reqID, cost)
 			return func() { lreq.Request(reqID, p) }
 		},
 	}

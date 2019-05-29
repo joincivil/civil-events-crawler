@@ -69,12 +69,12 @@ func (t *testChainReader) BlockByNumber(ctx context.Context, number *big.Int) (*
 }
 func (t *testChainReader) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
 	return &types.Header{
-		Time: big.NewInt(88888888),
+		Time: uint64(88888888),
 	}, nil
 }
 func (t *testChainReader) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
 	return &types.Header{
-		Time: big.NewInt(88888888),
+		Time: uint64(88888888),
 	}, nil
 }
 func (t *testChainReader) TransactionCount(ctx context.Context, blockHash common.Hash) (uint, error) {
