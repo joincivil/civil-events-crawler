@@ -33,8 +33,10 @@
   revision = "0dae4fefe7c0e190f7b5a78dac28a1c82cc8d849"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/ethereum/go-ethereum"
+  # TODO: Check if next version contains required updates,
+  # switch to next version when it is released
+  revision = "008d250e3c57e1b8a350c8049fe4af71cf26a7e9"
 
 [[constraint]]
   name = "github.com/fatih/structs"

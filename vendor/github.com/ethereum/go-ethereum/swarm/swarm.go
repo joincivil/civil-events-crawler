@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -29,6 +30,11 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/ethereum/go-ethereum/swarm/chunk"
+
+	"github.com/ethereum/go-ethereum/swarm/storage/feed"
+	"github.com/ethereum/go-ethereum/swarm/storage/localstore"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contracts/chequebook"
@@ -36,7 +42,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/protocols"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -49,7 +54,6 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/pss"
 	"github.com/ethereum/go-ethereum/swarm/state"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/ethereum/go-ethereum/swarm/storage/feed"
 	"github.com/ethereum/go-ethereum/swarm/storage/mock"
 	"github.com/ethereum/go-ethereum/swarm/swap"
 	"github.com/ethereum/go-ethereum/swarm/tracing"
@@ -144,11 +148,31 @@ func NewSwarm(config *api.Config, mockStore *mock.NodeStore) (self *Swarm, err e
 		resolver = api.NewMultiResolver(opts...)
 		self.dns = resolver
 	}
+	// check that we are not in the old database schema
+	// if so - fail and exit
+	isLegacy := localstore.IsLegacyDatabase(config.ChunkDbPath)
 
-	lstore, err := storage.NewLocalStore(config.LocalStoreParams, mockStore)
+	if isLegacy {
+		return nil, errors.New("Legacy database format detected! Please read the migration announcement at: https://github.com/ethersphere/go-ethereum/wiki/Swarm-v0.4-local-store-migration")
+	}
+
+	var feedsHandler *feed.Handler
+	fhParams := &feed.HandlerParams{}
+
+	feedsHandler = feed.NewHandler(fhParams)
+
+	localStore, err := localstore.New(config.ChunkDbPath, config.BaseKey, &localstore.Options{
+		MockStore: mockStore,
+		Capacity:  config.DbCapacity,
+	})
 	if err != nil {
 		return nil, err
 	}
+	lstore := chunk.NewValidatorStore(
+		localStore,
+		storage.NewContentAddressValidator(storage.MakeHashFunc(storage.DefaultHash)),
+		feedsHandler,
+	)
 
 	self.netStore, err = storage.NewNetStore(lstore, nil)
 	if err != nil {
@@ -162,6 +186,8 @@ func NewSwarm(config *api.Config, mockStore *mock.NodeStore) (self *Swarm, err e
 	delivery := stream.NewDelivery(to, self.netStore)
 	self.netStore.NewNetFetcherFunc = network.NewFetcherFactory(delivery.RequestFromPeers, config.DeliverySkipCheck).New
 
+	feedsHandler.SetStore(self.netStore)
+
 	if config.SwapEnabled {
 		balancesStore, err := state.NewDBStore(filepath.Join(config.Path, "balances.db"))
 		if err != nil {
@@ -171,48 +197,24 @@ func NewSwarm(config *api.Config, mockStore *mock.NodeStore) (self *Swarm, err e
 		self.accountingMetrics = protocols.SetupAccountingMetrics(10*time.Second, filepath.Join(config.Path, "metrics.db"))
 	}
 
-	var nodeID enode.ID
-	if err := nodeID.UnmarshalText([]byte(config.NodeID)); err != nil {
-		return nil, err
-	}
+	nodeID := config.Enode.ID()
 
 	syncing := stream.SyncingAutoSubscribe
 	if !config.SyncEnabled || config.LightNodeEnabled {
 		syncing = stream.SyncingDisabled
 	}
 
-	retrieval := stream.RetrievalEnabled
-	if config.LightNodeEnabled {
-		retrieval = stream.RetrievalClientOnly
-	}
-
 	registryOptions := &stream.RegistryOptions{
 		SkipCheck:       config.DeliverySkipCheck,
 		Syncing:         syncing,
-		Retrieval:       retrieval,
 		SyncUpdateDelay: config.SyncUpdateDelay,
 		MaxPeerServers:  config.MaxStreamPeerServers,
 	}
 	self.streamer = stream.NewRegistry(nodeID, delivery, self.netStore, self.stateStore, registryOptions, self.swap)
+	tags := chunk.NewTags() //todo load from state store
 
 	// Swarm Hash Merklised Chunking for Arbitrary-length Document/File storage
-	self.fileStore = storage.NewFileStore(self.netStore, self.config.FileStoreParams)
-
-	var feedsHandler *feed.Handler
-	fhParams := &feed.HandlerParams{}
-
-	feedsHandler = feed.NewHandler(fhParams)
-	feedsHandler.SetStore(self.netStore)
-
-	lstore.Validators = []storage.ChunkValidator{
-		storage.NewContentAddressValidator(storage.MakeHashFunc(storage.DefaultHash)),
-		feedsHandler,
-	}
-
-	err = lstore.Migrate()
-	if err != nil {
-		return nil, err
-	}
+	self.fileStore = storage.NewFileStore(self.netStore, self.config.FileStoreParams, tags)
 
 	log.Debug("Setup local storage")
 
@@ -227,7 +229,7 @@ func NewSwarm(config *api.Config, mockStore *mock.NodeStore) (self *Swarm, err e
 		pss.SetHandshakeController(self.ps, pss.NewHandshakeParams())
 	}
 
-	self.api = api.NewAPI(self.fileStore, self.dns, feedsHandler, self.privateKey)
+	self.api = api.NewAPI(self.fileStore, self.dns, feedsHandler, self.privateKey, tags)
 
 	self.sfs = fuse.NewSwarmFS(self.api)
 	log.Debug("Initialized FUSE filesystem")
@@ -344,51 +346,51 @@ Start is called when the stack is started
 * TODO: start subservices like sword, swear, swarmdns
 */
 // implements the node.Service interface
-func (self *Swarm) Start(srv *p2p.Server) error {
+func (s *Swarm) Start(srv *p2p.Server) error {
 	startTime := time.Now()
 
-	self.tracerClose = tracing.Closer
+	s.tracerClose = tracing.Closer
 
 	// update uaddr to correct enode
-	newaddr := self.bzz.UpdateLocalAddr([]byte(srv.Self().String()))
+	newaddr := s.bzz.UpdateLocalAddr([]byte(srv.Self().String()))
 	log.Info("Updated bzz local addr", "oaddr", fmt.Sprintf("%x", newaddr.OAddr), "uaddr", fmt.Sprintf("%s", newaddr.UAddr))
 	// set chequebook
 	//TODO: Currently if swap is enabled and no chequebook (or inexistent) contract is provided, the node would crash.
 	//Once we integrate back the contracts, this check MUST be revisited
-	if self.config.SwapEnabled && self.config.SwapAPI != "" {
+	if s.config.SwapEnabled && s.config.SwapAPI != "" {
 		ctx := context.Background() // The initial setup has no deadline.
-		err := self.SetChequebook(ctx)
+		err := s.SetChequebook(ctx)
 		if err != nil {
 			return fmt.Errorf("Unable to set chequebook for SWAP: %v", err)
 		}
-		log.Debug(fmt.Sprintf("-> cheque book for SWAP: %v", self.config.Swap.Chequebook()))
+		log.Debug(fmt.Sprintf("-> cheque book for SWAP: %v", s.config.Swap.Chequebook()))
 	} else {
 		log.Debug(fmt.Sprintf("SWAP disabled: no cheque book set"))
 	}
 
 	log.Info("Starting bzz service")
 
-	err := self.bzz.Start(srv)
+	err := s.bzz.Start(srv)
 	if err != nil {
 		log.Error("bzz failed", "err", err)
 		return err
 	}
-	log.Info("Swarm network started", "bzzaddr", fmt.Sprintf("%x", self.bzz.Hive.BaseAddr()))
+	log.Info("Swarm network started", "bzzaddr", fmt.Sprintf("%x", s.bzz.Hive.BaseAddr()))
 
-	if self.ps != nil {
-		self.ps.Start(srv)
+	if s.ps != nil {
+		s.ps.Start(srv)
 	}
 
 	// start swarm http proxy server
-	if self.config.Port != "" {
-		addr := net.JoinHostPort(self.config.ListenAddr, self.config.Port)
-		server := httpapi.NewServer(self.api, self.config.Cors)
+	if s.config.Port != "" {
+		addr := net.JoinHostPort(s.config.ListenAddr, s.config.Port)
+		server := httpapi.NewServer(s.api, s.config.Cors)
 
-		if self.config.Cors != "" {
-			log.Debug("Swarm HTTP proxy CORS headers", "allowedOrigins", self.config.Cors)
+		if s.config.Cors != "" {
+			log.Debug("Swarm HTTP proxy CORS headers", "allowedOrigins", s.config.Cors)
 		}
 
-		log.Debug("Starting Swarm HTTP proxy", "port", self.config.Port)
+		log.Debug("Starting Swarm HTTP proxy", "port", s.config.Port)
 		go func() {
 			err := server.ListenAndServe(addr)
 			if err != nil {
@@ -399,7 +401,7 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 
 	doneC := make(chan struct{})
 
-	self.cleanupFuncs = append(self.cleanupFuncs, func() error {
+	s.cleanupFuncs = append(s.cleanupFuncs, func() error {
 		close(doneC)
 		return nil
 	})
@@ -409,7 +411,7 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 			select {
 			case <-time.After(updateGaugesPeriod):
 				uptimeGauge.Update(time.Since(startTime).Nanoseconds())
-				requestsCacheGauge.Update(int64(self.netStore.RequestsCacheLen()))
+				requestsCacheGauge.Update(int64(s.netStore.RequestsCacheLen()))
 			case <-doneC:
 				return
 			}
@@ -417,46 +419,47 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 	}(startTime)
 
 	startCounter.Inc(1)
-	self.streamer.Start(srv)
+	s.streamer.Start(srv)
 	return nil
 }
 
 // implements the node.Service interface
 // stops all component services.
-func (self *Swarm) Stop() error {
-	if self.tracerClose != nil {
-		err := self.tracerClose.Close()
+func (s *Swarm) Stop() error {
+	if s.tracerClose != nil {
+		err := s.tracerClose.Close()
+		tracing.FinishSpans()
 		if err != nil {
 			return err
 		}
 	}
 
-	if self.ps != nil {
-		self.ps.Stop()
+	if s.ps != nil {
+		s.ps.Stop()
 	}
-	if ch := self.config.Swap.Chequebook(); ch != nil {
+	if ch := s.config.Swap.Chequebook(); ch != nil {
 		ch.Stop()
 		ch.Save()
 	}
-	if self.swap != nil {
-		self.swap.Close()
+	if s.swap != nil {
+		s.swap.Close()
 	}
-	if self.accountingMetrics != nil {
-		self.accountingMetrics.Close()
+	if s.accountingMetrics != nil {
+		s.accountingMetrics.Close()
 	}
-	if self.netStore != nil {
-		self.netStore.Close()
+	if s.netStore != nil {
+		s.netStore.Close()
 	}
-	self.sfs.Stop()
+	s.sfs.Stop()
 	stopCounter.Inc(1)
-	self.streamer.Stop()
+	s.streamer.Stop()
 
-	err := self.bzz.Stop()
-	if self.stateStore != nil {
-		self.stateStore.Close()
+	err := s.bzz.Stop()
+	if s.stateStore != nil {
+		s.stateStore.Close()
 	}
 
-	for _, cleanF := range self.cleanupFuncs {
+	for _, cleanF := range s.cleanupFuncs {
 		err = cleanF()
 		if err != nil {
 			log.Error("encountered an error while running cleanup function", "err", err)
@@ -482,60 +485,67 @@ func (s *Swarm) Protocols() (protos []p2p.Protocol) {
 
 // implements node.Service
 // APIs returns the RPC API descriptors the Swarm implementation offers
-func (self *Swarm) APIs() []rpc.API {
+func (s *Swarm) APIs() []rpc.API {
 
 	apis := []rpc.API{
 		// public APIs
 		{
 			Namespace: "bzz",
 			Version:   "3.0",
-			Service:   &Info{self.config, chequebook.ContractParams},
+			Service:   &Info{s.config, chequebook.ContractParams},
 			Public:    true,
 		},
 		// admin APIs
 		{
 			Namespace: "bzz",
 			Version:   "3.0",
-			Service:   api.NewInspector(self.api, self.bzz.Hive, self.netStore),
+			Service:   api.NewInspector(s.api, s.bzz.Hive, s.netStore),
 			Public:    false,
 		},
 		{
 			Namespace: "chequebook",
 			Version:   chequebook.Version,
-			Service:   chequebook.NewAPI(self.config.Swap.Chequebook),
+			Service:   chequebook.NewAPI(s.config.Swap.Chequebook),
 			Public:    false,
 		},
 		{
 			Namespace: "swarmfs",
-			Version:   fuse.Swarmfs_Version,
-			Service:   self.sfs,
+			Version:   fuse.SwarmFSVersion,
+			Service:   s.sfs,
 			Public:    false,
 		},
 		{
 			Namespace: "accounting",
 			Version:   protocols.AccountingVersion,
-			Service:   protocols.NewAccountingApi(self.accountingMetrics),
+			Service:   protocols.NewAccountingApi(s.accountingMetrics),
 			Public:    false,
 		},
 	}
 
-	apis = append(apis, self.bzz.APIs()...)
+	apis = append(apis, s.bzz.APIs()...)
 
-	if self.ps != nil {
-		apis = append(apis, self.ps.APIs()...)
+	apis = append(apis, s.streamer.APIs()...)
+
+	if s.ps != nil {
+		apis = append(apis, s.ps.APIs()...)
 	}
 
 	return apis
 }
 
 // SetChequebook ensures that the local checquebook is set up on chain.
-func (self *Swarm) SetChequebook(ctx context.Context) error {
-	err := self.config.Swap.SetChequebook(ctx, self.backend, self.config.Path)
+func (s *Swarm) SetChequebook(ctx context.Context) error {
+	err := s.config.Swap.SetChequebook(ctx, s.backend, s.config.Path)
 	if err != nil {
 		return err
 	}
-	log.Info(fmt.Sprintf("new chequebook set (%v): saving config file, resetting all connections in the hive", self.config.Swap.Contract.Hex()))
+	log.Info(fmt.Sprintf("new chequebook set (%v): saving config file, resetting all connections in the hive", s.config.Swap.Contract.Hex()))
 	return nil
+}
+
+// RegisterPssProtocol adds a devp2p protocol to the swarm node's Pss instance
+func (s *Swarm) RegisterPssProtocol(topic *pss.Topic, spec *protocols.Spec, targetprotocol *p2p.Protocol, options *pss.ProtocolParams) (*pss.Protocol, error) {
+	return pss.RegisterProtocol(s.ps, topic, spec, targetprotocol, options)
 }
 
 // serialisable info about swarm
@@ -544,6 +554,6 @@ type Info struct {
 	*chequebook.Params
 }
 
-func (self *Info) Info() *Info {
-	return self
+func (s *Info) Info() *Info {
+	return s
 }

@@ -23,7 +23,6 @@
 package shed
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -46,17 +45,8 @@ const (
 // It provides a schema functionality to store fields and indexes
 // information about naming and types.
 type DB struct {
-	ldb *leveldb.DB
-
-	compTimeMeter    metrics.Meter // Meter for measuring the total time spent in database compaction
-	compReadMeter    metrics.Meter // Meter for measuring the data read during compaction
-	compWriteMeter   metrics.Meter // Meter for measuring the data written during compaction
-	writeDelayNMeter metrics.Meter // Meter for measuring the write delay number due to database compaction
-	writeDelayMeter  metrics.Meter // Meter for measuring the write delay duration due to database compaction
-	diskReadMeter    metrics.Meter // Meter for measuring the effective amount of data read
-	diskWriteMeter   metrics.Meter // Meter for measuring the effective amount of data written
-
-	quitChan chan chan error // Quit channel to stop the metrics collection before closing the database
+	ldb  *leveldb.DB
+	quit chan struct{} // Quit channel to stop the metrics collection before closing the database
 }
 
 // NewDB constructs a new DB and validates the schema
@@ -87,13 +77,10 @@ func NewDB(path string, metricsPrefix string) (db *DB, err error) {
 		}
 	}
 
-	// Configure meters for DB
-	db.configure(metricsPrefix)
-
 	// Create a quit channel for the periodic metrics collector and run it
-	db.quitChan = make(chan chan error)
+	db.quit = make(chan struct{})
 
-	go db.meter(10 * time.Second)
+	go db.meter(metricsPrefix, 10*time.Second)
 
 	return db, nil
 }
@@ -122,6 +109,17 @@ func (db *DB) Get(key []byte) (value []byte, err error) {
 	}
 	metrics.GetOrRegisterCounter("DB.get", nil).Inc(1)
 	return value, nil
+}
+
+// Has wraps LevelDB Has method to increment metrics counter.
+func (db *DB) Has(key []byte) (yes bool, err error) {
+	yes, err = db.ldb.Has(key, nil)
+	if err != nil {
+		metrics.GetOrRegisterCounter("DB.hasFail", nil).Inc(1)
+		return false, err
+	}
+	metrics.GetOrRegisterCounter("DB.has", nil).Inc(1)
+	return yes, nil
 }
 
 // Delete wraps LevelDB Delete method to increment metrics counter.
@@ -155,23 +153,26 @@ func (db *DB) WriteBatch(batch *leveldb.Batch) (err error) {
 
 // Close closes LevelDB database.
 func (db *DB) Close() (err error) {
-	close(db.quitChan)
+	close(db.quit)
 	return db.ldb.Close()
 }
 
-// Configure configures the database metrics collectors
-func (db *DB) configure(prefix string) {
-	// Initialize all the metrics collector at the requested prefix
-	db.compTimeMeter = metrics.NewRegisteredMeter(prefix+"compact/time", nil)
-	db.compReadMeter = metrics.NewRegisteredMeter(prefix+"compact/input", nil)
-	db.compWriteMeter = metrics.NewRegisteredMeter(prefix+"compact/output", nil)
-	db.diskReadMeter = metrics.NewRegisteredMeter(prefix+"disk/read", nil)
-	db.diskWriteMeter = metrics.NewRegisteredMeter(prefix+"disk/write", nil)
-	db.writeDelayMeter = metrics.NewRegisteredMeter(prefix+"compact/writedelay/duration", nil)
-	db.writeDelayNMeter = metrics.NewRegisteredMeter(prefix+"compact/writedelay/counter", nil)
-}
+func (db *DB) meter(prefix string, refresh time.Duration) {
+	// Meter for measuring the total time spent in database compaction
+	compTimeMeter := metrics.NewRegisteredMeter(prefix+"compact/time", nil)
+	// Meter for measuring the data read during compaction
+	compReadMeter := metrics.NewRegisteredMeter(prefix+"compact/input", nil)
+	// Meter for measuring the data written during compaction
+	compWriteMeter := metrics.NewRegisteredMeter(prefix+"compact/output", nil)
+	// Meter for measuring the write delay number due to database compaction
+	writeDelayMeter := metrics.NewRegisteredMeter(prefix+"compact/writedelay/duration", nil)
+	// Meter for measuring the write delay duration due to database compaction
+	writeDelayNMeter := metrics.NewRegisteredMeter(prefix+"compact/writedelay/counter", nil)
+	// Meter for measuring the effective amount of data read
+	diskReadMeter := metrics.NewRegisteredMeter(prefix+"disk/read", nil)
+	// Meter for measuring the effective amount of data written
+	diskWriteMeter := metrics.NewRegisteredMeter(prefix+"disk/write", nil)
 
-func (db *DB) meter(refresh time.Duration) {
 	// Create the counters to store current and previous compaction values
 	compactions := make([][]float64, 2)
 	for i := 0; i < 2; i++ {
@@ -186,18 +187,12 @@ func (db *DB) meter(refresh time.Duration) {
 		lastWritePaused time.Time
 	)
 
-	var (
-		errc chan error
-		merr error
-	)
-
 	// Iterate ad infinitum and collect the stats
-	for i := 1; errc == nil && merr == nil; i++ {
+	for i := 1; true; i++ {
 		// Retrieve the database stats
 		stats, err := db.ldb.GetProperty("leveldb.stats")
 		if err != nil {
 			log.Error("Failed to read database stats", "err", err)
-			merr = err
 			continue
 		}
 		// Find the compaction table, skip the header
@@ -207,7 +202,6 @@ func (db *DB) meter(refresh time.Duration) {
 		}
 		if len(lines) <= 3 {
 			log.Error("Compaction table not found")
-			merr = errors.New("compaction table not found")
 			continue
 		}
 		lines = lines[3:]
@@ -225,28 +219,26 @@ func (db *DB) meter(refresh time.Duration) {
 				value, err := strconv.ParseFloat(strings.TrimSpace(counter), 64)
 				if err != nil {
 					log.Error("Compaction entry parsing failed", "err", err)
-					merr = err
 					continue
 				}
 				compactions[i%2][idx] += value
 			}
 		}
 		// Update all the requested meters
-		if db.compTimeMeter != nil {
-			db.compTimeMeter.Mark(int64((compactions[i%2][0] - compactions[(i-1)%2][0]) * 1000 * 1000 * 1000))
+		if compTimeMeter != nil {
+			compTimeMeter.Mark(int64((compactions[i%2][0] - compactions[(i-1)%2][0]) * 1000 * 1000 * 1000))
 		}
-		if db.compReadMeter != nil {
-			db.compReadMeter.Mark(int64((compactions[i%2][1] - compactions[(i-1)%2][1]) * 1024 * 1024))
+		if compReadMeter != nil {
+			compReadMeter.Mark(int64((compactions[i%2][1] - compactions[(i-1)%2][1]) * 1024 * 1024))
 		}
-		if db.compWriteMeter != nil {
-			db.compWriteMeter.Mark(int64((compactions[i%2][2] - compactions[(i-1)%2][2]) * 1024 * 1024))
+		if compWriteMeter != nil {
+			compWriteMeter.Mark(int64((compactions[i%2][2] - compactions[(i-1)%2][2]) * 1024 * 1024))
 		}
 
 		// Retrieve the write delay statistic
 		writedelay, err := db.ldb.GetProperty("leveldb.writedelay")
 		if err != nil {
 			log.Error("Failed to read database write delay statistic", "err", err)
-			merr = err
 			continue
 		}
 		var (
@@ -257,20 +249,18 @@ func (db *DB) meter(refresh time.Duration) {
 		)
 		if n, err := fmt.Sscanf(writedelay, "DelayN:%d Delay:%s Paused:%t", &delayN, &delayDuration, &paused); n != 3 || err != nil {
 			log.Error("Write delay statistic not found")
-			merr = err
 			continue
 		}
 		duration, err = time.ParseDuration(delayDuration)
 		if err != nil {
 			log.Error("Failed to parse delay duration", "err", err)
-			merr = err
 			continue
 		}
-		if db.writeDelayNMeter != nil {
-			db.writeDelayNMeter.Mark(delayN - delaystats[0])
+		if writeDelayNMeter != nil {
+			writeDelayNMeter.Mark(delayN - delaystats[0])
 		}
-		if db.writeDelayMeter != nil {
-			db.writeDelayMeter.Mark(duration.Nanoseconds() - delaystats[1])
+		if writeDelayMeter != nil {
+			writeDelayMeter.Mark(duration.Nanoseconds() - delaystats[1])
 		}
 		// If a warning that db is performing compaction has been displayed, any subsequent
 		// warnings will be withheld for one minute not to overwhelm the user.
@@ -285,45 +275,37 @@ func (db *DB) meter(refresh time.Duration) {
 		ioStats, err := db.ldb.GetProperty("leveldb.iostats")
 		if err != nil {
 			log.Error("Failed to read database iostats", "err", err)
-			merr = err
 			continue
 		}
 		var nRead, nWrite float64
 		parts := strings.Split(ioStats, " ")
 		if len(parts) < 2 {
 			log.Error("Bad syntax of ioStats", "ioStats", ioStats)
-			merr = fmt.Errorf("bad syntax of ioStats %s", ioStats)
 			continue
 		}
 		if n, err := fmt.Sscanf(parts[0], "Read(MB):%f", &nRead); n != 1 || err != nil {
 			log.Error("Bad syntax of read entry", "entry", parts[0])
-			merr = err
 			continue
 		}
 		if n, err := fmt.Sscanf(parts[1], "Write(MB):%f", &nWrite); n != 1 || err != nil {
 			log.Error("Bad syntax of write entry", "entry", parts[1])
-			merr = err
 			continue
 		}
-		if db.diskReadMeter != nil {
-			db.diskReadMeter.Mark(int64((nRead - iostats[0]) * 1024 * 1024))
+		if diskReadMeter != nil {
+			diskReadMeter.Mark(int64((nRead - iostats[0]) * 1024 * 1024))
 		}
-		if db.diskWriteMeter != nil {
-			db.diskWriteMeter.Mark(int64((nWrite - iostats[1]) * 1024 * 1024))
+		if diskWriteMeter != nil {
+			diskWriteMeter.Mark(int64((nWrite - iostats[1]) * 1024 * 1024))
 		}
 		iostats[0], iostats[1] = nRead, nWrite
 
 		// Sleep a bit, then repeat the stats collection
 		select {
-		case errc = <-db.quitChan:
+		case <-db.quit:
 			// Quit requesting, stop hammering the database
+			return
 		case <-time.After(refresh):
 			// Timeout, gather a new set of stats
 		}
 	}
-
-	if errc == nil {
-		errc = <-db.quitChan
-	}
-	errc <- merr
 }

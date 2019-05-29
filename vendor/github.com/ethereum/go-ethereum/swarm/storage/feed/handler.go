@@ -23,6 +23,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
+
+	"github.com/ethereum/go-ethereum/swarm/chunk"
 
 	"github.com/ethereum/go-ethereum/swarm/storage/feed/lookup"
 
@@ -176,25 +179,29 @@ func (h *Handler) Lookup(ctx context.Context, query *Query) (*cacheEntry, error)
 		return nil, NewError(ErrInit, "Call Handler.SetStore() before performing lookups")
 	}
 
-	var id ID
-	id.Feed = query.Feed
-	var readCount int
+	var readCount int32
 
 	// Invoke the lookup engine.
 	// The callback will be called every time the lookup algorithm needs to guess
-	requestPtr, err := lookup.Lookup(timeLimit, query.Hint, func(epoch lookup.Epoch, now uint64) (interface{}, error) {
-		readCount++
-		id.Epoch = epoch
+	requestPtr, err := lookup.Lookup(ctx, timeLimit, query.Hint, func(ctx context.Context, epoch lookup.Epoch, now uint64) (interface{}, error) {
+		atomic.AddInt32(&readCount, 1)
+		id := ID{
+			Feed:  query.Feed,
+			Epoch: epoch,
+		}
 		ctx, cancel := context.WithTimeout(ctx, defaultRetrieveTimeout)
 		defer cancel()
 
-		chunk, err := h.chunkStore.Get(ctx, id.Addr())
-		if err != nil { // TODO: check for catastrophic errors other than chunk not found
-			return nil, nil
+		ch, err := h.chunkStore.Get(ctx, chunk.ModeGetLookup, id.Addr())
+		if err != nil {
+			if err == context.DeadlineExceeded { // chunk not found
+				return nil, nil
+			}
+			return nil, err //something else happened or context was cancelled.
 		}
 
 		var request Request
-		if err := request.fromChunk(chunk); err != nil {
+		if err := request.fromChunk(ch); err != nil {
 			return nil, nil
 		}
 		if request.Time <= timeLimit {
@@ -222,17 +229,17 @@ func (h *Handler) updateCache(request *Request) (*cacheEntry, error) {
 	updateAddr := request.Addr()
 	log.Trace("feed cache update", "topic", request.Topic.Hex(), "updateaddr", updateAddr, "epoch time", request.Epoch.Time, "epoch level", request.Epoch.Level)
 
-	feedUpdate := h.get(&request.Feed)
-	if feedUpdate == nil {
-		feedUpdate = &cacheEntry{}
-		h.set(&request.Feed, feedUpdate)
+	entry := h.get(&request.Feed)
+	if entry == nil {
+		entry = &cacheEntry{}
+		h.set(&request.Feed, entry)
 	}
 
 	// update our rsrcs entry map
-	feedUpdate.lastKey = updateAddr
-	feedUpdate.Update = request.Update
-	feedUpdate.Reader = bytes.NewReader(feedUpdate.data)
-	return feedUpdate, nil
+	entry.lastKey = updateAddr
+	entry.Update = request.Update
+	entry.Reader = bytes.NewReader(entry.data)
+	return entry, nil
 }
 
 // Update publishes a feed update
@@ -253,14 +260,14 @@ func (h *Handler) Update(ctx context.Context, r *Request) (updateAddr storage.Ad
 		return nil, NewError(ErrInvalidValue, "A former update in this epoch is already known to exist")
 	}
 
-	chunk, err := r.toChunk() // Serialize the update into a chunk. Fails if data is too big
+	ch, err := r.toChunk() // Serialize the update into a chunk. Fails if data is too big
 	if err != nil {
 		return nil, err
 	}
 
 	// send the chunk
-	h.chunkStore.Put(ctx, chunk)
-	log.Trace("feed update", "updateAddr", r.idAddr, "epoch time", r.Epoch.Time, "epoch level", r.Epoch.Level, "data", chunk.Data())
+	h.chunkStore.Put(ctx, chunk.ModePutUpload, ch)
+	log.Trace("feed update", "updateAddr", r.idAddr, "epoch time", r.Epoch.Time, "epoch level", r.Epoch.Level, "data", ch.Data())
 	// update our feed updates map cache entry if the new update is older than the one we have, if we have it.
 	if feedUpdate != nil && r.Epoch.After(feedUpdate.Epoch) {
 		feedUpdate.Epoch = r.Epoch
