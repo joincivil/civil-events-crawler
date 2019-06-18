@@ -63,7 +63,10 @@ func setupTCRContractEvents(t *testing.T, contracts *cutils.AllTestContracts) in
 		t.Fatalf("Withdraw failed, error: %v", err)
 	}
 
-	contracts.Client.AdjustTime(60 * time.Minute)
+	err = contracts.Client.AdjustTime(60 * time.Minute)
+	if err != nil {
+		t.Fatalf("Withdraw failed, error: %v", err)
+	}
 
 	// These are various conditions that should be met for a challenge to occur and they are met:
 	// cbw, err := contracts.CivilTcrContract.CanBeWhitelisted(callOpts, contracts.NewsroomAddr)

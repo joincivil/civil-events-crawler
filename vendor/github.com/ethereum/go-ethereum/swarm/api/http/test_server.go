@@ -24,8 +24,10 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/swarm/api"
+	"github.com/ethereum/go-ethereum/swarm/chunk"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ethereum/go-ethereum/swarm/storage/feed"
+	"github.com/ethereum/go-ethereum/swarm/storage/localstore"
 )
 
 type TestServer interface {
@@ -33,20 +35,18 @@ type TestServer interface {
 }
 
 func NewTestSwarmServer(t *testing.T, serverFunc func(*api.API) TestServer, resolver api.Resolver) *TestSwarmServer {
-	dir, err := ioutil.TempDir("", "swarm-storage-test")
+	swarmDir, err := ioutil.TempDir("", "swarm-storage-test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	storeparams := storage.NewDefaultLocalStoreParams()
-	storeparams.DbCapacity = 5000000
-	storeparams.CacheCapacity = 5000
-	storeparams.Init(dir)
-	localStore, err := storage.NewLocalStore(storeparams, nil)
+	localStore, err := localstore.New(swarmDir, make([]byte, 32), nil)
 	if err != nil {
-		os.RemoveAll(dir)
+		os.RemoveAll(swarmDir)
 		t.Fatal(err)
 	}
-	fileStore := storage.NewFileStore(localStore, storage.NewFileStoreParams())
+
+	tags := chunk.NewTags()
+	fileStore := storage.NewFileStore(localStore, storage.NewFileStoreParams(), tags)
 
 	// Swarm feeds test setup
 	feedsDir, err := ioutil.TempDir("", "swarm-feeds-test")
@@ -54,23 +54,25 @@ func NewTestSwarmServer(t *testing.T, serverFunc func(*api.API) TestServer, reso
 		t.Fatal(err)
 	}
 
-	rhparams := &feed.HandlerParams{}
-	rh, err := feed.NewTestHandler(feedsDir, rhparams)
+	feeds, err := feed.NewTestHandler(feedsDir, &feed.HandlerParams{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	a := api.NewAPI(fileStore, resolver, rh.Handler, nil)
-	srv := httptest.NewServer(serverFunc(a))
+	swarmApi := api.NewAPI(fileStore, resolver, feeds.Handler, nil, tags)
+	apiServer := httptest.NewServer(serverFunc(swarmApi))
+
 	tss := &TestSwarmServer{
-		Server:    srv,
+		Server:    apiServer,
 		FileStore: fileStore,
-		dir:       dir,
+		Tags:      tags,
+		dir:       swarmDir,
 		Hasher:    storage.MakeHashFunc(storage.DefaultHash)(),
 		cleanup: func() {
-			srv.Close()
-			rh.Close()
-			os.RemoveAll(dir)
+			apiServer.Close()
+			fileStore.Close()
+			feeds.Close()
+			os.RemoveAll(swarmDir)
 			os.RemoveAll(feedsDir)
 		},
 		CurrentTime: 42,
@@ -83,6 +85,7 @@ type TestSwarmServer struct {
 	*httptest.Server
 	Hasher      storage.SwarmHash
 	FileStore   *storage.FileStore
+	Tags        *chunk.Tags
 	dir         string
 	cleanup     func()
 	CurrentTime uint64

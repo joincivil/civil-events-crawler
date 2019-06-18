@@ -17,57 +17,40 @@
 package localstore
 
 import (
-	"github.com/ethereum/go-ethereum/swarm/storage"
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/ethereum/go-ethereum/swarm/chunk"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-// ModeSet enumerates different Setter modes.
-type ModeSet int
-
-// Setter modes.
-const (
-	// ModeSetAccess: when an update request is received for a chunk or chunk is retrieved for delivery
-	ModeSetAccess ModeSet = iota
-	// ModeSetSync: when push sync receipt is received
-	ModeSetSync
-	// modeSetRemove: when GC-d
-	// unexported as no external packages should remove chunks from database
-	modeSetRemove
-)
-
-// Setter sets the state of a particular
-// Chunk in database by changing indexes.
-type Setter struct {
-	db   *DB
-	mode ModeSet
-}
-
-// NewSetter returns a new Setter on database
-// with a specific Mode.
-func (db *DB) NewSetter(mode ModeSet) *Setter {
-	return &Setter{
-		mode: mode,
-		db:   db,
-	}
-}
-
 // Set updates database indexes for a specific
 // chunk represented by the address.
-func (s *Setter) Set(addr storage.Address) (err error) {
-	return s.db.set(s.mode, addr)
+// Set is required to implement chunk.Store
+// interface.
+func (db *DB) Set(ctx context.Context, mode chunk.ModeSet, addr chunk.Address) (err error) {
+	metricName := fmt.Sprintf("localstore.Set.%s", mode)
+
+	metrics.GetOrRegisterCounter(metricName, nil).Inc(1)
+	defer totalTimeMetric(metricName, time.Now())
+
+	err = db.set(mode, addr)
+	if err != nil {
+		metrics.GetOrRegisterCounter(metricName+".error", nil).Inc(1)
+	}
+	return err
 }
 
 // set updates database indexes for a specific
 // chunk represented by the address.
 // It acquires lockAddr to protect two calls
 // of this function for the same address in parallel.
-func (db *DB) set(mode ModeSet, addr storage.Address) (err error) {
+func (db *DB) set(mode chunk.ModeSet, addr chunk.Address) (err error) {
 	// protect parallel updates
-	unlock, err := db.lockAddr(addr)
-	if err != nil {
-		return err
-	}
-	defer unlock()
+	db.batchMu.Lock()
+	defer db.batchMu.Unlock()
 
 	batch := new(leveldb.Batch)
 
@@ -79,7 +62,7 @@ func (db *DB) set(mode ModeSet, addr storage.Address) (err error) {
 	item := addressToItem(addr)
 
 	switch mode {
-	case ModeSetAccess:
+	case chunk.ModeSetAccess:
 		// add to pull, insert to gc
 
 		// need to get access timestamp here as it is not
@@ -90,9 +73,14 @@ func (db *DB) set(mode ModeSet, addr storage.Address) (err error) {
 		switch err {
 		case nil:
 			item.StoreTimestamp = i.StoreTimestamp
+			item.BinID = i.BinID
 		case leveldb.ErrNotFound:
 			db.pushIndex.DeleteInBatch(batch, item)
 			item.StoreTimestamp = now()
+			item.BinID, err = db.binIDs.Inc(uint64(db.po(item.Address)))
+			if err != nil {
+				return err
+			}
 		default:
 			return err
 		}
@@ -113,10 +101,9 @@ func (db *DB) set(mode ModeSet, addr storage.Address) (err error) {
 		db.pullIndex.PutInBatch(batch, item)
 		triggerPullFeed = true
 		db.gcIndex.PutInBatch(batch, item)
-		db.gcUncountedHashesIndex.PutInBatch(batch, item)
 		gcSizeChange++
 
-	case ModeSetSync:
+	case chunk.ModeSetSync:
 		// delete from push, insert to gc
 
 		// need to get access timestamp here as it is not
@@ -135,6 +122,7 @@ func (db *DB) set(mode ModeSet, addr storage.Address) (err error) {
 			return err
 		}
 		item.StoreTimestamp = i.StoreTimestamp
+		item.BinID = i.BinID
 
 		i, err = db.retrievalAccessIndex.Get(item)
 		switch err {
@@ -151,10 +139,9 @@ func (db *DB) set(mode ModeSet, addr storage.Address) (err error) {
 		db.retrievalAccessIndex.PutInBatch(batch, item)
 		db.pushIndex.DeleteInBatch(batch, item)
 		db.gcIndex.PutInBatch(batch, item)
-		db.gcUncountedHashesIndex.PutInBatch(batch, item)
 		gcSizeChange++
 
-	case modeSetRemove:
+	case chunk.ModeSetRemove:
 		// delete from retrieve, pull, gc
 
 		// need to get access timestamp here as it is not
@@ -174,12 +161,12 @@ func (db *DB) set(mode ModeSet, addr storage.Address) (err error) {
 			return err
 		}
 		item.StoreTimestamp = i.StoreTimestamp
+		item.BinID = i.BinID
 
 		db.retrievalDataIndex.DeleteInBatch(batch, item)
 		db.retrievalAccessIndex.DeleteInBatch(batch, item)
 		db.pullIndex.DeleteInBatch(batch, item)
 		db.gcIndex.DeleteInBatch(batch, item)
-		db.gcUncountedHashesIndex.DeleteInBatch(batch, item)
 		// a check is needed for decrementing gcSize
 		// as delete is not reporting if the key/value pair
 		// is deleted or not
@@ -191,12 +178,14 @@ func (db *DB) set(mode ModeSet, addr storage.Address) (err error) {
 		return ErrInvalidMode
 	}
 
-	err = db.shed.WriteBatch(batch)
+	err = db.incGCSizeInBatch(batch, gcSizeChange)
 	if err != nil {
 		return err
 	}
-	if gcSizeChange != 0 {
-		db.incGCSize(gcSizeChange)
+
+	err = db.shed.WriteBatch(batch)
+	if err != nil {
+		return err
 	}
 	if triggerPullFeed {
 		db.triggerPullSubscriptions(db.po(item.Address))

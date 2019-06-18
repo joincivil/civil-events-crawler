@@ -77,7 +77,8 @@ func (w *keystoreWallet) Derive(path accounts.DerivationPath, pin bool) (account
 
 // SelfDerive implements accounts.Wallet, but is a noop for plain wallets since
 // there is no notion of hierarchical account derivation for plain keystore accounts.
-func (w *keystoreWallet) SelfDerive(base accounts.DerivationPath, chain ethereum.ChainStateReader) {}
+func (w *keystoreWallet) SelfDerive(bases []accounts.DerivationPath, chain ethereum.ChainStateReader) {
+}
 
 // signHash attempts to sign the given hash with
 // the given account. If the wallet does not wrap this particular account, an
@@ -111,7 +112,7 @@ func (w *keystoreWallet) SignText(account accounts.Account, text []byte) ([]byte
 	return w.signHash(account, accounts.TextHash(text))
 }
 
-// SignHashWithPassphrase implements accounts.Wallet, attempting to sign the
+// SignTextWithPassphrase implements accounts.Wallet, attempting to sign the
 // given hash with the given account using passphrase as extra authentication.
 func (w *keystoreWallet) SignTextWithPassphrase(account accounts.Account, passphrase string, text []byte) ([]byte, error) {
 	// Make sure the requested account is contained within

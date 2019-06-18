@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
-// signer is a utility that can be used so sign transactions and
-// arbitrary data.
 package main
 
 import (
@@ -51,20 +49,24 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/signer/core"
+	"github.com/ethereum/go-ethereum/signer/fourbyte"
 	"github.com/ethereum/go-ethereum/signer/rules"
 	"github.com/ethereum/go-ethereum/signer/storage"
 	"gopkg.in/urfave/cli.v1"
 )
 
 const legalWarning = `
-WARNING! 
+WARNING!
 
-Clef is alpha software, and not yet publically released. This software has _not_ been audited, and there
-are no guarantees about the workings of this software. It may contain severe flaws. You should not use this software
-unless you agree to take full responsibility for doing so, and know what you are doing. 
+Clef is an account management tool. It may, like any software, contain bugs.
 
-TLDR; THIS IS NOT PRODUCTION-READY SOFTWARE! 
+Please take care to
+- backup your keystore files,
+- verify that the keystore(s) can be opened with your password.
 
+Clef is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+PURPOSE. See the GNU General Public License for more details.
 `
 
 var (
@@ -101,11 +103,6 @@ var (
 		Name:  "signersecret",
 		Usage: "A file containing the (encrypted) master seed to encrypt Clef data, e.g. keystore credentials and ruleset hash",
 	}
-	dBFlag = cli.StringFlag{
-		Name:  "4bytedb",
-		Usage: "File containing 4byte-identifiers",
-		Value: "./4byte.json",
-	}
 	customDBFlag = cli.StringFlag{
 		Name:  "4bytedb-custom",
 		Usage: "File used for writing new 4byte-identifiers submitted via API",
@@ -119,7 +116,7 @@ var (
 	ruleFlag = cli.StringFlag{
 		Name:  "rules",
 		Usage: "Enable rule-engine",
-		Value: "rules.json",
+		Value: "",
 	}
 	stdiouiFlag = cli.BoolFlag{
 		Name: "stdio-ui",
@@ -142,7 +139,7 @@ var (
 			configdirFlag,
 		},
 		Description: `
-The init command generates a master seed which Clef can use to store credentials and data needed for 
+The init command generates a master seed which Clef can use to store credentials and data needed for
 the rule-engine to work.`,
 	}
 	attestCommand = cli.Command{
@@ -156,10 +153,10 @@ the rule-engine to work.`,
 			signerSecretFlag,
 		},
 		Description: `
-The attest command stores the sha256 of the rule.js-file that you want to use for automatic processing of 
-incoming requests. 
+The attest command stores the sha256 of the rule.js-file that you want to use for automatic processing of
+incoming requests.
 
-Whenever you make an edit to the rule file, you need to use attestation to tell 
+Whenever you make an edit to the rule file, you need to use attestation to tell
 Clef that the file is 'safe' to execute.`,
 	}
 
@@ -174,7 +171,7 @@ Clef that the file is 'safe' to execute.`,
 			signerSecretFlag,
 		},
 		Description: `
-The setpw command stores a password for a given address (keyfile). If you enter a blank passphrase, it will 
+The setpw command stores a password for a given address (keyfile). If you enter a blank passphrase, it will
 remove any stored credential for that address (keyfile)
 `}
 	gendocCommand = cli.Command{
@@ -203,7 +200,6 @@ func init() {
 		utils.RPCEnabledFlag,
 		rpcPortFlag,
 		signerSecretFlag,
-		dBFlag,
 		customDBFlag,
 		auditLogFlag,
 		ruleFlag,
@@ -270,12 +266,12 @@ func initializeSecrets(c *cli.Context) error {
 	}
 	fmt.Printf("A master seed has been generated into %s\n", location)
 	fmt.Printf(`
-This is required to be able to store credentials, such as : 
+This is required to be able to store credentials, such as :
 * Passwords for keystores (used by rule engine)
 * Storage for javascript rules
 * Hash of rule-file
 
-You should treat that file with utmost secrecy, and make a backup of it. 
+You should treat that file with utmost secrecy, and make a backup of it.
 NOTE: This file does not contain your accounts. Those need to be backed up separately!
 
 `)
@@ -362,26 +358,24 @@ func signer(c *cli.Context) error {
 		log.Info("Using CLI as UI-channel")
 		ui = core.NewCommandlineUI()
 	}
-	fourByteDb := c.GlobalString(dBFlag.Name)
+	// 4bytedb data
 	fourByteLocal := c.GlobalString(customDBFlag.Name)
-	db, err := core.NewAbiDBFromFiles(fourByteDb, fourByteLocal)
+	db, err := fourbyte.NewWithFile(fourByteLocal)
 	if err != nil {
 		utils.Fatalf(err.Error())
 	}
-	log.Info("Loaded 4byte db", "signatures", db.Size(), "file", fourByteDb, "local", fourByteLocal)
+	embeds, locals := db.Size()
+	log.Info("Loaded 4byte database", "embeds", embeds, "locals", locals, "local", fourByteLocal)
 
 	var (
-		api core.ExternalAPI
+		api       core.ExternalAPI
+		pwStorage storage.Storage = &storage.NoStorage{}
 	)
 
 	configDir := c.GlobalString(configdirFlag.Name)
 	if stretchedKey, err := readMasterKey(c, ui); err != nil {
 		log.Info("No master seed provided, rules disabled", "error", err)
 	} else {
-
-		if err != nil {
-			utils.Fatalf(err.Error())
-		}
 		vaultLocation := filepath.Join(configDir, common.Bytes2Hex(crypto.Keccak256([]byte("vault"), stretchedKey)[:10]))
 
 		// Generate domain specific keys
@@ -390,30 +384,31 @@ func signer(c *cli.Context) error {
 		confkey := crypto.Keccak256([]byte("config"), stretchedKey)
 
 		// Initialize the encrypted storages
-		pwStorage := storage.NewAESEncryptedStorage(filepath.Join(vaultLocation, "credentials.json"), pwkey)
+		pwStorage = storage.NewAESEncryptedStorage(filepath.Join(vaultLocation, "credentials.json"), pwkey)
 		jsStorage := storage.NewAESEncryptedStorage(filepath.Join(vaultLocation, "jsstorage.json"), jskey)
 		configStorage := storage.NewAESEncryptedStorage(filepath.Join(vaultLocation, "config.json"), confkey)
 
 		//Do we have a rule-file?
-		ruleJS, err := ioutil.ReadFile(c.GlobalString(ruleFlag.Name))
-		if err != nil {
-			log.Info("Could not load rulefile, rules not enabled", "file", "rulefile")
-		} else {
-			hasher := sha256.New()
-			hasher.Write(ruleJS)
-			shasum := hasher.Sum(nil)
-			storedShasum := configStorage.Get("ruleset_sha256")
-			if storedShasum != hex.EncodeToString(shasum) {
-				log.Info("Could not validate ruleset hash, rules not enabled", "got", hex.EncodeToString(shasum), "expected", storedShasum)
+		if ruleFile := c.GlobalString(ruleFlag.Name); ruleFile != "" {
+			ruleJS, err := ioutil.ReadFile(c.GlobalString(ruleFile))
+			if err != nil {
+				log.Info("Could not load rulefile, rules not enabled", "file", "rulefile")
 			} else {
-				// Initialize rules
-				ruleEngine, err := rules.NewRuleEvaluator(ui, jsStorage, pwStorage)
-				if err != nil {
-					utils.Fatalf(err.Error())
+				shasum := sha256.Sum256(ruleJS)
+				foundShaSum := hex.EncodeToString(shasum[:])
+				storedShasum := configStorage.Get("ruleset_sha256")
+				if storedShasum != foundShaSum {
+					log.Info("Could not validate ruleset hash, rules not enabled", "got", foundShaSum, "expected", storedShasum)
+				} else {
+					// Initialize rules
+					ruleEngine, err := rules.NewRuleEvaluator(ui, jsStorage)
+					if err != nil {
+						utils.Fatalf(err.Error())
+					}
+					ruleEngine.Init(string(ruleJS))
+					ui = ruleEngine
+					log.Info("Rule engine configured", "file", c.String(ruleFlag.Name))
 				}
-				ruleEngine.Init(string(ruleJS))
-				ui = ruleEngine
-				log.Info("Rule engine configured", "file", c.String(ruleFlag.Name))
 			}
 		}
 	}
@@ -427,7 +422,7 @@ func signer(c *cli.Context) error {
 	log.Info("Starting signer", "chainid", chainId, "keystore", ksLoc,
 		"light-kdf", lightKdf, "advanced", advanced)
 	am := core.StartClefAccountManager(ksLoc, nousb, lightKdf)
-	apiImpl := core.NewSignerAPI(am, chainId, nousb, ui, db, advanced)
+	apiImpl := core.NewSignerAPI(am, chainId, nousb, ui, db, advanced, pwStorage)
 
 	// Establish the bidirectional communication, by creating a new UI backend and registering
 	// it with the UI.
@@ -533,7 +528,12 @@ func DefaultConfigDir() string {
 		if runtime.GOOS == "darwin" {
 			return filepath.Join(home, "Library", "Signer")
 		} else if runtime.GOOS == "windows" {
-			return filepath.Join(home, "AppData", "Roaming", "Signer")
+			appdata := os.Getenv("APPDATA")
+			if appdata != "" {
+				return filepath.Join(appdata, "Signer")
+			} else {
+				return filepath.Join(home, "AppData", "Roaming", "Signer")
+			}
 		} else {
 			return filepath.Join(home, ".clef")
 		}
@@ -635,68 +635,124 @@ func testExternalUI(api *core.SignerAPI) {
 	ctx := context.WithValue(context.Background(), "remote", "clef binary")
 	ctx = context.WithValue(ctx, "scheme", "in-proc")
 	ctx = context.WithValue(ctx, "local", "main")
-
 	errs := make([]string, 0)
 
-	api.UI.ShowInfo("Testing 'ShowInfo'")
-	api.UI.ShowError("Testing 'ShowError'")
+	a := common.HexToAddress("0xdeadbeef000000000000000000000000deadbeef")
 
-	checkErr := func(method string, err error) {
-		if err != nil && err != core.ErrRequestDenied {
-			errs = append(errs, fmt.Sprintf("%v: %v", method, err.Error()))
+	queryUser := func(q string) string {
+		resp, err := api.UI.OnInputRequired(core.UserInputRequest{
+			Title:  "Testing",
+			Prompt: q,
+		})
+		if err != nil {
+			errs = append(errs, err.Error())
+		}
+		return resp.Text
+	}
+	expectResponse := func(testcase, question, expect string) {
+		if got := queryUser(question); got != expect {
+			errs = append(errs, fmt.Sprintf("%s: got %v, expected %v", testcase, got, expect))
 		}
 	}
-	var err error
-
-	cliqueHeader := types.Header{
-		common.HexToHash("0000H45H"),
-		common.HexToHash("0000H45H"),
-		common.HexToAddress("0000H45H"),
-		common.HexToHash("0000H00H"),
-		common.HexToHash("0000H45H"),
-		common.HexToHash("0000H45H"),
-		types.Bloom{},
-		big.NewInt(1337),
-		big.NewInt(1337),
-		1338,
-		1338,
-		big.NewInt(1338),
-		[]byte("Extra data Extra data Extra data  Extra data  Extra data  Extra data  Extra data Extra data"),
-		common.HexToHash("0x0000H45H"),
-		types.BlockNonce{},
-	}
-	cliqueRlp, err := rlp.EncodeToBytes(cliqueHeader)
-	if err != nil {
-		utils.Fatalf("Should not error: %v", err)
-	}
-	addr, err := common.NewMixedcaseAddressFromString("0x0011223344556677889900112233445566778899")
-	if err != nil {
-		utils.Fatalf("Should not error: %v", err)
-	}
-	_, err = api.SignData(ctx, "application/clique", *addr, cliqueRlp)
-	checkErr("SignData", err)
-
-	_, err = api.SignTransaction(ctx, core.SendTxArgs{From: common.MixedcaseAddress{}}, nil)
-	checkErr("SignTransaction", err)
-	_, err = api.SignData(ctx, "text/plain", common.MixedcaseAddress{}, common.Hex2Bytes("01020304"))
-	checkErr("SignData", err)
-	//_, err = api.SignTypedData(ctx, common.MixedcaseAddress{}, core.TypedData{})
-	//checkErr("SignTypedData", err)
-	_, err = api.List(ctx)
-	checkErr("List", err)
-	_, err = api.New(ctx)
-	checkErr("New", err)
-
-	api.UI.ShowInfo("Tests completed")
-
-	if len(errs) > 0 {
-		log.Error("Got errors")
-		for _, e := range errs {
-			log.Error(e)
+	expectApprove := func(testcase string, err error) {
+		if err == nil || err == accounts.ErrUnknownAccount {
+			return
 		}
-	} else {
-		log.Info("No errors")
+		errs = append(errs, fmt.Sprintf("%v: expected no error, got %v", testcase, err.Error()))
 	}
+	expectDeny := func(testcase string, err error) {
+		if err == nil || err != core.ErrRequestDenied {
+			errs = append(errs, fmt.Sprintf("%v: expected ErrRequestDenied, got %v", testcase, err))
+		}
+	}
+
+	// Test display of info and error
+	{
+		api.UI.ShowInfo("If you see this message, enter 'yes' to next question")
+		expectResponse("showinfo", "Did you see the message? [yes/no]", "yes")
+		api.UI.ShowError("If you see this message, enter 'yes' to the next question")
+		expectResponse("showerror", "Did you see the message? [yes/no]", "yes")
+	}
+	{ // Sign data test - clique header
+		api.UI.ShowInfo("Please approve the next request for signing a clique header")
+		cliqueHeader := types.Header{
+			common.HexToHash("0000H45H"),
+			common.HexToHash("0000H45H"),
+			common.HexToAddress("0000H45H"),
+			common.HexToHash("0000H00H"),
+			common.HexToHash("0000H45H"),
+			common.HexToHash("0000H45H"),
+			types.Bloom{},
+			big.NewInt(1337),
+			big.NewInt(1337),
+			1338,
+			1338,
+			1338,
+			[]byte("Extra data Extra data Extra data  Extra data  Extra data  Extra data  Extra data Extra data"),
+			common.HexToHash("0x0000H45H"),
+			types.BlockNonce{},
+		}
+		cliqueRlp, err := rlp.EncodeToBytes(cliqueHeader)
+		if err != nil {
+			utils.Fatalf("Should not error: %v", err)
+		}
+		addr, _ := common.NewMixedcaseAddressFromString("0x0011223344556677889900112233445566778899")
+		_, err = api.SignData(ctx, accounts.MimetypeClique, *addr, hexutil.Encode(cliqueRlp))
+		expectApprove("signdata - clique header", err)
+	}
+	{ // Sign data test - plain text
+		api.UI.ShowInfo("Please approve the next request for signing text")
+		addr, _ := common.NewMixedcaseAddressFromString("0x0011223344556677889900112233445566778899")
+		_, err := api.SignData(ctx, accounts.MimetypeTextPlain, *addr, hexutil.Encode([]byte("hello world")))
+		expectApprove("signdata - text", err)
+	}
+	{ // Sign data test - plain text reject
+		api.UI.ShowInfo("Please deny the next request for signing text")
+		addr, _ := common.NewMixedcaseAddressFromString("0x0011223344556677889900112233445566778899")
+		_, err := api.SignData(ctx, accounts.MimetypeTextPlain, *addr, hexutil.Encode([]byte("hello world")))
+		expectDeny("signdata - text", err)
+	}
+	{ // Sign transaction
+
+		api.UI.ShowInfo("Please reject next transaction")
+		data := hexutil.Bytes([]byte{})
+		to := common.NewMixedcaseAddress(a)
+		tx := core.SendTxArgs{
+			Data:     &data,
+			Nonce:    0x1,
+			Value:    hexutil.Big(*big.NewInt(6)),
+			From:     common.NewMixedcaseAddress(a),
+			To:       &to,
+			GasPrice: hexutil.Big(*big.NewInt(5)),
+			Gas:      1000,
+			Input:    nil,
+		}
+		_, err := api.SignTransaction(ctx, tx, nil)
+		expectDeny("signtransaction [1]", err)
+		expectResponse("signtransaction [2]", "Did you see any warnings for the last transaction? (yes/no)", "no")
+	}
+	{ // Listing
+		api.UI.ShowInfo("Please reject listing-request")
+		_, err := api.List(ctx)
+		expectDeny("list", err)
+	}
+	{ // Import
+		api.UI.ShowInfo("Please reject new account-request")
+		_, err := api.New(ctx)
+		expectDeny("newaccount", err)
+	}
+	{ // Metadata
+		api.UI.ShowInfo("Please check if you see the Origin in next listing (approve or deny)")
+		api.List(context.WithValue(ctx, "Origin", "origin.com"))
+		expectResponse("metadata - origin", "Did you see origin (origin.com)? [yes/no] ", "yes")
+	}
+
+	for _, e := range errs {
+		log.Error(e)
+	}
+	result := fmt.Sprintf("Tests completed. %d errors:\n%s\n", len(errs), strings.Join(errs, "\n"))
+	api.UI.ShowInfo(result)
+
 }
 
 // getPassPhrase retrieves the password associated with clef, either fetched
@@ -793,7 +849,7 @@ func GenDoc(ctx *cli.Context) {
 	}
 	{ // Sign plain text response
 		add("SignDataResponse - approve", "Response to SignDataRequest",
-			&core.SignDataResponse{Password: "apassword", Approved: true})
+			&core.SignDataResponse{Approved: true})
 		add("SignDataResponse - deny", "Response to SignDataRequest",
 			&core.SignDataResponse{})
 	}
@@ -828,9 +884,9 @@ func GenDoc(ctx *cli.Context) {
 	}
 	{ // Sign tx response
 		data := hexutil.Bytes([]byte{0x04, 0x03, 0x02, 0x01})
-		add("SignDataResponse - approve", "Response to SignDataRequest. This response needs to contain the `transaction`"+
+		add("SignTxResponse - approve", "Response to request to sign a transaction. This response needs to contain the `transaction`"+
 			", because the UI is free to make modifications to the transaction.",
-			&core.SignTxResponse{Password: "apassword", Approved: true,
+			&core.SignTxResponse{Approved: true,
 				Transaction: core.SendTxArgs{
 					Data:     &data,
 					Nonce:    0x4,
@@ -841,9 +897,9 @@ func GenDoc(ctx *cli.Context) {
 					Gas:      1000,
 					Input:    nil,
 				}})
-		add("SignDataResponse - deny", "Response to SignDataRequest. When denying a request, there's no need to "+
+		add("SignTxResponse - deny", "Response to SignTxRequest. When denying a request, there's no need to "+
 			"provide the transaction in return",
-			&core.SignDataResponse{})
+			&core.SignTxResponse{})
 	}
 	{ // WHen a signed tx is ready to go out
 		desc := "SignTransactionResult is used in the call `clef` -> `OnApprovedTx(result)`" +
@@ -869,7 +925,7 @@ func GenDoc(ctx *cli.Context) {
 	{ // User input
 		add("UserInputRequest", "Sent when clef needs the user to provide data. If 'password' is true, the input field should be treated accordingly (echo-free)",
 			&core.UserInputRequest{IsPassword: true, Title: "The title here", Prompt: "The question to ask the user"})
-		add("UserInputResponse", "Response to SignDataRequest",
+		add("UserInputResponse", "Response to UserInputRequest",
 			&core.UserInputResponse{Text: "The textual response from user"})
 	}
 	{ // List request
@@ -883,7 +939,7 @@ func GenDoc(ctx *cli.Context) {
 					{b, accounts.URL{Scheme: "keystore", Path: "/path/to/keyfile/b"}}},
 			})
 
-		add("UserInputResponse", "Response to list request. The response contains a list of all addresses to show to the caller. "+
+		add("ListResponse", "Response to list request. The response contains a list of all addresses to show to the caller. "+
 			"Note: the UI is free to respond with any address the caller, regardless of whether it exists or not",
 			&core.ListResponse{
 				Accounts: []accounts.Account{

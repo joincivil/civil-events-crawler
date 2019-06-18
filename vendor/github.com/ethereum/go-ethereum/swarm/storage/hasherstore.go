@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	ch "github.com/ethereum/go-ethereum/swarm/chunk"
+	"github.com/ethereum/go-ethereum/swarm/chunk"
 	"github.com/ethereum/go-ethereum/swarm/storage/encryption"
 	"golang.org/x/crypto/sha3"
 )
 
 type hasherStore struct {
 	store     ChunkStore
+	tag       *chunk.Tag
 	toEncrypt bool
 	hashFunc  SwarmHasher
 	hashSize  int           // content hash size
@@ -44,7 +45,7 @@ type hasherStore struct {
 // NewHasherStore creates a hasherStore object, which implements Putter and Getter interfaces.
 // With the HasherStore you can put and get chunk data (which is just []byte) into a ChunkStore
 // and the hasherStore will take core of encryption/decryption of data if necessary
-func NewHasherStore(store ChunkStore, hashFunc SwarmHasher, toEncrypt bool) *hasherStore {
+func NewHasherStore(store ChunkStore, hashFunc SwarmHasher, toEncrypt bool, tag *chunk.Tag) *hasherStore {
 	hashSize := hashFunc().Size()
 	refSize := int64(hashSize)
 	if toEncrypt {
@@ -53,6 +54,7 @@ func NewHasherStore(store ChunkStore, hashFunc SwarmHasher, toEncrypt bool) *has
 
 	h := &hasherStore{
 		store:     store,
+		tag:       tag,
 		toEncrypt: toEncrypt,
 		hashFunc:  hashFunc,
 		hashSize:  hashSize,
@@ -93,7 +95,7 @@ func (h *hasherStore) Get(ctx context.Context, ref Reference) (ChunkData, error)
 		return nil, err
 	}
 
-	chunk, err := h.store.Get(ctx, addr)
+	chunk, err := h.store.Get(ctx, chunk.ModeGetRequest, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +158,7 @@ func (h *hasherStore) createHash(chunkData ChunkData) Address {
 	return hasher.Sum(nil)
 }
 
-func (h *hasherStore) createChunk(chunkData ChunkData) *chunk {
+func (h *hasherStore) createChunk(chunkData ChunkData) Chunk {
 	hash := h.createHash(chunkData)
 	chunk := NewChunk(hash, chunkData)
 	return chunk
@@ -189,9 +191,9 @@ func (h *hasherStore) decryptChunkData(chunkData ChunkData, encryptionKey encryp
 
 	// removing extra bytes which were just added for padding
 	length := ChunkData(decryptedSpan).Size()
-	for length > ch.DefaultSize {
-		length = length + (ch.DefaultSize - 1)
-		length = length / ch.DefaultSize
+	for length > chunk.DefaultSize {
+		length = length + (chunk.DefaultSize - 1)
+		length = length / chunk.DefaultSize
 		length *= uint64(h.refSize)
 	}
 
@@ -232,18 +234,23 @@ func (h *hasherStore) decrypt(chunkData ChunkData, key encryption.Key) ([]byte, 
 }
 
 func (h *hasherStore) newSpanEncryption(key encryption.Key) encryption.Encryption {
-	return encryption.New(key, 0, uint32(ch.DefaultSize/h.refSize), sha3.NewLegacyKeccak256)
+	return encryption.New(key, 0, uint32(chunk.DefaultSize/h.refSize), sha3.NewLegacyKeccak256)
 }
 
 func (h *hasherStore) newDataEncryption(key encryption.Key) encryption.Encryption {
-	return encryption.New(key, int(ch.DefaultSize), 0, sha3.NewLegacyKeccak256)
+	return encryption.New(key, int(chunk.DefaultSize), 0, sha3.NewLegacyKeccak256)
 }
 
-func (h *hasherStore) storeChunk(ctx context.Context, chunk *chunk) {
+func (h *hasherStore) storeChunk(ctx context.Context, ch Chunk) {
 	atomic.AddUint64(&h.nrChunks, 1)
 	go func() {
+		seen, err := h.store.Put(ctx, chunk.ModePutUpload, ch)
+		h.tag.Inc(chunk.StateStored)
+		if seen {
+			h.tag.Inc(chunk.StateSeen)
+		}
 		select {
-		case h.errC <- h.store.Put(ctx, chunk):
+		case h.errC <- err:
 		case <-h.quitC:
 		}
 	}()

@@ -33,8 +33,12 @@ EVENTHANDLER_GEN_MAIN=cmd/eventhandlergen/main.go
 HANDLERLIST_GEN_MAIN=cmd/handlerlistgen/main.go
 
 ## Gometalinter installation
-GOMETALINTER_INSTALLER=scripts/gometalinter_install.sh
-GOMETALINTER_VERSION_TAG=v2.0.11
+# GOMETALINTER_INSTALLER=scripts/gometalinter_install.sh
+# GOMETALINTER_VERSION_TAG=v2.0.11
+
+# curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(go env GOPATH)/bin vX.Y.Z
+GOLANGCILINT_URL=https://install.goreleaser.com/github.com/golangci/golangci-lint.sh
+GOLANGCILINT_VERSION_TAG=v1.16.0
 
 ## Reliant on go and $GOPATH being set.
 .PHONY: check-go-env
@@ -61,7 +65,8 @@ install-dep: check-go-env ## Installs dep
 
 .PHONY: install-linter
 install-linter: check-go-env ## Installs linter
-	sh $(GOMETALINTER_INSTALLER) -b $(GOPATH)/bin $(GOMETALINTER_VERSION_TAG)
+	# sh $(GOMETALINTER_INSTALLER) -b $(GOPATH)/bin $(GOMETALINTER_VERSION_TAG)
+	@curl -sfL $(GOLANGCILINT_URL) | sh -s -- -b $(shell go env GOPATH)/bin $(GOLANGCILINT_VERSION_TAG)
 ifdef APT
 	@sudo apt-get install golang-race-detector-runtime || true
 endif
@@ -116,10 +121,10 @@ pubsub-stop: check-docker-env ## Stops the pubsub simulator
 	@docker stop `docker ps -q --filter "ancestor=$(PUBSUB_SIM_DOCKER_IMAGE)"`
 	@echo 'Google pubsub simulator down'
 
-## gometalinter config in .gometalinter.json
+## golangci-lint config in .golangci.yml
 .PHONY: lint
 lint: ## Runs linting.
-	@gometalinter ./...
+	@golangci-lint run ./...
 
 .PHONY: generate-civil
 generate: generate-contracts generate-civil-watchers generate-civil-filterers generate-civil-common generate-civil-handler-lists ## Runs all the civil code generation

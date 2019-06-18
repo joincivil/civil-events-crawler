@@ -37,15 +37,17 @@ var (
 )
 
 var (
-	allhosts  string
-	hosts     []string
-	filesize  int
-	syncDelay int
-	httpPort  int
-	wsPort    int
-	verbosity int
-	timeout   int
-	single    bool
+	allhosts   string
+	hosts      []string
+	filesize   int
+	syncDelay  bool
+	inputSeed  int
+	httpPort   int
+	wsPort     int
+	verbosity  int
+	timeout    int
+	single     bool
+	onlyUpload bool
 )
 
 func main() {
@@ -74,15 +76,20 @@ func main() {
 			Destination: &wsPort,
 		},
 		cli.IntFlag{
+			Name:        "seed",
+			Value:       0,
+			Usage:       "input seed in case we need deterministic upload",
+			Destination: &inputSeed,
+		},
+		cli.IntFlag{
 			Name:        "filesize",
 			Value:       1024,
 			Usage:       "file size for generated random file in KB",
 			Destination: &filesize,
 		},
-		cli.IntFlag{
+		cli.BoolFlag{
 			Name:        "sync-delay",
-			Value:       5,
-			Usage:       "duration of delay in seconds to wait for content to be synced",
+			Usage:       "wait for content to be synced",
 			Destination: &syncDelay,
 		},
 		cli.IntFlag{
@@ -93,7 +100,7 @@ func main() {
 		},
 		cli.IntFlag{
 			Name:        "timeout",
-			Value:       120,
+			Value:       180,
 			Usage:       "timeout in seconds after which kill the process",
 			Destination: &timeout,
 		},
@@ -101,6 +108,11 @@ func main() {
 			Name:        "single",
 			Usage:       "whether to fetch content from a single node or from all nodes",
 			Destination: &single,
+		},
+		cli.BoolFlag{
+			Name:        "only-upload",
+			Usage:       "whether to only upload content to a single node without fetching",
+			Destination: &onlyUpload,
 		},
 	}
 

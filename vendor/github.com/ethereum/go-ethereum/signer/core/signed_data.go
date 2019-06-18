@@ -46,8 +46,8 @@ type SigFormat struct {
 }
 
 var (
-	TextValidator = SigFormat{
-		accounts.MimetypeTextWithValidator,
+	IntendedValidator = SigFormat{
+		accounts.MimetypeDataWithValidator,
 		0x00,
 	}
 	DataTyped = SigFormat{
@@ -139,8 +139,14 @@ func (api *SignerAPI) sign(addr common.MixedcaseAddress, req *SignDataRequest, l
 	if err != nil {
 		return nil, err
 	}
+	pw, err := api.lookupOrQueryPassword(account.Address,
+		"Password for signing",
+		fmt.Sprintf("Please enter password for signing data with account %s", account.Address.Hex()))
+	if err != nil {
+		return nil, err
+	}
 	// Sign the data with the wallet
-	signature, err := wallet.SignDataWithPassphrase(account, res.Password, req.ContentType, req.Rawdata)
+	signature, err := wallet.SignDataWithPassphrase(account, pw, req.ContentType, req.Rawdata)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +191,7 @@ func (api *SignerAPI) determineSignatureFormat(ctx context.Context, contentType 
 	}
 
 	switch mediaType {
-	case TextValidator.Mime:
+	case IntendedValidator.Mime:
 		// Data with an intended validator
 		validatorData, err := UnmarshalValidatorData(data)
 		if err != nil {
@@ -194,9 +200,24 @@ func (api *SignerAPI) determineSignatureFormat(ctx context.Context, contentType 
 		sighash, msg := SignTextValidator(validatorData)
 		message := []*NameValueType{
 			{
-				Name:  "message",
-				Typ:   "text",
-				Value: msg,
+				Name:  "This is a request to sign data intended for a particular validator (see EIP 191 version 0)",
+				Typ:   "description",
+				Value: "",
+			},
+			{
+				Name:  "Intended validator address",
+				Typ:   "address",
+				Value: validatorData.Address.String(),
+			},
+			{
+				Name:  "Application-specific data",
+				Typ:   "hexdata",
+				Value: validatorData.Message,
+			},
+			{
+				Name:  "Full message for signing",
+				Typ:   "hexdata",
+				Value: fmt.Sprintf("0x%x", msg),
 			},
 		}
 		req = &SignDataRequest{ContentType: mediaType, Rawdata: []byte(msg), Message: message, Hash: sighash}
@@ -269,7 +290,6 @@ func (api *SignerAPI) determineSignatureFormat(ctx context.Context, contentType 
 // hash = keccak256("\x19\x00"${address}${data}).
 func SignTextValidator(validatorData ValidatorData) (hexutil.Bytes, string) {
 	msg := fmt.Sprintf("\x19\x00%s%s", string(validatorData.Address.Bytes()), string(validatorData.Message))
-	fmt.Printf("SignTextValidator:%s\n", msg)
 	return crypto.Keccak256([]byte(msg)), msg
 }
 
@@ -888,8 +908,10 @@ func (domain *TypedDataDomain) validate() error {
 
 // Map is a helper function to generate a map version of the domain
 func (domain *TypedDataDomain) Map() map[string]interface{} {
-	dataMap := map[string]interface{}{
-		"chainId": domain.ChainId,
+	dataMap := map[string]interface{}{}
+
+	if domain.ChainId != nil {
+		dataMap["chainId"] = domain.ChainId
 	}
 
 	if len(domain.Name) > 0 {

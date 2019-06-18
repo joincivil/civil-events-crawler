@@ -666,7 +666,7 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 	if err != nil {
 		return errors.Wrap(err, "error update event time")
 	}
-	event.SetTimestamp(header.Time.Int64())
+	event.SetTimestamp(int64(header.Time))
 	return nil
 }
 
