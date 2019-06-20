@@ -90,21 +90,6 @@ func crawlerPubSub(config *utils.CrawlerConfig) *pubsub.CrawlerPubSub {
 	return pubsub
 }
 
-func listenerMetaDataPersister(config *utils.CrawlerConfig) model.ListenerMetaDataPersister {
-	p := persister(config)
-	return p.(model.ListenerMetaDataPersister)
-}
-
-func retrieverMetaDataPersister(config *utils.CrawlerConfig) model.RetrieverMetaDataPersister {
-	p := persister(config)
-	return p.(model.RetrieverMetaDataPersister)
-}
-
-func eventDataPersister(config *utils.CrawlerConfig) model.EventDataPersister {
-	p := persister(config)
-	return p.(model.EventDataPersister)
-}
-
 func persister(config *utils.CrawlerConfig) interface{} {
 	if config.PersisterType == cconfig.PersisterTypePostgresql {
 		return postgresPersister(config)
@@ -198,6 +183,10 @@ func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 		enableGoEtherumLogging()
 	}
 
+	// Create a single persister to be passed up into the different persister
+	// interfaces
+	persister := persister(config)
+
 	eventCol := eventcollector.NewEventCollector(
 		&eventcollector.Config{
 			Chain:               httpClient,
@@ -206,9 +195,9 @@ func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 			ErrRep:              errRep,
 			Filterers:           contractFilterers(config),
 			Watchers:            contractWatchers(config),
-			RetrieverPersister:  retrieverMetaDataPersister(config),
-			ListenerPersister:   listenerMetaDataPersister(config),
-			EventDataPersister:  eventDataPersister(config),
+			RetrieverPersister:  persister.(model.RetrieverMetaDataPersister),
+			ListenerPersister:   persister.(model.ListenerMetaDataPersister),
+			EventDataPersister:  persister.(model.EventDataPersister),
 			Triggers:            eventTriggers(config),
 			StartBlock:          config.EthStartBlock,
 			CrawlerPubSub:       crawlerPubSub(config),
