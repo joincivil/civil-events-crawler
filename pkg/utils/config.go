@@ -193,7 +193,13 @@ func (c *CrawlerConfig) OutputUsage() {
 // PopulateFromEnv processes the environment vars, populates CrawlerConfig
 // with the respective values, and validates the values.
 func (c *CrawlerConfig) PopulateFromEnv() error {
-	err := envconfig.Process(envVarPrefix, c)
+	envEnvVar := fmt.Sprintf("%v_ENV", strings.ToUpper(envVarPrefix))
+	err := cconfig.PopulateFromDotEnv(envEnvVar)
+	if err != nil {
+		return err
+	}
+
+	err = envconfig.Process(envVarPrefix, c)
 	if err != nil {
 		return err
 	}

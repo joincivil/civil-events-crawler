@@ -51,8 +51,8 @@
   version = "2.2.6"
 
 [[constraint]]
-  name = "github.com/joincivil/go-common"
   branch = "master"
+  name = "github.com/joincivil/go-common"
 
 [prune]
   go-tests = true

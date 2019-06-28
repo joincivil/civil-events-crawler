@@ -242,8 +242,16 @@
   revision = "0dae4fefe7c0e190f7b5a78dac28a1c82cc8d849"
 
 [[projects]]
+  digest = "1:ecd9aa82687cf31d1585d4ac61d0ba180e42e8a6182b85bd785fcca8dfeefc1b"
+  name = "github.com/joho/godotenv"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "23d116af351c84513e1946b527c88823e476be13"
+  version = "v1.3.0"
+
+[[projects]]
   branch = "master"
-  digest = "1:39f28edf6c01b8a862757a6cfa9dfbdb95688b16d98e9914e8ba19f6282daf07"
+  digest = "1:b913cfc7f0ca5590d449d9e022aef31283445227a8a17b41d4e3bd6f31954ecf"
   name = "github.com/joincivil/go-common"
   packages = [
     "pkg/bytes",
@@ -260,7 +268,7 @@
     "pkg/time",
   ]
   pruneopts = "UT"
-  revision = "425deb0989eea5bf6c39beb80b35bf327b27eb84"
+  revision = "fb0a40c2471c766b0aa1b6dcb4e3280d4e460a2f"
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
