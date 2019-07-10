@@ -4,10 +4,14 @@ package main
 import (
 	"context"
 	"flag"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/go-chi/chi"
 
 	elog "github.com/ethereum/go-ethereum/log"
 	log "github.com/golang/glog"
@@ -22,6 +26,10 @@ import (
 
 	cconfig "github.com/joincivil/go-common/pkg/config"
 	cerrors "github.com/joincivil/go-common/pkg/errors"
+)
+
+const (
+	pprofPort = ":9090"
 )
 
 func initErrorReporter(config *utils.CrawlerConfig) (cerrors.ErrorReporter, error) {
@@ -165,6 +173,28 @@ func enableGoEtherumLogging() {
 	elog.Root().SetHandler(glog)
 }
 
+// For profiling running services
+func startupPprofServices() {
+	r := chi.NewRouter()
+
+	// Register pprof handlers
+	r.HandleFunc("/debug/pprof/", pprof.Index)
+	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+
+	r.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	r.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+	r.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	r.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	r.Handle("/debug/pprof/block", pprof.Handler("block"))
+
+	err := http.ListenAndServe(pprofPort, r)
+	if err != nil {
+		log.Errorf("Error starting up pprof endpoints: %v", err)
+	}
+}
+
 func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 	killChan := make(chan bool)
 
@@ -237,6 +267,11 @@ func main() {
 	if err != nil {
 		log.Errorf("Error init error reporting: err: %+v\n", err)
 		os.Exit(2)
+	}
+
+	if config.PprofEnable {
+		go startupPprofServices()
+		log.Infof("Enabling pprof endpoints at localhost%v", pprofPort)
 	}
 
 	err = startUp(config, errRep)
