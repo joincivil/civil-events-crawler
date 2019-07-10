@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/profiler"
 	"github.com/go-chi/chi"
 
 	elog "github.com/ethereum/go-ethereum/log"
@@ -195,6 +196,17 @@ func startupPprofServices() {
 	}
 }
 
+func startupCloudProfiler() {
+	err := profiler.Start(profiler.Config{
+		Service:        "crawler",
+		ServiceVersion: "1.0.0",
+		ProjectID:      "civil-media",
+	})
+	if err != nil {
+		log.Errorf("Error starting up cloud profiler: %v", err)
+	}
+}
+
 func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 	killChan := make(chan bool)
 
@@ -272,6 +284,11 @@ func main() {
 	if config.PprofEnable {
 		go startupPprofServices()
 		log.Infof("Enabling pprof endpoints at localhost%v", pprofPort)
+	}
+
+	if config.CloudProfileEnable {
+		startupCloudProfiler()
+		log.Infof("Enabling cloud profiler")
 	}
 
 	err = startUp(config, errRep)
