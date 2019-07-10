@@ -61,6 +61,8 @@ type CrawlerConfig struct {
 
 	SentryDsn string `split_words:"true" desc:"Sets the Sentry DSN"`
 	SentryEnv string `split_words:"true" desc:"Sets the Sentry environment"`
+
+	PprofEnable bool `split_words:"true" desc:"Enables the pprof endpoints for debugging and profiling"`
 }
 
 // Edge represents an edge field in the query

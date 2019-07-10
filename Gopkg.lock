@@ -169,6 +169,14 @@
   version = "v0.2.0"
 
 [[projects]]
+  digest = "1:1c70b4d7285f792bd387c1adac08825715147fa210b3d2826ffd2bf56be9455b"
+  name = "github.com/go-chi/chi"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "da24bba8dcd4021cafac38724bf10dccc97c3e36"
+  version = "v4.0.2"
+
+[[projects]]
   digest = "1:c4a2528ccbcabf90f9f3c464a5fc9e302d592861bbfd0b7135a7de8a943d0406"
   name = "github.com/go-stack/stack"
   packages = ["."]
@@ -319,6 +327,14 @@
   pruneopts = "UT"
   revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
   version = "v0.8.1"
+
+[[projects]]
+  digest = "1:447ab23604df9681aabfc6e48dbded59cb933b6eb4224e64d9d037318534b1bd"
+  name = "github.com/pkg/profile"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "f6fe06335df110bcf1ed6d4e852b760bfc15beee"
+  version = "v1.3.0"
 
 [[projects]]
   digest = "1:1b8344715571e257101066e65d0bc8172715ecf09c8bd09b56763ec6389395e4"
@@ -646,6 +662,7 @@
     "github.com/ethereum/go-ethereum/log",
     "github.com/ethereum/go-ethereum/rlp",
     "github.com/fatih/structs",
+    "github.com/go-chi/chi",
     "github.com/golang/glog",
     "github.com/jmoiron/sqlx",
     "github.com/joincivil/go-common/pkg/bytes",
@@ -662,6 +679,7 @@
     "github.com/kelseyhightower/envconfig",
     "github.com/lib/pq",
     "github.com/pkg/errors",
+    "github.com/pkg/profile",
     "github.com/shurcooL/graphql",
     "golang.org/x/net/websocket",
     "gopkg.in/alecthomas/kingpin.v2",
