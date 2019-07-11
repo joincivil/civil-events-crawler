@@ -2,7 +2,7 @@
 
 
 [[projects]]
-  digest = "1:c98a29d4088336aa0ff6923426abf6bea429d512a1d9be780391f34b804ab475"
+  digest = "1:4e41808f0252971014f536d59421bdf8b55788010d92edcf6bb539ff9f17b599"
   name = "cloud.google.com/go"
   packages = [
     "compute/metadata",
@@ -11,6 +11,7 @@
     "iam",
     "internal/optional",
     "internal/version",
+    "profiler",
     "pubsub",
     "pubsub/apiv1",
     "pubsub/internal/distribution",
@@ -218,6 +219,14 @@
   revision = "2e65f85255dbc3072edf28d6b5b8efc472979f5a"
 
 [[projects]]
+  branch = "master"
+  digest = "1:dcb1edb161b1b1cac9aedf2a17b9b2c7829e242624968875a3c1b97dd9f4ef00"
+  name = "github.com/google/pprof"
+  packages = ["profile"]
+  pruneopts = "UT"
+  revision = "54271f7e092ff31b10b7626fee166cbc6304e350"
+
+[[projects]]
   digest = "1:cd9864c6366515827a759931746738ede6079faa08df9c584596370d6add135c"
   name = "github.com/googleapis/gax-go"
   packages = [
@@ -327,14 +336,6 @@
   pruneopts = "UT"
   revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
   version = "v0.8.1"
-
-[[projects]]
-  digest = "1:447ab23604df9681aabfc6e48dbded59cb933b6eb4224e64d9d037318534b1bd"
-  name = "github.com/pkg/profile"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "f6fe06335df110bcf1ed6d4e852b760bfc15beee"
-  version = "v1.3.0"
 
 [[projects]]
   digest = "1:1b8344715571e257101066e65d0bc8172715ecf09c8bd09b56763ec6389395e4"
@@ -572,15 +573,17 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:643818f117fbb5fe0247f23ce176a2334e7dd78f04e0b5644d836a9721c3bbfa"
+  digest = "1:ccbbf42f84604f0f87027d3bba86e47ecd66c57b9139cb53734be184318f4361"
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
     "googleapis/api/label",
     "googleapis/api/monitoredres",
     "googleapis/devtools/clouderrorreporting/v1beta1",
+    "googleapis/devtools/cloudprofiler/v2",
     "googleapis/iam/v1",
     "googleapis/pubsub/v1",
+    "googleapis/rpc/errdetails",
     "googleapis/rpc/status",
     "protobuf/field_mask",
   ]
@@ -648,6 +651,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "cloud.google.com/go/profiler",
     "github.com/Jeffail/tunny",
     "github.com/davecgh/go-spew/spew",
     "github.com/ethereum/go-ethereum",
@@ -679,7 +683,6 @@
     "github.com/kelseyhightower/envconfig",
     "github.com/lib/pq",
     "github.com/pkg/errors",
-    "github.com/pkg/profile",
     "github.com/shurcooL/graphql",
     "golang.org/x/net/websocket",
     "gopkg.in/alecthomas/kingpin.v2",
