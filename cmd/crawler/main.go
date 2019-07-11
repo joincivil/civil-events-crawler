@@ -201,6 +201,7 @@ func startupCloudProfiler() {
 		Service:        "crawler",
 		ServiceVersion: "1.0.0",
 		ProjectID:      "civil-media",
+		DebugLogging:   true,
 	})
 	if err != nil {
 		log.Errorf("Error starting up cloud profiler: %v", err)
