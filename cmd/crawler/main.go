@@ -237,6 +237,7 @@ func startupCloudProfiler(config *utils.CrawlerConfig) {
 		ProjectID:      config.CloudProfileProjectID,
 		Service:        config.CloudProfileServiceName,
 		ServiceVersion: config.CloudProfileServiceVersion,
+		DebugLogging:   true,
 	})
 	if err != nil {
 		log.Errorf("Error starting up cloud profiler: %v", err)
