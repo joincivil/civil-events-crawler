@@ -72,17 +72,17 @@ func DeployContractWithLinks(
 	abiString string,
 	bin string,
 	libraries map[string]common.Address,
+	params ...interface{},
 ) (common.Address, *types.Transaction, *bind.BoundContract, error) {
 
-	linkedBin := bin
 	for libraryName, libraryAddress := range libraries {
-		linkedBin = ABILinkLibrary(bin, libraryName, libraryAddress)
+		bin = ABILinkLibrary(bin, libraryName, libraryAddress)
 	}
 
 	parsed, err := abi.JSON(strings.NewReader(abiString))
 	if err != nil {
 		return common.Address{}, nil, nil, err
 	}
-	return bind.DeployContract(opts, parsed, common.FromHex(linkedBin), backend)
 
+	return bind.DeployContract(opts, parsed, common.FromHex(bin), backend, params...)
 }

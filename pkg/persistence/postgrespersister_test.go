@@ -24,6 +24,7 @@ import (
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
+	"github.com/joincivil/civil-events-crawler/pkg/testutils"
 )
 
 const (
@@ -254,7 +255,9 @@ func changeBlockData(blockNo int, event *model.Event) {
 }
 
 func setupDBConnection() (*PostgresPersister, error) {
-	postgresPersister, err := NewPostgresPersister(postgresHost, postgresPort, postgresUser, postgresPswd, postgresDBName)
+	creds := testutils.GetTestDBCreds()
+
+	postgresPersister, err := NewPostgresPersister(creds.Host, creds.Port, creds.User, creds.Password, creds.Dbname)
 	return postgresPersister, err
 }
 

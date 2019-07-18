@@ -53,14 +53,27 @@ type CrawlerConfig struct {
 	PersisterPostgresUser    string                `split_words:"true" desc:"If persister type is Postgresql, sets the database user"`
 	PersisterPostgresPw      string                `split_words:"true" desc:"If persister type is Postgresql, sets the database password"`
 
-	PubSubProjectID string `split_words:"true" desc:"Sets the Google Cloud Project ID name"`
+	PubSubProjectID string `split_words:"true" desc:"Sets the Google Cloud PubSub Project ID"`
 	PubSubTopicName string `split_words:"true" desc:"Sets the Google Cloud PubSub Topic name"`
 
 	// VersionNumber is the version of DB for postgres persistence
 	VersionNumber string `split_words:"true" desc:"Sets the version for table"`
 
-	SentryDsn string `split_words:"true" desc:"Sets the Sentry DSN"`
-	SentryEnv string `split_words:"true" desc:"Sets the Sentry environment"`
+	// Configuration for supported error reporting (Stackdriver, Sentry)
+	StackdriverProjectID      string `split_words:"true" desc:"Sets the Stackdriver Google Cloud project ID. If empty, will disable logging"`
+	StackdriverServiceName    string `split_words:"true" desc:"Sets the Stackdriver service name"`
+	StackdriverServiceVersion string `split_words:"true" desc:"Sets the Stackdriver service version"`
+
+	SentryDsn        string `split_words:"true" desc:"Sets the Sentry DSN"`
+	SentryEnv        string `split_words:"true" desc:"Sets the Sentry environment"`
+	SentryLoggerName string `split_words:"true" desc:"Sets the Sentry logger name"`
+	SentryRelease    string `split_words:"true" desc:"Sets the Sentry release value"`
+
+	// Configuration for pprof profiling
+	PprofEnable                bool   `split_words:"true" desc:"Enables the local pprof endpoints for debugging and profiling"`
+	CloudProfileProjectID      string `split_words:"true" desc:"Sets the cloud profiler Google Cloud project ID. If empty, will disable cloud profiler agent"`
+	CloudProfileServiceName    string `split_words:"true" desc:"Sets the service name to with in the Google Cloud profiler"`
+	CloudProfileServiceVersion string `split_words:"true" desc:"Sets the Google Cloud profiler service version"`
 }
 
 // Edge represents an edge field in the query
@@ -193,7 +206,13 @@ func (c *CrawlerConfig) OutputUsage() {
 // PopulateFromEnv processes the environment vars, populates CrawlerConfig
 // with the respective values, and validates the values.
 func (c *CrawlerConfig) PopulateFromEnv() error {
-	err := envconfig.Process(envVarPrefix, c)
+	envEnvVar := fmt.Sprintf("%v_ENV", strings.ToUpper(envVarPrefix))
+	err := cconfig.PopulateFromDotEnv(envEnvVar)
+	if err != nil {
+		return err
+	}
+
+	err = envconfig.Process(envVarPrefix, c)
 	if err != nil {
 		return err
 	}

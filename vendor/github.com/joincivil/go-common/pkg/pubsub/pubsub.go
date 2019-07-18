@@ -146,6 +146,9 @@ func (g *GooglePubSub) TopicExists(topicName string) (bool, error) {
 
 // Publish publishes the given message to the pubsub.
 func (g *GooglePubSub) Publish(msg *GooglePubSubMsg) error {
+	if !g.PublishersStarted() {
+		return errors.New("publishers not started, can't publish")
+	}
 	g.publishChan <- msg
 	return nil
 }

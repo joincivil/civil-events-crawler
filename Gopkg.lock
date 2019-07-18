@@ -2,7 +2,7 @@
 
 
 [[projects]]
-  digest = "1:c98a29d4088336aa0ff6923426abf6bea429d512a1d9be780391f34b804ab475"
+  digest = "1:4e41808f0252971014f536d59421bdf8b55788010d92edcf6bb539ff9f17b599"
   name = "cloud.google.com/go"
   packages = [
     "compute/metadata",
@@ -11,6 +11,7 @@
     "iam",
     "internal/optional",
     "internal/version",
+    "profiler",
     "pubsub",
     "pubsub/apiv1",
     "pubsub/internal/distribution",
@@ -169,6 +170,14 @@
   version = "v0.2.0"
 
 [[projects]]
+  digest = "1:1c70b4d7285f792bd387c1adac08825715147fa210b3d2826ffd2bf56be9455b"
+  name = "github.com/go-chi/chi"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "da24bba8dcd4021cafac38724bf10dccc97c3e36"
+  version = "v4.0.2"
+
+[[projects]]
   digest = "1:c4a2528ccbcabf90f9f3c464a5fc9e302d592861bbfd0b7135a7de8a943d0406"
   name = "github.com/go-stack/stack"
   packages = ["."]
@@ -210,6 +219,14 @@
   revision = "2e65f85255dbc3072edf28d6b5b8efc472979f5a"
 
 [[projects]]
+  branch = "master"
+  digest = "1:dcb1edb161b1b1cac9aedf2a17b9b2c7829e242624968875a3c1b97dd9f4ef00"
+  name = "github.com/google/pprof"
+  packages = ["profile"]
+  pruneopts = "UT"
+  revision = "54271f7e092ff31b10b7626fee166cbc6304e350"
+
+[[projects]]
   digest = "1:cd9864c6366515827a759931746738ede6079faa08df9c584596370d6add135c"
   name = "github.com/googleapis/gax-go"
   packages = [
@@ -242,8 +259,16 @@
   revision = "0dae4fefe7c0e190f7b5a78dac28a1c82cc8d849"
 
 [[projects]]
+  digest = "1:ecd9aa82687cf31d1585d4ac61d0ba180e42e8a6182b85bd785fcca8dfeefc1b"
+  name = "github.com/joho/godotenv"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "23d116af351c84513e1946b527c88823e476be13"
+  version = "v1.3.0"
+
+[[projects]]
   branch = "master"
-  digest = "1:39f28edf6c01b8a862757a6cfa9dfbdb95688b16d98e9914e8ba19f6282daf07"
+  digest = "1:b913cfc7f0ca5590d449d9e022aef31283445227a8a17b41d4e3bd6f31954ecf"
   name = "github.com/joincivil/go-common"
   packages = [
     "pkg/bytes",
@@ -260,7 +285,7 @@
     "pkg/time",
   ]
   pruneopts = "UT"
-  revision = "425deb0989eea5bf6c39beb80b35bf327b27eb84"
+  revision = "fb0a40c2471c766b0aa1b6dcb4e3280d4e460a2f"
 
 [[projects]]
   digest = "1:edbef42561faa44c19129b68d1e109fbc1647f63239250391eadc8d0e7c9f669"
@@ -548,15 +573,17 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:643818f117fbb5fe0247f23ce176a2334e7dd78f04e0b5644d836a9721c3bbfa"
+  digest = "1:ccbbf42f84604f0f87027d3bba86e47ecd66c57b9139cb53734be184318f4361"
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
     "googleapis/api/label",
     "googleapis/api/monitoredres",
     "googleapis/devtools/clouderrorreporting/v1beta1",
+    "googleapis/devtools/cloudprofiler/v2",
     "googleapis/iam/v1",
     "googleapis/pubsub/v1",
+    "googleapis/rpc/errdetails",
     "googleapis/rpc/status",
     "protobuf/field_mask",
   ]
@@ -624,6 +651,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "cloud.google.com/go/profiler",
     "github.com/Jeffail/tunny",
     "github.com/davecgh/go-spew/spew",
     "github.com/ethereum/go-ethereum",
@@ -638,6 +666,7 @@
     "github.com/ethereum/go-ethereum/log",
     "github.com/ethereum/go-ethereum/rlp",
     "github.com/fatih/structs",
+    "github.com/go-chi/chi",
     "github.com/golang/glog",
     "github.com/jmoiron/sqlx",
     "github.com/joincivil/go-common/pkg/bytes",

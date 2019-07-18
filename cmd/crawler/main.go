@@ -4,10 +4,16 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"cloud.google.com/go/profiler"
+	"github.com/go-chi/chi"
 
 	elog "github.com/ethereum/go-ethereum/log"
 	log "github.com/golang/glog"
@@ -24,16 +30,42 @@ import (
 	cerrors "github.com/joincivil/go-common/pkg/errors"
 )
 
+const (
+	pprofPort = ":9090"
+
+	defaultCrawlerServiceName    = "crawler"
+	defaultCrawlerServiceVersion = "0.1.0"
+)
+
 func initErrorReporter(config *utils.CrawlerConfig) (cerrors.ErrorReporter, error) {
+	if config.StackdriverProjectID == "" {
+		log.Errorf("Stackdriver project ID required for use, returning null reporter")
+		return &cerrors.NullErrorReporter{}, nil
+	}
+
+	// Ensure we have some valid defaults set if values not set in config
+	// In practical terms, these should always be set by the environment if possible
+	if config.StackdriverServiceName == "" {
+		config.StackdriverServiceName = defaultCrawlerServiceName
+	}
+	if config.StackdriverServiceVersion == "" {
+		config.StackdriverServiceVersion = defaultCrawlerServiceVersion
+	}
+	if config.SentryLoggerName == "" {
+		config.SentryLoggerName = fmt.Sprintf("%v_logger", defaultCrawlerServiceName)
+	}
+	if config.SentryRelease == "" {
+		config.SentryRelease = defaultCrawlerServiceVersion
+	}
 	errRepConfig := &cerrors.MetaErrorReporterConfig{
-		StackDriverProjectID:      "civil-media",
-		StackDriverServiceName:    "crawler",
-		StackDriverServiceVersion: "1.0",
+		StackDriverProjectID:      config.StackdriverProjectID,
+		StackDriverServiceName:    config.StackdriverServiceName,
+		StackDriverServiceVersion: config.StackdriverServiceVersion,
 		SentryDSN:                 config.SentryDsn,
 		SentryDebug:               false,
 		SentryEnv:                 config.SentryEnv,
-		SentryLoggerName:          "crawler_logger",
-		SentryRelease:             "1.0",
+		SentryLoggerName:          config.SentryLoggerName,
+		SentryRelease:             config.SentryRelease,
 		SentrySampleRate:          1.0,
 	}
 	reporter, err := cerrors.NewMetaErrorReporter(errRepConfig)
@@ -165,6 +197,55 @@ func enableGoEtherumLogging() {
 	elog.Root().SetHandler(glog)
 }
 
+// For profiling running services
+func startupPprofServices() {
+	r := chi.NewRouter()
+
+	// Register pprof handlers
+	r.HandleFunc("/debug/pprof/", pprof.Index)
+	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	r.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	r.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+	r.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	r.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	r.Handle("/debug/pprof/block", pprof.Handler("block"))
+
+	err := http.ListenAndServe(pprofPort, r)
+	if err != nil {
+		log.Errorf("Error starting up pprof endpoints: %v", err)
+	}
+}
+
+func startupCloudProfiler(config *utils.CrawlerConfig) {
+	if config.CloudProfileProjectID == "" {
+		log.Errorf("Cloud profiler project ID required for use, disabling")
+		return
+	}
+
+	// Put some sane defaults here, but should be set by the config
+	if config.CloudProfileServiceName == "" {
+		config.CloudProfileServiceName = defaultCrawlerServiceName
+	}
+	if config.CloudProfileServiceVersion == "" {
+		config.CloudProfileServiceVersion = defaultCrawlerServiceVersion
+	}
+	err := profiler.Start(profiler.Config{
+		ProjectID:      config.CloudProfileProjectID,
+		Service:        config.CloudProfileServiceName,
+		ServiceVersion: config.CloudProfileServiceVersion,
+		DebugLogging:   true,
+	})
+	if err != nil {
+		log.Errorf("Error starting up cloud profiler: %v", err)
+		return
+	}
+	log.Infof("Enabling cloud profiler")
+}
+
 func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 	killChan := make(chan bool)
 
@@ -237,6 +318,14 @@ func main() {
 	if err != nil {
 		log.Errorf("Error init error reporting: err: %+v\n", err)
 		os.Exit(2)
+	}
+
+	// Starts up the cloud profiler, if it is enabled in the config
+	startupCloudProfiler(config)
+
+	if config.PprofEnable {
+		go startupPprofServices()
+		log.Infof("Enabling pprof endpoints at localhost%v", pprofPort)
 	}
 
 	err = startUp(config, errRep)
