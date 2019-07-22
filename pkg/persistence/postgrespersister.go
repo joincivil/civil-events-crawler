@@ -399,11 +399,17 @@ func (p *PostgresPersister) retrieveEventsQuery(tableName string, criteria *mode
 				tableName, strings.Join(criteria.ExcludeHashes, "','"))
 			queryBuf.WriteString(notInQuery) // nolint: gosec
 		}
+
+		queryBuf.WriteString(" ORDER BY") // nolint: gosec
+		// Using standard SQL here bc of issues using : with prepared statements
 		if criteria.Reverse {
-			queryBuf.WriteString(" ORDER BY e.timestamp DESC, e.id DESC") // nolint: gosec
+			queryBuf.WriteString(" CAST(e.log_payload->>'BlockNumber' as integer) DESC,") // nolint: gosec
+			queryBuf.WriteString(" CAST(e.log_payload->>'Index' as integer) DESC")        // nolint: gosec
 		} else {
-			queryBuf.WriteString(" ORDER BY e.timestamp, e.id") // nolint: gosec
+			queryBuf.WriteString(" CAST(e.log_payload->>'BlockNumber' as integer),") // nolint: gosec
+			queryBuf.WriteString(" CAST(e.log_payload->>'Index' as integer)")        // nolint: gosec
 		}
+
 		if criteria.Offset > 0 {
 			queryBuf.WriteString(" OFFSET :offset") // nolint: gosec
 		}
