@@ -121,7 +121,7 @@ var (
 			TxHash:      common.Hash{},
 			TxIndex:     4,
 			BlockHash:   common.Hash{},
-			Index:       2,
+			Index:       3,
 			Removed:     false,
 		},
 	}
@@ -1139,8 +1139,10 @@ func TestRetrieveEvents(t *testing.T) {
 	if len(events) != 1 {
 		t.Errorf("Should have seen only 1 event: %v", len(events))
 	}
-	if events[0].EventType() != civilEventsFromContract[0].EventType() {
-		t.Errorf("Should have seen the type of the oldest event: err: %v", err)
+	// Application
+	if events[0].EventType() != civilEventsFromContract[1].EventType() {
+		t.Errorf("Should have seen the type of the oldest event: %+v == %+v",
+			events[0].EventType(), civilEventsFromContract[1].EventType())
 	}
 
 	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
@@ -1205,14 +1207,15 @@ func TestRetrieveEvents(t *testing.T) {
 	if len(events) != 3 {
 		t.Errorf("Should have seen only 2 event: %v", len(events))
 	}
-	if events[0].Hash() != civilEventsFromContract[0].Hash() {
-		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
+	// Check to see if the proper sorting occurred
+	if events[0].Hash() != civilEventsFromContract[1].Hash() {
+		t.Errorf("Should have seen the type of the second event")
 	}
-	if events[1].Hash() != civilEventsFromContract[1].Hash() {
-		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
+	if events[1].Hash() != civilEventsFromContract[2].Hash() {
+		t.Errorf("Should have seen the type of the third event")
 	}
-	if events[2].Hash() != civilEventsFromContract[2].Hash() {
-		t.Errorf("Should have seen the type of the most recent event: err: %v", err)
+	if events[2].Hash() != civilEventsFromContract[0].Hash() {
+		t.Errorf("Should have seen the type of the first event")
 	}
 
 	events, err = persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
