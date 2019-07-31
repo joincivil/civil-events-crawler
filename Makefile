@@ -65,7 +65,6 @@ install-dep: check-go-env ## Installs dep
 
 .PHONY: install-linter
 install-linter: check-go-env ## Installs linter
-	# sh $(GOMETALINTER_INSTALLER) -b $(GOPATH)/bin $(GOMETALINTER_VERSION_TAG)
 	@curl -sfL $(GOLANGCILINT_URL) | sh -s -- -b $(shell go env GOPATH)/bin $(GOLANGCILINT_VERSION_TAG)
 ifdef APT
 	@sudo apt-get install golang-race-detector-runtime || true
