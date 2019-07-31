@@ -123,19 +123,18 @@ make cover
 
 ## Run
 
-The crawler relies on environment vars for configuration.  To find all the available configuration environment vars, run:
+The crawler relies on environment vars for configuration. To configure locally, edit the `.env` file included in the repo to what is needed. 
+
+To run the service:
+
 ```
 go run cmd/crawler/main.go
 ```
 
-To run the crawler, at the root of the project, run:
+To find all the available configuration environment vars:
 
 ```
-CRAWL_ETH_API_URL=<RPC API URL>
-CRAWL_CONTRACT_ADDRESSES="<contract short name>:<contract address>,..."
-CRAWL_PERSISTER_TYPE_NAME=<persister type>
-...
-go run cmd/crawler/main.go
+go run cmd/crawler/main.go -h
 ```
 
 ### Supported Civil Contract Short Names
