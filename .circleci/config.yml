@@ -83,7 +83,7 @@ jobs:
                DB_URL: "postgres://root@localhost:5432/circle_test?sslmode=disable"
                DB_MIGRATIONS: /go/src/github.com/joincivil/civil-events-crawler/migrations
             command: |
-               make test-integration
+               make test-integration-ci
 
   setup-gcp:
     docker:

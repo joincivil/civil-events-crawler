@@ -175,6 +175,10 @@ test: ## Runs unit tests and tests code coverage.
 test-integration: ## Runs tagged integration tests
 	@echo 'mode: atomic' > coverage.txt && PUBSUB_EMULATOR_HOST=localhost:8042 $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=5m -tags=integration ./...
 
+.PHONY: test-integration-ci
+test-integration-ci: ## Runs tagged integration tests serially for low mem/low cpu CI env (set -p to 1)
+	@echo 'mode: atomic' > coverage.txt && PUBSUB_EMULATOR_HOST=localhost:8042 $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -p 1 -race -timeout=5m -tags=integration ./...
+
 .PHONY: cover
 cover: test ## Runs unit tests, code coverage, and runs HTML coverage tool.
 	@$(GOCOVER) -html=coverage.txt
