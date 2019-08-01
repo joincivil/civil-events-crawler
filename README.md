@@ -21,7 +21,7 @@ and [**good first issue**](https://github.com/joincivil/civil-events-crawler/iss
 
 ## Install Requirements
 
-This project is using `make` to run setup, builds, tests, etc and has been tested and running on `go 1.11.1`.
+This project is using `make` to run setup, builds, tests, etc and has been tested and running on `go 1.12.7`.
 
 Ensure that your `$GOPATH` and `$GOROOT` are setup properly in your shell configuration and that this repo is cloned into the appropriate place in the `$GOPATH`. i.e. `$GOPATH/src/github.com/joincivil/civil-events-crawler/`
 
@@ -123,7 +123,7 @@ make cover
 
 ## Run
 
-The crawler relies on environment vars for configuration. To configure locally, edit the `.env` file included in the repo to what is needed. 
+The crawler relies on environment vars for configuration. To configure locally, edit the `.env` file included in the repo to what is needed.
 
 To run the service:
 
