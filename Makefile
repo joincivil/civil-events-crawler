@@ -35,10 +35,6 @@ GENERATED_HANDLER_LIST_DIR=$(GENERATED_DIR)/handlerlist
 EVENTHANDLER_GEN_MAIN=cmd/eventhandlergen/main.go
 HANDLERLIST_GEN_MAIN=cmd/handlerlistgen/main.go
 
-## Gometalinter installation
-# GOMETALINTER_INSTALLER=scripts/gometalinter_install.sh
-# GOMETALINTER_VERSION_TAG=v2.0.11
-
 # curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(go env GOPATH)/bin vX.Y.Z
 GOLANGCILINT_URL=https://install.goreleaser.com/github.com/golangci/golangci-lint.sh
 GOLANGCILINT_VERSION_TAG=v1.16.0
