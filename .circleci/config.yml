@@ -13,7 +13,7 @@ defaults: &defaults
 jobs:
   build:
     <<: *defaults
-    working_directory: /go/src/github.com/joincivil/civil-events-crawler
+    working_directory: ~/repos/civil-events-crawler
     environment:
     steps:
       - run:
@@ -42,53 +42,75 @@ jobs:
               sleep 1
             done
             echo Failed waiting for Postgres && exit 1
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
       - run:
           name: Building code
           command: make build
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
       - persist_to_workspace:
           root: ./
           paths:
             - build
             - pkg
             - Makefile
-            - vendor
             - cmd
             - scripts
+            - go.mod
+            - go.sum
             - .golangci.yml
 
   lint:
     <<: *defaults
-    working_directory: /go/src/github.com/joincivil/civil-events-crawler
+    working_directory: ~/repos/civil-events-crawler
     environment:
     steps:
         - attach_workspace:
             at: ./
+        - restore_cache:
+            keys:
+              - go-mod-v1-{{ checksum "go.sum" }}
         - run:
            name: Setting up tools
            command: make install-linter
+        - save_cache:
+            key: go-mod-v1-{{ checksum "go.sum" }}
+            paths:
+              - "/go/pkg/mod"
         - run:
             name: Run linter
             command: make lint
 
   test:
     <<: *defaults
-    working_directory: /go/src/github.com/joincivil/civil-events-crawler
+    working_directory: ~/repos/civil-events-crawler
     environment:
     steps:
         - attach_workspace:
             at: ./
+        - restore_cache:
+            keys:
+              - go-mod-v1-{{ checksum "go.sum" }}
         - run:
             name: Run unit tests
             environment:
                DB_URL: "postgres://root@localhost:5432/circle_test?sslmode=disable"
-               DB_MIGRATIONS: /go/src/github.com/joincivil/civil-events-crawler/migrations
+               DB_MIGRATIONS: ~/repos/civil-events-crawler/migrations
             command: |
                make test-integration-ci
+        - save_cache:
+            key: go-mod-v1-{{ checksum "go.sum" }}
+            paths:
+              - "/go/pkg/mod"
 
   setup-gcp:
     docker:
       - image: civilmedia/gcloud-node:latest
-    working_directory: /go/src/github.com/joincivil/civil-events-crawler
+    working_directory: ~/repos/civil-events-crawler
     steps:
        - run:
           name: Dump Google Cloud Credentials to file
@@ -112,7 +134,7 @@ jobs:
   push-container:
     docker:
       - image: civilmedia/gcloud-node:latest
-    working_directory: /go/src/github.com/joincivil/civil-events-crawler
+    working_directory: ~/repos/ivil-events-crawler
     steps:
       - attach_workspace:
           at: /root

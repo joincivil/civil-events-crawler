@@ -60,11 +60,6 @@ ifndef DOCKER
 	$(error docker command is not installed or in PATH)
 endif
 
-.PHONY: install-dep
-install-dep: check-go-env ## Installs dep
-	@mkdir -p $(GOPATH)/bin
-	@curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-
 .PHONY: install-linter
 install-linter: check-go-env ## Installs linter
 	@curl -sfL $(GOLANGCILINT_URL) | sh -s -- -b $(shell go env GOPATH)/bin $(GOLANGCILINT_VERSION_TAG)
@@ -77,7 +72,7 @@ install-cover: check-go-env ## Installs code coverage tool
 	@$(GOGET) -u golang.org/x/tools/cmd/cover
 
 .PHONY: setup
-setup: check-go-env install-dep install-linter install-cover ## Sets up the tooling.
+setup: check-go-env install-linter install-cover ## Sets up the tooling.
 
 .PHONY: postgres-setup-launch
 postgres-setup-launch:
