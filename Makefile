@@ -7,6 +7,8 @@ POSTGRES_PSWD=docker
 
 PUBSUB_SIM_DOCKER_IMAGE=kinok/google-pubsub-emulator:latest
 
+GOVERSION=go1.12.7
+
 GOCMD=go
 GOGEN=$(GOCMD) generate
 GORUN=$(GOCMD) run
@@ -20,6 +22,7 @@ GOCOVER=$(GOCMD) tool cover
 GO:=$(shell command -v go 2> /dev/null)
 DOCKER:=$(shell command -v docker 2> /dev/null)
 APT:=$(shell command -v apt-get 2> /dev/null)
+GOVERCURRENT=$(shell go version |awk {'print $$3'})
 
 ## List of expected dirs for generated code
 GENERATED_DIR=pkg/generated
@@ -31,10 +34,6 @@ GENERATED_HANDLER_LIST_DIR=$(GENERATED_DIR)/handlerlist
 ## Civil specific commands
 EVENTHANDLER_GEN_MAIN=cmd/eventhandlergen/main.go
 HANDLERLIST_GEN_MAIN=cmd/handlerlistgen/main.go
-
-## Gometalinter installation
-# GOMETALINTER_INSTALLER=scripts/gometalinter_install.sh
-# GOMETALINTER_VERSION_TAG=v2.0.11
 
 # curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(go env GOPATH)/bin vX.Y.Z
 GOLANGCILINT_URL=https://install.goreleaser.com/github.com/golangci/golangci-lint.sh
@@ -49,6 +48,9 @@ endif
 ifndef GOPATH
 	$(error GOPATH is not set)
 endif
+ifneq ($(GOVERCURRENT), $(GOVERSION))
+	$(error Incorrect go version, needs $(GOVERSION))
+endif
 
 ## NOTE: If installing on a Mac, use Docker for Mac, not Docker toolkit
 ## https://www.docker.com/docker-mac
@@ -58,14 +60,8 @@ ifndef DOCKER
 	$(error docker command is not installed or in PATH)
 endif
 
-.PHONY: install-dep
-install-dep: check-go-env ## Installs dep
-	@mkdir -p $(GOPATH)/bin
-	@curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-
 .PHONY: install-linter
 install-linter: check-go-env ## Installs linter
-	# sh $(GOMETALINTER_INSTALLER) -b $(GOPATH)/bin $(GOMETALINTER_VERSION_TAG)
 	@curl -sfL $(GOLANGCILINT_URL) | sh -s -- -b $(shell go env GOPATH)/bin $(GOLANGCILINT_VERSION_TAG)
 ifdef APT
 	@sudo apt-get install golang-race-detector-runtime || true
@@ -76,7 +72,7 @@ install-cover: check-go-env ## Installs code coverage tool
 	@$(GOGET) -u golang.org/x/tools/cmd/cover
 
 .PHONY: setup
-setup: check-go-env install-dep install-linter install-cover ## Sets up the tooling.
+setup: check-go-env install-linter install-cover ## Sets up the tooling.
 
 .PHONY: postgres-setup-launch
 postgres-setup-launch:
@@ -123,14 +119,14 @@ pubsub-stop: check-docker-env ## Stops the pubsub simulator
 
 ## golangci-lint config in .golangci.yml
 .PHONY: lint
-lint: ## Runs linting.
+lint: check-go-env ## Runs linting.
 	@golangci-lint run ./...
 
 .PHONY: generate-civil
 generate: generate-contracts generate-civil-watchers generate-civil-filterers generate-civil-common generate-civil-handler-lists ## Runs all the civil code generation
 
 .PHONY: generate-civil-watchers
-generate-civil-watchers: ## Runs watchergen to generate contract Watch* wrapper code for Civil.
+generate-civil-watchers: check-go-env ## Runs watchergen to generate contract Watch* wrapper code for Civil.
 	@mkdir -p $(GENERATED_WATCHER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr watcher watcher > ./$(GENERATED_WATCHER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom watcher watcher > ./$(GENERATED_WATCHER_DIR)/newsroom.go
@@ -140,7 +136,7 @@ generate-civil-watchers: ## Runs watchergen to generate contract Watch* wrapper 
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilgovernment watcher watcher > ./$(GENERATED_WATCHER_DIR)/civilgovernment.go
 
 .PHONY: generate-civil-filterers
-generate-civil-filterers: ## Runs filterergen to generate contract Filter* wrapper code for Civil.
+generate-civil-filterers: check-go-env ## Runs filterergen to generate contract Filter* wrapper code for Civil.
 	@mkdir -p $(GENERATED_FILTERER_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr filterer filterer > ./$(GENERATED_FILTERER_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroom.go
@@ -150,7 +146,7 @@ generate-civil-filterers: ## Runs filterergen to generate contract Filter* wrapp
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilgovernment filterer filterer > ./$(GENERATED_FILTERER_DIR)/civilgovernment.go
 
 .PHONY: generate-civil-common
-generate-civil-common: ## Runs commongen to generate common contract wrapper code for Civil.
+generate-civil-common: check-go-env ## Runs commongen to generate common contract wrapper code for Civil.
 	@mkdir -p $(GENERATED_COMMON_DIR)
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civiltcr common common > ./$(GENERATED_COMMON_DIR)/civiltcr.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroom common common > ./$(GENERATED_COMMON_DIR)/newsroom.go
@@ -160,21 +156,25 @@ generate-civil-common: ## Runs commongen to generate common contract wrapper cod
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilgovernment common common > ./$(GENERATED_COMMON_DIR)/civilgovernment.go
 
 .PHONY: generate-civil-handler-lists
-generate-civil-handler-lists: ## Runs handlerlistgen to generate handler list wrapper code for Civil.
+generate-civil-handler-lists: check-go-env ## Runs handlerlistgen to generate handler list wrapper code for Civil.
 	@mkdir -p $(GENERATED_HANDLER_LIST_DIR)
 	@$(GORUN) $(HANDLERLIST_GEN_MAIN) handlerlist > ./$(GENERATED_HANDLER_LIST_DIR)/handlerlist.go
 
 .PHONY: build
-build: ## Builds the code.
+build: check-go-env ## Builds the code.
 	$(GOBUILD) -o ./build/crawler cmd/crawler/main.go
 
 .PHONY: test
-test: ## Runs unit tests and tests code coverage.
+test: check-go-env ## Runs unit tests and tests code coverage.
 	@echo 'mode: atomic' > coverage.txt && $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=5m ./...
 
 .PHONY: test-integration
-test-integration: ## Runs tagged integration tests
+test-integration: check-go-env ## Runs tagged integration tests
 	@echo 'mode: atomic' > coverage.txt && PUBSUB_EMULATOR_HOST=localhost:8042 $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -race -timeout=5m -tags=integration ./...
+
+.PHONY: test-integration-ci
+test-integration-ci: check-go-env ## Runs tagged integration tests serially for low mem/low cpu CI env (set -p to 1)
+	@echo 'mode: atomic' > coverage.txt && PUBSUB_EMULATOR_HOST=localhost:8042 $(GOTEST) -covermode=atomic -coverprofile=coverage.txt -v -p 1 -race -timeout=5m -tags=integration ./...
 
 .PHONY: cover
 cover: test ## Runs unit tests, code coverage, and runs HTML coverage tool.
