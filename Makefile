@@ -123,7 +123,7 @@ lint: check-go-env ## Runs linting.
 	@golangci-lint run ./...
 
 .PHONY: generate-civil
-generate: generate-contracts generate-civil-watchers generate-civil-filterers generate-civil-common generate-civil-handler-lists ## Runs all the civil code generation
+generate-civil: generate-civil-watchers generate-civil-filterers generate-civil-common generate-civil-handler-lists ## Runs all the civil code generation
 
 .PHONY: generate-civil-watchers
 generate-civil-watchers: check-go-env ## Runs watchergen to generate contract Watch* wrapper code for Civil.
