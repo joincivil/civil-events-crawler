@@ -134,6 +134,9 @@ generate-civil-watchers: check-go-env ## Runs watchergen to generate contract Wa
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) cvltoken watcher watcher > ./$(GENERATED_WATCHER_DIR)/cvltoken.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilparameterizer watcher watcher > ./$(GENERATED_WATCHER_DIR)/civilparameterizer.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilgovernment watcher watcher > ./$(GENERATED_WATCHER_DIR)/civilgovernment.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroomfactory watcher watcher > ./$(GENERATED_WATCHER_DIR)/newsroomfactory.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) multisigwalletcontract watcher watcher > ./$(GENERATED_WATCHER_DIR)/multisigwalletcontract.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) multisigwalletfactorycontract watcher watcher > ./$(GENERATED_WATCHER_DIR)/multisigwalletfactorycontract.go
 
 .PHONY: generate-civil-filterers
 generate-civil-filterers: check-go-env ## Runs filterergen to generate contract Filter* wrapper code for Civil.
@@ -144,6 +147,9 @@ generate-civil-filterers: check-go-env ## Runs filterergen to generate contract 
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) cvltoken filterer filterer > ./$(GENERATED_FILTERER_DIR)/cvltoken.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilparameterizer filterer filterer > ./$(GENERATED_FILTERER_DIR)/civilparameterizer.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilgovernment filterer filterer > ./$(GENERATED_FILTERER_DIR)/civilgovernment.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroomfactory filterer filterer > ./$(GENERATED_FILTERER_DIR)/newsroomfactory.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) multisigwalletcontract filterer filterer > ./$(GENERATED_FILTERER_DIR)/multisigwalletcontract.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) multisigwalletfactorycontract filterer filterer > ./$(GENERATED_FILTERER_DIR)/multisigwalletfactorycontract.go
 
 .PHONY: generate-civil-common
 generate-civil-common: check-go-env ## Runs commongen to generate common contract wrapper code for Civil.
@@ -154,6 +160,9 @@ generate-civil-common: check-go-env ## Runs commongen to generate common contrac
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) cvltoken common common > ./$(GENERATED_COMMON_DIR)/cvltoken.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilparameterizer common common > ./$(GENERATED_COMMON_DIR)/civilparameterizer.go
 	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) civilgovernment common common > ./$(GENERATED_COMMON_DIR)/civilgovernment.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) newsroomfactory common common > ./$(GENERATED_COMMON_DIR)/newsroomfactory.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) multisigwalletcontract common common > ./$(GENERATED_COMMON_DIR)/multisigwalletcontract.go
+	@$(GORUN) $(EVENTHANDLER_GEN_MAIN) multisigwalletfactorycontract common common > ./$(GENERATED_COMMON_DIR)/multisigwalletfactorycontract.go
 
 .PHONY: generate-civil-handler-lists
 generate-civil-handler-lists: check-go-env ## Runs handlerlistgen to generate handler list wrapper code for Civil.

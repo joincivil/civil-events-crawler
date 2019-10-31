@@ -91,7 +91,7 @@ func contractWatchers(config *utils.CrawlerConfig) []model.ContractWatchers {
 func eventTriggers(config *utils.CrawlerConfig) []eventcollector.Trigger {
 	return []eventcollector.Trigger{
 		&eventcollector.AddNewsroomWatchersTrigger{},
-		&eventcollector.RemoveNewsroomWatchersTrigger{},
+		&eventcollector.AddMultisigWatchersTrigger{},
 	}
 }
 

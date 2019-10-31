@@ -18,13 +18,13 @@ type AddNewsroomWatchersTrigger struct{}
 
 // Description returns the description of the trigger
 func (n *AddNewsroomWatchersTrigger) Description() string {
-	return "Start watching for newsroom events on TCR whitelisting events"
+	return "Start watching for newsroom events as soon as newsroom is created in factory"
 }
 
 // ShouldRun returns true or false on whether this trigger should be run
 func (n *AddNewsroomWatchersTrigger) ShouldRun(collector *EventCollector,
 	event *model.Event) bool {
-	return event.EventType() == "Application"
+	return event.ContractName() == "NewsroomFactory" && event.EventType() == "ContractInstantiation"
 }
 
 // Run returns the triggered code
@@ -33,7 +33,7 @@ func (n *AddNewsroomWatchersTrigger) Run(collector *EventCollector,
 	if !n.ShouldRun(collector, event) {
 		return errors.New("AddNewsroomWatchersTrigger should not run")
 	}
-	newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
+	newsroomAddr := event.EventPayload()["Instantiation"].(common.Address)
 	err := collector.AddWatchers(
 		watcher.NewNewsroomContractWatchers(newsroomAddr),
 	)
@@ -44,34 +44,34 @@ func (n *AddNewsroomWatchersTrigger) Run(collector *EventCollector,
 	return nil
 }
 
-// RemoveNewsroomWatchersTrigger is a Trigger that removes a new watcher for a
-// newsroom to be delisted.
-type RemoveNewsroomWatchersTrigger struct{}
+// AddMultisigWatchersTrigger is a Trigger that starts up a new watcher for a newly
+// created multisig.
+type AddMultisigWatchersTrigger struct{}
 
 // Description returns the description of the trigger
-func (n *RemoveNewsroomWatchersTrigger) Description() string {
-	return "Remove watching of newsroom events"
+func (n *AddMultisigWatchersTrigger) Description() string {
+	return "Start watching for multisig events as soon as multisig is created in factory"
 }
 
 // ShouldRun returns true or false on whether this trigger should be run
-func (n *RemoveNewsroomWatchersTrigger) ShouldRun(collector *EventCollector,
+func (n *AddMultisigWatchersTrigger) ShouldRun(collector *EventCollector,
 	event *model.Event) bool {
-	return event.EventType() == "ListingRemoved"
+	return event.ContractName() == "MultisigFactory" && event.EventType() == "ContractInstantiation"
 }
 
 // Run returns the triggered code
-func (n *RemoveNewsroomWatchersTrigger) Run(collector *EventCollector,
+func (n *AddMultisigWatchersTrigger) Run(collector *EventCollector,
 	event *model.Event) error {
 	if !n.ShouldRun(collector, event) {
-		return errors.New("RemoveNewsroomWatchersTriggershould not run")
+		return errors.New("AddMultisigWatchersTrigger should not run")
 	}
-	newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
-	err := collector.RemoveWatchers(
-		watcher.NewNewsroomContractWatchers(newsroomAddr),
+	multisigAddr := event.EventPayload()["Instantiation"].(common.Address)
+	err := collector.AddWatchers(
+		watcher.NewMultiSigWalletContractWatchers(multisigAddr),
 	)
 	if err != nil {
-		return errors.WithMessage(err, "error removing watchers")
+		return errors.WithMessage(err, "error adding watchers")
 	}
-	log.Infof("Removing watchers for newsroom at address: %v", newsroomAddr.Hex())
+	log.Infof("Adding watchers for multisig at address: %v", multisigAddr.Hex())
 	return nil
 }

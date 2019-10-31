@@ -274,8 +274,8 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 
 	for _, event := range pastEvents {
 		// NOTE(IS): We should track events from "Application" so we don't miss other events.
-		if event.EventType() == "Application" {
-			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
+		if event.ContractName() == "NewsroomFactory" && event.EventType() == "ContractInstantiation" {
+			newsroomAddr, ok := event.EventPayload()["Instantiation"].(common.Address)
 			if !ok {
 				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
 			}
@@ -291,13 +291,6 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 				existingWatcherNewsroomAddr[newsroomAddr] = true
 			}
 		}
-		if event.EventType() == "ListingRemoved" {
-			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
-			if !ok {
-				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
-			}
-			watchersToAdd[newsroomAddr] = nil
-		}
 	}
 	for addr, watcher := range watchersToAdd {
 		if watcher != nil {
@@ -306,7 +299,6 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 		} else {
 			log.Infof("Not adding %v to watchers because it was removed.", addr.Hex())
 		}
-
 	}
 
 	if len(additionalNewsroomFilterers) > 0 {
