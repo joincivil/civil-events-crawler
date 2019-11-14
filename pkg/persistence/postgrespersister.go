@@ -28,9 +28,9 @@ const (
 	//CrawlerServiceName is the name of the crawler service
 	CrawlerServiceName = "crawler"
 	// Could make this configurable later if needed
-	maxOpenConns    = 12
+	maxOpenConns    = 5
 	maxIdleConns    = 5
-	connMaxLifetime = time.Second * 1800 // 30 mins
+	connMaxLifetime = time.Second * 180 // 3 mins
 )
 
 // NewPostgresPersister creates a new postgres persister
