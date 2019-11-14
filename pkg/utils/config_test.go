@@ -252,10 +252,7 @@ func testServer(t *testing.T, handler func(http.ResponseWriter, *http.Request)) 
 	srv := &http.Server{Addr: ":8889"}
 	http.HandleFunc("/", handler)
 	go func() {
-		err := srv.ListenAndServe()
-		if err != nil {
-			t.Logf("Error w test service: %s", err)
-		}
+		_ = srv.ListenAndServe()
 	}()
 
 	// returning reference so caller can call Shutdown()
