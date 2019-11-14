@@ -137,6 +137,9 @@ func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersist
 		config.PersisterPostgresUser,
 		config.PersisterPostgresPw,
 		config.PersisterPostgresDbname,
+		config.PersisterPostgresMaxConns,
+		config.PersisterPostgresMaxIdle,
+		config.PersisterPostgresConnLife,
 	)
 	if err != nil {
 		log.Errorf("Error connecting to Postgresql, stopping...; err: %v", err)
