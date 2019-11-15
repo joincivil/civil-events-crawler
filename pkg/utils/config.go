@@ -201,6 +201,51 @@ LoopB:
 	return nil
 }
 
+// PersistType returns the persister type, implements PersisterConfig
+func (c *CrawlerConfig) PersistType() cconfig.PersisterType {
+	return c.PersisterType
+}
+
+// PostgresAddress returns the postgres persister address, implements PersisterConfig
+func (c *CrawlerConfig) Address() string {
+	return c.PersisterPostgresAddress
+}
+
+// PostgresPort returns the postgres persister port, implements PersisterConfig
+func (c *CrawlerConfig) Port() int {
+	return c.PersisterPostgresPort
+}
+
+// PostgresDbname returns the postgres persister db name, implements PersisterConfig
+func (c *CrawlerConfig) Dbname() string {
+	return c.PersisterPostgresDbname
+}
+
+// PostgresUser returns the postgres persister user, implements PersisterConfig
+func (c *CrawlerConfig) User() string {
+	return c.PersisterPostgresUser
+}
+
+// PostgresPw returns the postgres persister password, implements PersisterConfig
+func (c *CrawlerConfig) Password() string {
+	return c.PersisterPostgresPw
+}
+
+// PoolMaxConns returns the max conns for a pool, if configured, implements PersisterConfig
+func (c *CrawlerConfig) PoolMaxConns() *int {
+	return c.PersisterPostgresMaxConns
+}
+
+// PoolMaxIdleConns returns the max idleconns for a pool, if configured, implements PersisterConfig
+func (c *CrawlerConfig) PoolMaxIdleConns() *int {
+	return c.PersisterPostgresMaxIdle
+}
+
+// PoolConnLifetimeSecs returns the conn lifetime for a pool, if configured, implements PersisterConfig
+func (c *CrawlerConfig) PoolConnLifetimeSecs() *int {
+	return c.PersisterPostgresConnLife
+}
+
 // OutputUsage prints the usage string to os.Stdout
 func (c *CrawlerConfig) OutputUsage() {
 	cconfig.OutputUsage(c, envVarPrefix, envVarPrefix)
