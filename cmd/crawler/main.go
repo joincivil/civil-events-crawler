@@ -20,13 +20,11 @@ import (
 
 	"github.com/joincivil/civil-events-crawler/pkg/eventcollector"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/handlerlist"
+	"github.com/joincivil/civil-events-crawler/pkg/helpers"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
-	"github.com/joincivil/civil-events-crawler/pkg/persistence"
-	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 	"github.com/joincivil/civil-events-crawler/pkg/pubsub"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
-	cconfig "github.com/joincivil/go-common/pkg/config"
 	cerrors "github.com/joincivil/go-common/pkg/errors"
 )
 
@@ -120,55 +118,6 @@ func crawlerPubSub(config *utils.CrawlerConfig) *pubsub.CrawlerPubSub {
 		os.Exit(1)
 	}
 	return pubsub
-}
-
-func persister(config *utils.CrawlerConfig) interface{} {
-	if config.PersisterType == cconfig.PersisterTypePostgresql {
-		return postgresPersister(config)
-	}
-	// Default to the NullPersister
-	return &persistence.NullPersister{}
-}
-
-func postgresPersister(config *utils.CrawlerConfig) *persistence.PostgresPersister {
-	persister, err := persistence.NewPostgresPersister(
-		config.PersisterPostgresAddress,
-		config.PersisterPostgresPort,
-		config.PersisterPostgresUser,
-		config.PersisterPostgresPw,
-		config.PersisterPostgresDbname,
-		config.PersisterPostgresMaxConns,
-		config.PersisterPostgresMaxIdle,
-		config.PersisterPostgresConnLife,
-	)
-	if err != nil {
-		log.Errorf("Error connecting to Postgresql, stopping...; err: %v", err)
-		os.Exit(1)
-	}
-	// Create version_data table
-	err = persister.CreateVersionTable(&config.VersionNumber)
-	if err != nil {
-		log.Errorf("Error creating tables, stopping...; err: %v", err)
-		os.Exit(1)
-	}
-	// Create event table
-	err = persister.CreateEventTable()
-	if err != nil {
-		log.Errorf("Error creating tables, stopping...; err: %v", err)
-		os.Exit(1)
-	}
-	// Attempts to create all the necessary indices on the tables
-	err = persister.CreateIndices()
-	if err != nil {
-		log.Errorf("Error creating indices, stopping...; err: %v", err)
-		os.Exit(1)
-	}
-	// Populate persistence with latest block data from events table
-	err = persister.PopulateBlockDataFromDB(postgres.EventTableBaseName)
-	if err != nil {
-		log.Errorf("Error populating event last occurrence block data: err: %v", err)
-	}
-	return persister
 }
 
 func cleanup(eventCol *eventcollector.EventCollector, killChan chan<- bool) {
@@ -269,7 +218,10 @@ func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 
 	// Create a single persister to be passed up into the different persister
 	// interfaces
-	persister := persister(config)
+	persister, err := helpers.EventPersister(config)
+	if err != nil {
+		return err
+	}
 
 	eventCol := eventcollector.NewEventCollector(
 		&eventcollector.Config{

@@ -68,6 +68,14 @@ func NewPostgresPersister(host string, port int, user string, password string,
 	return pgPersister, nil
 }
 
+// NewPostgresPersisterFromSqlx creates a new postgres persister with given sqlx.DB
+func NewPostgresPersisterFromSqlx(db *sqlx.DB) (*PostgresPersister, error) {
+	pgPersister := &PostgresPersister{}
+	pgPersister.db = db
+	pgPersister.eventToBlockData = make(map[common.Address]map[string]PersisterBlockData)
+	return pgPersister, nil
+}
+
 // PostgresPersister holds the DB connection and persistence
 type PostgresPersister struct {
 	eventToBlockData map[common.Address]map[string]PersisterBlockData
