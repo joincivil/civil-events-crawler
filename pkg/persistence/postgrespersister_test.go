@@ -257,7 +257,8 @@ func changeBlockData(blockNo int, event *model.Event) {
 func setupDBConnection() (*PostgresPersister, error) {
 	creds := testutils.GetTestDBCreds()
 
-	postgresPersister, err := NewPostgresPersister(creds.Host, creds.Port, creds.User, creds.Password, creds.Dbname)
+	postgresPersister, err := NewPostgresPersister(creds.Host, creds.Port, creds.User,
+		creds.Password, creds.Dbname, nil, nil, nil)
 	return postgresPersister, err
 }
 

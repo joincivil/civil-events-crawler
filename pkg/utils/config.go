@@ -45,13 +45,16 @@ type CrawlerConfig struct {
 	ContractAddresses   map[string]string           `split_words:"true" required:"true" desc:"<contract name>:<contract addr>. Delimit contract address with '|' for multiple addresses"`
 	ContractAddressObjs map[string][]common.Address `ignored:"true"`
 
-	PersisterType            cconfig.PersisterType `ignored:"true"`
-	PersisterTypeName        string                `split_words:"true" required:"true" desc:"Sets the persister type to use"`
-	PersisterPostgresAddress string                `split_words:"true" desc:"If persister type is Postgresql, sets the address"`
-	PersisterPostgresPort    int                   `split_words:"true" desc:"If persister type is Postgresql, sets the port"`
-	PersisterPostgresDbname  string                `split_words:"true" desc:"If persister type is Postgresql, sets the database name"`
-	PersisterPostgresUser    string                `split_words:"true" desc:"If persister type is Postgresql, sets the database user"`
-	PersisterPostgresPw      string                `split_words:"true" desc:"If persister type is Postgresql, sets the database password"`
+	PersisterType             cconfig.PersisterType `ignored:"true"`
+	PersisterTypeName         string                `split_words:"true" required:"true" desc:"Sets the persister type to use"`
+	PersisterPostgresAddress  string                `split_words:"true" desc:"If persister type is Postgresql, sets the address"`
+	PersisterPostgresPort     int                   `split_words:"true" desc:"If persister type is Postgresql, sets the port"`
+	PersisterPostgresDbname   string                `split_words:"true" desc:"If persister type is Postgresql, sets the database name"`
+	PersisterPostgresUser     string                `split_words:"true" desc:"If persister type is Postgresql, sets the database user"`
+	PersisterPostgresPw       string                `split_words:"true" desc:"If persister type is Postgresql, sets the database password"`
+	PersisterPostgresMaxConns *int                  `split_words:"true" desc:"If persister type is Postgresql, sets the max conns in pool"`
+	PersisterPostgresMaxIdle  *int                  `split_words:"true" desc:"If persister type is Postgresql, sets the max idle conns in pool"`
+	PersisterPostgresConnLife *int                  `split_words:"true" desc:"If persister type is Postgresql, sets the max conn lifetime in secs"`
 
 	PubSubProjectID string `split_words:"true" desc:"Sets the Google Cloud PubSub Project ID"`
 	PubSubTopicName string `split_words:"true" desc:"Sets the Google Cloud PubSub Topic name"`
@@ -196,6 +199,51 @@ LoopB:
 
 	log.Infof("addresses len = %v", len(addressStrings))
 	return nil
+}
+
+// PersistType returns the persister type, implements PersisterConfig
+func (c *CrawlerConfig) PersistType() cconfig.PersisterType {
+	return c.PersisterType
+}
+
+// PostgresAddress returns the postgres persister address, implements PersisterConfig
+func (c *CrawlerConfig) Address() string {
+	return c.PersisterPostgresAddress
+}
+
+// PostgresPort returns the postgres persister port, implements PersisterConfig
+func (c *CrawlerConfig) Port() int {
+	return c.PersisterPostgresPort
+}
+
+// PostgresDbname returns the postgres persister db name, implements PersisterConfig
+func (c *CrawlerConfig) Dbname() string {
+	return c.PersisterPostgresDbname
+}
+
+// PostgresUser returns the postgres persister user, implements PersisterConfig
+func (c *CrawlerConfig) User() string {
+	return c.PersisterPostgresUser
+}
+
+// PostgresPw returns the postgres persister password, implements PersisterConfig
+func (c *CrawlerConfig) Password() string {
+	return c.PersisterPostgresPw
+}
+
+// PoolMaxConns returns the max conns for a pool, if configured, implements PersisterConfig
+func (c *CrawlerConfig) PoolMaxConns() *int {
+	return c.PersisterPostgresMaxConns
+}
+
+// PoolMaxIdleConns returns the max idleconns for a pool, if configured, implements PersisterConfig
+func (c *CrawlerConfig) PoolMaxIdleConns() *int {
+	return c.PersisterPostgresMaxIdle
+}
+
+// PoolConnLifetimeSecs returns the conn lifetime for a pool, if configured, implements PersisterConfig
+func (c *CrawlerConfig) PoolConnLifetimeSecs() *int {
+	return c.PersisterPostgresConnLife
 }
 
 // OutputUsage prints the usage string to os.Stdout

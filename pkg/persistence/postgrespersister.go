@@ -28,13 +28,14 @@ const (
 	//CrawlerServiceName is the name of the crawler service
 	CrawlerServiceName = "crawler"
 	// Could make this configurable later if needed
-	maxOpenConns    = 12
+	maxOpenConns    = 5
 	maxIdleConns    = 5
-	connMaxLifetime = time.Second * 1800 // 30 mins
+	connMaxLifetime = time.Second * 180 // 3 mins
 )
 
 // NewPostgresPersister creates a new postgres persister
-func NewPostgresPersister(host string, port int, user string, password string, dbname string) (*PostgresPersister, error) {
+func NewPostgresPersister(host string, port int, user string, password string,
+	dbname string, maxConns *int, maxIdle *int, connLifetimeSecs *int) (*PostgresPersister, error) {
 	pgPersister := &PostgresPersister{}
 	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
 	db, err := sqlx.Connect("postgres", psqlInfo)
@@ -42,9 +43,35 @@ func NewPostgresPersister(host string, port int, user string, password string, d
 		return pgPersister, errors.Wrap(err, "error connecting to sqlx")
 	}
 	pgPersister.db = db
-	db.SetMaxOpenConns(maxOpenConns)
-	db.SetMaxIdleConns(maxIdleConns)
-	db.SetConnMaxLifetime(connMaxLifetime)
+
+	if maxConns != nil {
+		db.SetMaxOpenConns(*maxConns)
+	} else {
+		// Default value
+		db.SetMaxOpenConns(maxOpenConns)
+	}
+	if maxIdle != nil {
+		fmt.Printf("maxidle = %v\n", *maxIdle)
+		db.SetMaxIdleConns(*maxIdle)
+	} else {
+		// Default value
+		db.SetMaxIdleConns(maxIdleConns)
+	}
+	if connLifetimeSecs != nil {
+		db.SetConnMaxLifetime(time.Second * time.Duration(*connLifetimeSecs))
+	} else {
+		// Default value
+		db.SetConnMaxLifetime(connMaxLifetime)
+	}
+
+	pgPersister.eventToBlockData = make(map[common.Address]map[string]PersisterBlockData)
+	return pgPersister, nil
+}
+
+// NewPostgresPersisterFromSqlx creates a new postgres persister with given sqlx.DB
+func NewPostgresPersisterFromSqlx(db *sqlx.DB) (*PostgresPersister, error) {
+	pgPersister := &PostgresPersister{}
+	pgPersister.db = db
 	pgPersister.eventToBlockData = make(map[common.Address]map[string]PersisterBlockData)
 	return pgPersister, nil
 }

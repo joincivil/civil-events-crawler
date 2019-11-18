@@ -4,8 +4,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	log "github.com/golang/glog"
 	"os"
+
+	log "github.com/golang/glog"
 
 	"github.com/joincivil/civil-events-crawler/pkg/persistence"
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
@@ -32,6 +33,9 @@ func main() {
 		config.PersisterPostgresUser,
 		config.PersisterPostgresPw,
 		config.PersisterPostgresDbname,
+		nil,
+		nil,
+		nil,
 	)
 	if err != nil {
 		log.Errorf("Error connecting to Postgresql, stopping...; err: %v", err)
