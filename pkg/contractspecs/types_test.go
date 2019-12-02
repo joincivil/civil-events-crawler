@@ -1,32 +1,31 @@
-// Package model_test contains the tests for the model package
-package model_test
+package contractspecs_test
 
 import (
 	"testing"
 
-	"github.com/joincivil/civil-events-crawler/pkg/model"
+	"github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 )
 
 func TestNameToContractTypes(t *testing.T) {
-	_type, ok := model.NameToContractTypes.Get("civiltcr")
+	_type, ok := contractspecs.NameToContractTypes.Get("civiltcr")
 	if !ok {
 		t.Error("Should have found civiltcr as a contract name")
 	}
-	if _type != model.CivilTcrContractType {
+	if _type != contractspecs.CivilTcrContractType {
 		t.Error("Type should have matched the type for civiltcr")
 	}
-	_, ok = model.NameToContractTypes.Get("nomatchhere")
+	_, ok = contractspecs.NameToContractTypes.Get("nomatchhere")
 	if ok {
 		t.Error("Should have not found an invalid name")
 	}
-	names := model.NameToContractTypes.Names()
+	names := contractspecs.NameToContractTypes.Names()
 	if len(names) == 0 {
 		t.Error("Should have returned a valid names list")
 	}
 }
 
 func TestContractTypeToSpecs(t *testing.T) {
-	specs, ok := model.ContractTypeToSpecs.Get(model.CivilTcrContractType)
+	specs, ok := contractspecs.ContractTypeToSpecs.Get(contractspecs.CivilTcrContractType)
 	if !ok {
 		t.Error("Should have found civiltcr specs")
 	}
@@ -46,12 +45,19 @@ func TestContractTypeToSpecs(t *testing.T) {
 		t.Error("Should have found the type package in spec")
 	}
 
-	_, ok = model.ContractTypeToSpecs.Get(model.InvalidContractType)
+	_, ok = contractspecs.ContractTypeToSpecs.Get(contractspecs.InvalidContractType)
 	if ok {
 		t.Error("Should have not found invalid type specs")
 	}
-	_types := model.ContractTypeToSpecs.Types()
+	_types := contractspecs.ContractTypeToSpecs.Types()
 	if len(_types) == 0 {
 		t.Error("Should have returned a valid list of specs")
+	}
+}
+
+func TestFlagKey(t *testing.T) {
+	key := contractspecs.FlagKey("NewsroomContract", "RoleAdded")
+	if key != "newsroomcontract:roleadded" {
+		t.Errorf("Should have gotten correct key value: %v", key)
 	}
 }

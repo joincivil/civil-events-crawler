@@ -12,6 +12,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	specs "github.com/joincivil/civil-events-crawler/pkg/contractspecs"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -167,11 +169,11 @@ func extractFieldsFromEvent(payload *EventPayload, eventData interface{}, eventT
 
 // AbiJSON returns parsed abi of this particular contract.
 func AbiJSON(contractName string) (abi.ABI, error) {
-	contractType, ok := NameToContractTypes.GetFromContractName(contractName)
+	contractType, ok := specs.NameToContractTypes.GetFromContractName(contractName)
 	if !ok {
 		return abi.ABI{}, errors.New("contract name does not exist")
 	}
-	contractSpecs, ok := ContractTypeToSpecs.Get(contractType)
+	contractSpecs, ok := specs.ContractTypeToSpecs.Get(contractType)
 	if !ok {
 		return abi.ABI{}, errors.New("invalid contract type")
 	}

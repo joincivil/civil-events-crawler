@@ -12,7 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 
-	"github.com/joincivil/civil-events-crawler/pkg/model"
+	specs "github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 
 	cgen "github.com/joincivil/go-common/pkg/gen"
 )
@@ -44,9 +44,9 @@ type TemplateData struct {
 
 // GenerateEventHandlers will code gen the contract event handlers for a given
 // ContractType. It will output the generated code to the given io.Writer.
-func GenerateEventHandlers(writer io.Writer, contractType model.ContractType, packageName string,
+func GenerateEventHandlers(writer io.Writer, contractType specs.ContractType, packageName string,
 	handlerName string) error {
-	contractSpecs, ok := model.ContractTypeToSpecs.Get(contractType)
+	contractSpecs, ok := specs.ContractTypeToSpecs.Get(contractType)
 	if !ok {
 		return errors.New("Invalid ContractType")
 	}

@@ -170,8 +170,8 @@ func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.Even
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
 	}
 	watchers := []model.ContractWatchers{
-		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
-		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
+		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchersAllEvents(contracts.NewsroomAddr),
 	}
 	persister := &persistence.NullPersister{}
 	triggers := []eventcollector.Trigger{
@@ -203,8 +203,8 @@ func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*event
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
 	}
 	watchers := []model.ContractWatchers{
-		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
-		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
+		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchersAllEvents(contracts.NewsroomAddr),
 	}
 	persister := &testPersister{}
 	triggers := []eventcollector.Trigger{
@@ -235,8 +235,8 @@ func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContr
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
 	}
 	watchers := []model.ContractWatchers{
-		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
-		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
+		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchersAllEvents(contracts.NewsroomAddr),
 	}
 	badPersister := &testPersister{saveEventsError: errors.New("Bad save")}
 	goodPersister := &testPersister{}
@@ -268,8 +268,8 @@ func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTest
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
 	}
 	watchers := []model.ContractWatchers{
-		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
-		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
+		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchersAllEvents(contracts.NewsroomAddr),
 	}
 	badPersister := &testPersister{updateLastBlockError: errors.New("Bad update")}
 	goodPersister := &testPersister{}
@@ -389,14 +389,14 @@ func TestEventCollectorAddRemoveWatchers(t *testing.T) {
 	<-collector.StartChan()
 
 	err = collector.RemoveWatchers(
-		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
 	)
 	if err != nil {
 		t.Errorf("Should not have returned an error when removing watcher: err: %v", err)
 	}
 
 	err = collector.AddWatchers(
-		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
 	)
 	if err != nil {
 		t.Errorf("Should not have returned an error when adding watcher: err: %v", err)

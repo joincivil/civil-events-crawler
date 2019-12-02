@@ -1,9 +1,7 @@
-package model
+package contractspecs
 
 import (
 	"sync"
-
-	"github.com/joincivil/go-common/pkg/generated/contract"
 )
 
 const (
@@ -31,64 +29,6 @@ const (
 
 	// CivilGovernmentContractType is the enum value for the Civil Government type
 	CivilGovernmentContractType
-)
-
-var (
-	// ContractTypeToSpecs contains a map from ContractType to the contract specs,
-	// which is the location of the contract and contract ABI, along with contract
-	// metadata used to generate the watchers/filterers.
-	// To be kept up to date with supported contracts
-	// TODO(PN): Convert this to a YAML or JSON file that loads into this spec struct
-	ContractTypeToSpecs = CSpecs{
-		specs: map[ContractType]*ContractSpecs{
-			CivilTcrContractType: {
-				name:        "CivilTCRContract",
-				simpleName:  "civiltcr",
-				abiStr:      contract.CivilTCRContractABI,
-				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
-				typePackage: "contract",
-			},
-			NewsroomContractType: {
-				name:        "NewsroomContract",
-				simpleName:  "newsroom",
-				abiStr:      contract.NewsroomContractABI,
-				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
-				typePackage: "contract",
-			},
-			CivilPLCRVotingContractType: {
-				name:        "CivilPLCRVotingContract",
-				simpleName:  "civilplcrvoting",
-				abiStr:      contract.CivilPLCRVotingContractABI,
-				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
-				typePackage: "contract",
-			},
-			CVLTokenContractType: {
-				name:        "CVLTokenContract",
-				simpleName:  "cvltoken",
-				abiStr:      contract.CVLTokenContractABI,
-				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
-				typePackage: "contract",
-			},
-			CivilParameterizerContractType: {
-				name:        "ParameterizerContract",
-				simpleName:  "civilparameterizer",
-				abiStr:      contract.ParameterizerContractABI,
-				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
-				typePackage: "contract",
-			},
-			CivilGovernmentContractType: {
-				name:        "GovernmentContract",
-				simpleName:  "civilgovernment",
-				abiStr:      contract.GovernmentContractABI,
-				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
-				typePackage: "contract",
-			},
-		},
-	}
-
-	// NameToContractTypes is the map from a simple name to ContractType
-	// To be kept up to date with supported contracts
-	NameToContractTypes = CTypes{}
 )
 
 // ContractSpecs specifies metadata around a smart contract to be used in the

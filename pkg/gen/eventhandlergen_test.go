@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	specs "github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 	"github.com/joincivil/civil-events-crawler/pkg/gen"
-	"github.com/joincivil/civil-events-crawler/pkg/model"
 )
 
 func TestGenerateEventHandlersFromTemplate(t *testing.T) {
@@ -86,7 +86,7 @@ func TestGenerateEventHandlersFromTemplate(t *testing.T) {
 
 func TestGenerateWatchersForCivilTcr(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateEventHandlers(buf, model.CivilTcrContractType, "watcher", "watcher")
+	err := gen.GenerateEventHandlers(buf, specs.CivilTcrContractType, "watcher", "watcher")
 	if err != nil {
 		t.Errorf("Error generating watchers for the Civil TCR contract: err: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestGenerateWatchersForCivilTcr(t *testing.T) {
 
 func TestGenerateWatchersForNewsroom(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateEventHandlers(buf, model.NewsroomContractType, "watcher", "watcher")
+	err := gen.GenerateEventHandlers(buf, specs.NewsroomContractType, "watcher", "watcher")
 	if err != nil {
 		t.Errorf("Error generating watchers for the Newsroom contract: err: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestGenerateWatchersForNewsroom(t *testing.T) {
 
 func TestGenerateWatchersForPLCRVoting(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateEventHandlers(buf, model.CivilPLCRVotingContractType, "watcher", "watcher")
+	err := gen.GenerateEventHandlers(buf, specs.CivilPLCRVotingContractType, "watcher", "watcher")
 	if err != nil {
 		t.Errorf("Error generating watchers for the PLCRVoting contract: err: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestGenerateWatchersForPLCRVoting(t *testing.T) {
 
 func TestGenerateFilterersForCivilTcr(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateEventHandlers(buf, model.CivilTcrContractType, "filterer", "filterer")
+	err := gen.GenerateEventHandlers(buf, specs.CivilTcrContractType, "filterer", "filterer")
 	if err != nil {
 		t.Errorf("Error generating filterers for the Civil TCR contract: err: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestGenerateFilterersForCivilTcr(t *testing.T) {
 
 func TestGenerateFilterersForNewsroom(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateEventHandlers(buf, model.NewsroomContractType, "filterer", "filterer")
+	err := gen.GenerateEventHandlers(buf, specs.NewsroomContractType, "filterer", "filterer")
 	if err != nil {
 		t.Errorf("Error generating Filterers for the Newsroom contract: err: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestGenerateFilterersForNewsroom(t *testing.T) {
 
 func TestGenerateFilterersForPLCRVoting(t *testing.T) {
 	buf := &bytes.Buffer{}
-	err := gen.GenerateEventHandlers(buf, model.CivilPLCRVotingContractType, "filterer", "filterer")
+	err := gen.GenerateEventHandlers(buf, specs.CivilPLCRVotingContractType, "filterer", "filterer")
 	if err != nil {
 		t.Errorf("Error generating filterers for the PLCRVoting contract: err: %v", err)
 	}
