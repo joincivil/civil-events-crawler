@@ -166,14 +166,14 @@ func setupAllEvents(t *testing.T, contracts *cutils.AllTestContracts) int {
 func TestRetrieveMethod(t *testing.T) {
 	contracts, retriever, _ := setupTestRetriever(t)
 
-	numEvents := setupAllEvents(t, contracts)
-	err := retriever.Retrieve()
+	_ = setupAllEvents(t, contracts)
+	err := retriever.Retrieve(false)
 	if err != nil {
 		t.Errorf("Error retrieving events: %v", err)
 	}
 	pastEvents := retriever.PastEvents
-	if len(pastEvents) != numEvents {
-		t.Fatalf("Should have collected %v events but collected %v", numEvents, len(pastEvents))
+	if len(pastEvents) != 7 {
+		t.Fatalf("Should have collected 7 events but collected %v", len(pastEvents))
 	}
 }
 
@@ -181,15 +181,15 @@ func TestRetrieveMethod(t *testing.T) {
 func TestSorting(t *testing.T) {
 	contracts, retriever, _ := setupTestRetriever(t)
 
-	numEvents := setupAllEvents(t, contracts)
-	err := retriever.Retrieve()
+	_ = setupAllEvents(t, contracts)
+	err := retriever.Retrieve(false)
 	if err != nil {
 		t.Errorf("Error retrieving events: %v", err)
 	}
 
 	pastEvents := retriever.PastEvents
-	if len(pastEvents) != numEvents {
-		t.Fatalf("Should have collected %v events but collected %v", numEvents, len(pastEvents))
+	if len(pastEvents) != 7 {
+		t.Fatalf("Should have collected 7 events but collected %v", len(pastEvents))
 	}
 
 	err = retriever.SortEventsByBlock(nil)
@@ -197,7 +197,7 @@ func TestSorting(t *testing.T) {
 		t.Errorf("Error sorting events: %v", err)
 	}
 
-	blockNumbers := make([]int, numEvents)
+	blockNumbers := make([]int, len(pastEvents))
 	for idx, event := range pastEvents {
 		blockNumbers[idx] = int(event.BlockNumber())
 	}
@@ -268,21 +268,81 @@ func TestLastEvents(t *testing.T) {
 		}
 	}
 
-	numEvents := setupAllEvents(t, contracts)
-	err := retriever.Retrieve()
+	_ = setupAllEvents(t, contracts)
+	err := retriever.Retrieve(false)
 	if err != nil {
 		t.Errorf("Error retrieving events: %v", err)
 	}
 	pastEvents := retriever.PastEvents
 
 	// Check that past events is not empty
-	if len(pastEvents) != numEvents {
-		t.Errorf("Should have collected %v events but collected %v", numEvents, len(pastEvents))
+	if len(pastEvents) != 7 {
+		t.Errorf("Should have collected 7 events but collected %v", len(pastEvents))
 	}
 
 	for _, filterer := range filterers {
 		if len(filterer.LastEvents()) == 0 {
 			t.Errorf("LastEvents should be empty, but is %v", len(filterer.LastEvents()))
 		}
+	}
+}
+
+func TestAddFilterers(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: %v", err)
+	}
+
+	filterers := []model.ContractFilterers{
+		filterer.NewCivilTCRContractFilterers(contracts.CivilTcrAddr),
+	}
+	retriever := retriever.NewEventRetriever(contracts.Client, filterers)
+	_ = setupAllEvents(t, contracts)
+
+	err = retriever.AddFilterers(
+		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
+	)
+	if err != nil {
+		t.Errorf("Error adding filterer: %v", err)
+	}
+
+	err = retriever.Retrieve(false)
+	if err != nil {
+		t.Errorf("Error retrieving events: %v", err)
+	}
+
+	pastEvents := retriever.PastEvents
+	if len(pastEvents) != 7 {
+		t.Fatalf("Should have collected 7 events but collected %v", len(pastEvents))
+	}
+}
+
+func TestRemoveFilterers(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: %v", err)
+	}
+
+	filterers := []model.ContractFilterers{
+		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
+	}
+	retriever := retriever.NewEventRetriever(contracts.Client, filterers)
+	numEvents := setupAllEvents(t, contracts)
+
+	err = retriever.RemoveFilterers(
+		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
+	)
+	if err != nil {
+		t.Errorf("Error adding filterer: %v", err)
+	}
+
+	err = retriever.Retrieve(false)
+	if err != nil {
+		t.Errorf("Error retrieving events: %v", err)
+	}
+
+	pastEvents := retriever.PastEvents
+	if len(pastEvents) == numEvents {
+		t.Fatalf("Should not have collected %v events", len(pastEvents))
 	}
 }

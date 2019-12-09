@@ -90,9 +90,12 @@ func TestListenerEmptyWatchers(t *testing.T) {
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}
-	err = listener.Start()
+	subs, err := listener.Start()
 	if err == nil {
 		t.Errorf("Listener should have failed with no watchers: %v", err)
+	}
+	if len(subs) > 0 {
+		t.Error("Listener should have had no watchers")
 	}
 }
 
@@ -112,9 +115,9 @@ func TestListenerDisableWatchers(t *testing.T) {
 	}
 	// Make sure the config is empty, thus disabling all listeners
 	contractspecs.EnableListener = map[string]bool{}
-	err = listener.Start()
-	if err == nil {
-		t.Errorf("Listener should have failed with no watchers: %v", err)
+	_, err = listener.Start()
+	if err != nil {
+		t.Errorf("Listener not should have failed with no watchers")
 	}
 }
 
@@ -135,25 +138,9 @@ func TestListenerEnableWatchers(t *testing.T) {
 	contractspecs.EnableListener = map[string]bool{
 		contractspecs.FlagKey("CivilTCRContract", "ApplicationWhitelisted"): true,
 	}
-	err = listener.Start()
-	if err != nil {
+	subs, err := listener.Start()
+	if err != nil || len(subs) == 0 {
 		t.Errorf("Listener should have enabled a watcher: %v", err)
-	}
-}
-
-func TestListenerErrorStartWatchers(t *testing.T) {
-	contracts, err := cutils.SetupAllTestContracts()
-	if err != nil {
-		t.Fatalf("Unable to setup the contracts: %v", err)
-	}
-	watchers := []model.ContractWatchers{}
-	listener := listener.NewEventListener(contracts.Client, watchers)
-	if listener == nil {
-		t.Fatal("Listener should not be nil")
-	}
-	err = listener.Start()
-	if err == nil {
-		t.Errorf("Listener should have failed with error from StartWatchers: %v", err)
 	}
 }
 
@@ -387,7 +374,7 @@ func setupListener(t *testing.T, client bind.ContractBackend, watchers []model.C
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}
-	err := listener.Start()
+	_, err := listener.Start()
 	if err != nil {
 		t.Errorf("Listener should have started with no errors: %v", err)
 	}

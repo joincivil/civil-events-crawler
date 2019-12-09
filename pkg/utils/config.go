@@ -33,7 +33,7 @@ type CrawlerConfig struct {
 	EthStartBlock uint64 `envconfig:"eth_start_block" desc:"Sets the start Eth block (default 0)" default:"0"`
 
 	// Enables polling mode, disables websockets
-	PollingEnabled      bool `envconfig:"polling_enabled" desc:"Enable polling mode (true disables listeners)"`
+	PollingEnabled      bool `envconfig:"polling_enabled" desc:"Enable polling only mode (true disables listeners)"`
 	PollingIntervalSecs int  `envconfig:"polling_int_secs" desc:"Sets the polling interval"`
 
 	// CivilListingsGraphqlURL enables call to retrieve newsroom listings from Civil.
@@ -77,6 +77,8 @@ type CrawlerConfig struct {
 	CloudProfileProjectID      string `split_words:"true" desc:"Sets the cloud profiler Google Cloud project ID. If empty, will disable cloud profiler agent"`
 	CloudProfileServiceName    string `split_words:"true" desc:"Sets the service name to with in the Google Cloud profiler"`
 	CloudProfileServiceVersion string `split_words:"true" desc:"Sets the Google Cloud profiler service version"`
+
+	PreemptSecs *int `split_words:"true" desc:"Sets the secs delay before listener prempt restart. 0 if no preempt"`
 }
 
 // Edge represents an edge field in the query

@@ -3,31 +3,21 @@ package eventcollector // import "github.com/joincivil/civil-events-crawler/pkg/
 
 import (
 	"fmt"
-	"math/big"
-	"runtime"
 	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	log "github.com/golang/glog"
 	"github.com/pkg/errors"
-
-	"github.com/Jeffail/tunny"
-	"github.com/lib/pq"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 
-	specs "github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/pubsub"
-	"github.com/joincivil/civil-events-crawler/pkg/retriever"
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
 	cerrors "github.com/joincivil/go-common/pkg/errors"
 	"github.com/joincivil/go-common/pkg/eth"
@@ -65,6 +55,7 @@ type Config struct {
 	CrawlerPubSub       *pubsub.CrawlerPubSub
 	PollingEnabled      bool
 	PollingIntervalSecs int
+	PreemptSecs         *int
 }
 
 // NewEventCollector creates a new event collector
@@ -83,12 +74,16 @@ func NewEventCollector(config *Config) *EventCollector {
 		eventDataPersister:  config.EventDataPersister,
 		triggers:            config.Triggers,
 		startBlock:          config.StartBlock,
-		startChan:           make(chan bool),
-		quitChan:            make(chan bool),
-		errorsChan:          make(chan error),
+		startChan:           make(chan struct{}),
+		shutdownChan:        make(chan struct{}),
+		listenerStopChan:    make(chan struct{}),
+		listenerErrChan:     make(chan error),
+		retrieverStopChan:   make(chan struct{}),
+		retrieverErrChan:    make(chan error),
 		crawlerPubSub:       config.CrawlerPubSub,
 		pollingEnabled:      config.PollingEnabled,
 		pollingIntervalSecs: config.PollingIntervalSecs,
+		preemptSecs:         config.PreemptSecs,
 	}
 	return eventcollector
 }
@@ -119,19 +114,24 @@ type EventCollector struct {
 
 	eventDataPersister model.EventDataPersister
 
+	// Most recent listener
 	listen *listener.EventListener
-
-	retrieve *retriever.EventRetriever
 
 	startBlock uint64
 
 	// startChan is closed when the event collector has started
-	startChan chan bool
+	startChan chan struct{}
 
-	// quitChan is closed to stop goroutines and the event collector
-	quitChan chan bool
+	// shutdownChan is closed to stop all processes of the event collector
+	shutdownChan chan struct{}
 
-	errorsChan chan error
+	retrieverStopChan chan struct{}
+
+	retrieverErrChan chan error
+
+	listenerStopChan chan struct{}
+
+	listenerErrChan chan error
 
 	mutex sync.Mutex
 
@@ -142,98 +142,87 @@ type EventCollector struct {
 	pollingEnabled bool
 
 	pollingIntervalSecs int
-}
 
-// FilterAddedNewsroomContract runs a filterer on the newly watched newsroom contract to ensure we have all events.
-func (c *EventCollector) FilterAddedNewsroomContract(newsroomAddr common.Address) ([]*model.Event, error) {
-	nwsrmFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
-	c.updateFiltererStartingBlock(nwsrmFilterer)
-	retrieve := retriever.NewEventRetriever(c.httpClient, []model.ContractFilterers{nwsrmFilterer})
-	err := retrieve.Retrieve()
-	if err != nil {
-		return nil, err
-	}
-	nwsrmEvents := retrieve.PastEvents
-	return nwsrmEvents, nil
+	preemptSecs *int
 }
 
 // StartChan returns the channel will send a "event collector started" signal
-func (c *EventCollector) StartChan() chan bool {
+func (c *EventCollector) StartChan() chan struct{} {
+	defer c.mutex.Unlock()
+	c.mutex.Lock()
 	return c.startChan
 }
 
 // StartCollection contains logic to run retriever and listener.
 func (c *EventCollector) StartCollection() error {
+	defer c.resetCollector()
 	var once sync.Once
+	var err error
+	var l *listener.EventListener
+	pd := c.preemptDuration()
+
+	// This is the main loop
 	for {
-		err := c.runRetriever()
+		c.retrieverStopChan = make(chan struct{})
+		err = c.runRetrieverLoop(c.pollingEnabled)
 		if err != nil {
 			once.Do(func() { c.sendStartSignal() })
-			if !c.isAllowedErrRetriever(err) {
-				log.Errorf("Error running retriever: err: %v", err)
-				return errors.WithMessage(err, "error running retriever in startcol")
-			}
-			log.Errorf("Error running retriever, recovering: err: %v", err)
-			c.errRep.Error(err, nil)
+			return errors.Wrap(err, "startcollection.runRetrieverLoop")
 		}
 
-		if c.crawlerPubSub != nil {
-			err = c.crawlerPubSub.PublishProcessorTriggerMessage()
+		if !c.pollingEnabled && c.isListenerEnabled() {
+			c.listenerStopChan = make(chan struct{})
+			l, err = c.startListenerLoop()
 			if err != nil {
-				log.Errorf("Error publishing trigger message: err: %v", err)
-				c.errRep.Error(err, nil)
+				once.Do(func() { c.sendStartSignal() })
+				log.Errorf("Error starting listener: err: %v", err)
+				return errors.Wrap(err, "error starting listener in startcol")
 			}
+			c.mutex.Lock()
+			c.listen = l
+			c.mutex.Unlock()
+			log.Infof("Listeners enabled")
+			once.Do(func() { c.sendStartSignal() })
 		}
 
 		if c.pollingEnabled {
 			once.Do(func() { c.sendStartSignal() })
-			log.Infof("Polling enabled, waiting...")
-			select {
-			case <-time.After(time.Duration(c.pollingIntSecs()) * time.Second):
-				// Loop back to call runRetriever
-				continue
-			case <-c.quitChan:
-				return nil
-			}
+			log.Infof("Polling via retrievers only")
 		}
 
-		if !c.isListenerEnabled() {
-			log.Infof("Listener is disabled, not starting")
-			once.Do(func() { c.sendStartSignal() })
-			return nil
-		}
-
-		err = c.startListener()
-		if err != nil {
-			once.Do(func() { c.sendStartSignal() })
-			log.Errorf("Error starting listener: err: %v", err)
-			return errors.WithMessage(err, "error starting listener in startcol")
-		}
-
-		once.Do(func() { c.sendStartSignal() })
-
+		// All errors from the filterers and retriever loop get funnelled here.
+		// If any errors occur, reset the collector and restart
 		select {
-		// All errors from the watchers and startListener loop get funnelled here.
-		case err = <-c.errorsChan:
-			log.Errorf("Received error on chan, restarting collector: err: %v", err)
-			c.errRep.Error(err, nil)
-			// nil this out to kill start signal, not needed at this point
-			c.startChan = nil
-			// Stop the old listener before starting new one
-			if err := c.listen.Stop(true); err != nil {
-				log.Errorf("Error stopping listener: err: %v", err)
-				c.errRep.Error(err, nil)
-			}
+		case <-time.After(pd):
+			log.Infof("Premptive restart...")
+			c.resetCollector()
 
-		case <-c.quitChan:
-			log.Infof("Received quitChan signal, stopping collection")
+		case err = <-c.retrieverErrChan:
+			err = errors.Cause(err)
+			log.Errorf("Received error from retriever, resetting collector: err: %v", err)
+			c.errRep.Error(err, nil)
+			c.resetCollector()
+
+		// All errors from the watchers and startListener loop get funnelled here.
+		case err = <-c.listenerErrChan:
+			err = errors.Cause(err)
+			log.Errorf("Received error from listener, resetting collector: err: %v", err)
+			c.errRep.Error(err, nil)
+			c.resetCollector()
+
+		case <-c.shutdownChan:
+			log.Infof("Received shutdownChan signal, stopping collection")
 			return nil
 		}
+
+		log.Infof("Restarting collection loop")
 	}
 }
 
 // StopCollection is for stopping the listener
 func (c *EventCollector) StopCollection(unsubWatchers bool) error {
+	defer c.mutex.Unlock()
+	c.mutex.Lock()
 	var err error
 	if c.crawlerPubSub != nil {
 		err = c.crawlerPubSub.StopPublishers()
@@ -244,459 +233,134 @@ func (c *EventCollector) StopCollection(unsubWatchers bool) error {
 	if c.listen != nil {
 		err = c.listen.Stop(unsubWatchers)
 	}
-	if c.quitChan != nil {
-		close(c.quitChan)
+	if c.shutdownChan != nil {
+		close(c.shutdownChan)
 	}
 	return err
 }
 
-// AddWatchers will add watchers to the embedded listener.
-func (c *EventCollector) AddWatchers(w model.ContractWatchers) error {
-	defer c.mutex.Unlock()
-	c.mutex.Lock()
-	return c.listen.AddWatchers(w)
-}
-
-// RemoveWatchers will remove given watcher from the embedded listener.
-func (c *EventCollector) RemoveWatchers(w model.ContractWatchers) error {
-	defer c.mutex.Unlock()
-	c.mutex.Lock()
-	return c.listen.RemoveWatchers(w)
-}
-
-// CheckRetrievedEventsForNewsroom checks pastEvents for TCR events that may include new newsroom events,
-// creates new Newsroom filterers and watchers upon valid events, filters for events, and then returns those events
-func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Event) ([]*model.Event, error) {
+// CheckRetrievedEventsForNewsroom checks pastEvents for TCR events that may
+// include new newsroom events, creates new Newsroom filterers and watchers
+// upon valid events, filters for events, and then returns those events.
+func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Event) (
+	[]*model.Event, error) {
 	existingFiltererNewsroomAddr := c.getExistingNewsroomFilterers()
 	existingWatcherNewsroomAddr := c.getExistingNewsroomWatchers()
-	watchersToAdd := map[common.Address]*watcher.NewsroomContractWatchers{}
-	additionalNewsroomFilterers := []model.ContractFilterers{}
-	additionalEvents := []*model.Event{}
+
+	watchersToAdd := map[common.Address]model.ContractWatchers{}
+	filterersToAdd := map[common.Address]model.ContractFilterers{}
+	eventsToAdd := []*model.Event{}
 
 	for _, event := range pastEvents {
+
 		// NOTE(IS): We should track events from "Application" so we don't miss other events.
 		if event.EventType() == "Application" {
 			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
 			if !ok {
-				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
+				return eventsToAdd, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
 			}
+
 			if _, ok := existingFiltererNewsroomAddr[newsroomAddr]; !ok {
-				log.Infof("Adding Newsroom filterer for %v", newsroomAddr.Hex())
 				newFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
-				additionalNewsroomFilterers = append(additionalNewsroomFilterers, newFilterer)
+				filterersToAdd[newsroomAddr] = newFilterer
 				existingFiltererNewsroomAddr[newsroomAddr] = true
 			}
+
 			if _, ok := existingWatcherNewsroomAddr[newsroomAddr]; !ok {
+				// log.Infof("Adding Newsroom watcher for %v", newsroomAddr.Hex())
 				newWatcher := watcher.NewNewsroomContractWatchers(newsroomAddr)
 				watchersToAdd[newsroomAddr] = newWatcher
 				existingWatcherNewsroomAddr[newsroomAddr] = true
 			}
 		}
+
 		if event.EventType() == "ListingRemoved" {
 			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
 			if !ok {
-				return additionalEvents, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
+				return eventsToAdd, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
 			}
 			watchersToAdd[newsroomAddr] = nil
 		}
 	}
+
+	var e error
 	for addr, watcher := range watchersToAdd {
 		if watcher != nil {
-			log.Infof("Adding Newsroom watcher for %v", addr.Hex())
-			c.watchers = append(c.watchers, watcher)
+			log.Infof("Adding new newsroom watcher for %v", addr.Hex())
+			// Add new watcher to the list of watchers in the collector
+			// and listener
+			e = c.AddWatchers(watcher)
+			if e != nil {
+				log.Errorf("Error adding new filterer: err: %v", e)
+			}
 		} else {
 			log.Infof("Not adding %v to watchers because it was removed.", addr.Hex())
 		}
 
 	}
 
-	if len(additionalNewsroomFilterers) > 0 {
-		// NOTE(IS): This overwrites the previous retriever with the new filterers
-		// TODO(IS): Better solution for this
-		err := c.retrieveEvents(additionalNewsroomFilterers)
-		if err != nil {
-			return additionalEvents, errors.WithMessage(err, "error retrieving new Newsroom events")
+	if len(filterersToAdd) > 0 {
+		newFilts := make([]model.ContractFilterers, len(filterersToAdd))
+		ind := 0
+		for addr, filt := range filterersToAdd {
+			log.Infof("Adding new newsroom filterer for %v", addr.Hex())
+			newFilts[ind] = filt
+			ind++
+			// Add new filterer to the list of filterers in the collector
+			// and retriever
+			e = c.AddFilterers(filt)
+			if e != nil {
+				log.Errorf("Error adding new filterer: err: %v", e)
+			}
 		}
-		additionalEvents = append(additionalEvents, c.retrieve.PastEvents...)
+
+		// Retrieve events for the new filters only
+		r, err := c.retrieveEvents(newFilts, false)
+		if err != nil {
+			return eventsToAdd, errors.WithMessage(err, "error retrieving new Newsroom events")
+		}
+		log.Infof("Finished retrieving events for new newsrooms")
+		eventsToAdd = append(eventsToAdd, r.PastEvents...)
 	}
-	return additionalEvents, nil
+
+	return eventsToAdd, nil
 }
 
-func (c *EventCollector) runRetriever() error {
-	err := c.retrieveEvents(c.filterers)
-	if err != nil {
-		return errors.WithMessage(err, "error retrieving events")
-	}
-	pastEvents := c.retrieve.PastEvents
-
-	// Check pastEvents for any new newsrooms to track
-	additionalEvents, err := c.CheckRetrievedEventsForNewsroom(pastEvents)
-	if err != nil {
-		return errors.WithMessage(err, "error checking newsroom events during filterer")
-	}
-
-	if len(additionalEvents) > 0 {
-		pastEvents = append(pastEvents, additionalEvents...)
-	}
-
-	err = c.retrieve.SortEventsByBlock(pastEvents)
-	if err != nil {
-		return errors.WithMessage(err, "error sorting retrieved events")
-	}
-
-	err = c.updateEventTimesFromBlockHeaders(pastEvents)
-	if err != nil {
-		return errors.WithMessage(err, "error updating dates for events")
-	}
-
-	err = c.eventDataPersister.SaveEvents(pastEvents)
-	if err != nil {
-		return errors.WithMessage(err, "error persisting events")
-	}
-
-	err = c.persistRetrieverLastBlockData()
-	if err != nil {
-		return errors.WithMessage(err, "error persisting last block data")
-	}
-	return nil
-}
-
-func (c *EventCollector) startListener() error {
+func (c *EventCollector) resetCollector() {
 	defer c.mutex.Unlock()
 	c.mutex.Lock()
-
-	wsClient, killChan, err := c.initWsClient()
-	if err != nil {
-		return errors.WithMessage(err, "startupListener: Unable to create new websocket client")
-	}
-
-	c.listen = listener.NewEventListener(wsClient, c.watchers)
-	if c.listen == nil {
-		return errors.New("startupListener: Listener should not be nil")
-	}
-
-	err = c.listen.Start()
-	if err != nil {
-		return errors.WithMessage(err, "startupListener: Listener should have started with no errors")
-	}
-
-	cleanupFn := func() {
-		if killChan != nil {
-			close(killChan)
-		}
-		wsClient = nil
-		if c.wsEthURL != "" {
-			// if we have the ws url, nil out the set wsClient so we
-			// potentially create a new one
-			c.wsClient = nil
+	// Stop the currently running retriever loop
+	close(c.retrieverStopChan)
+	// nil this out to kill start signal, not needed at this point
+	c.startChan = nil
+	// Stop the old listener before starting new one
+	if c.listen != nil {
+		if err := c.listen.Stop(true); err != nil {
+			log.Errorf("Error stopping listener: err: %v", err)
+			c.errRep.Error(err, nil)
 		}
 	}
-
-	go func(quit <-chan bool, errs chan<- error) {
-		multiplier := 1
-		numCPUs := runtime.NumCPU() * multiplier
-		pool := tunny.NewFunc(numCPUs, c.handleEvent)
-		defer pool.Close()
-
-		for {
-			select {
-			case event := <-c.listen.EventRecvChan:
-				if log.V(2) {
-					log.Infof(
-						"startupListener: Recv loop event received: %v",
-						spew.Sprintf("%#+v", event),
-					)
-				} else {
-					log.Infof(
-						"startupListener: Recv loop event received: eventType: %v, hash: %v, ts: %v",
-						event.EventType(),
-						event.Hash(),
-						event.Timestamp(),
-					)
-				}
-				go func(e *model.Event, errs chan<- error) {
-					result := pool.Process(
-						handleEventInputs{
-							event:  e,
-							errors: errs,
-						},
-					)
-					// Handler error from event processing
-					if result != nil {
-						err := result.(error)
-						if err != nil {
-							log.Errorf(
-								"startupListener: pool.Process Error processing, recovering: err: %v: %v",
-								err,
-								spew.Sdump(event),
-							)
-							c.errRep.Error(err, nil)
-						}
-					}
-					if log.V(2) {
-						log.Infof(
-							"startupListener: pool.Process done: %v",
-							spew.Sprintf("%#+v", event),
-						)
-					} else {
-						log.Infof(
-							"startupListener: pool.Process done: %v, %v, %v",
-							event.EventType(),
-							event.Hash(),
-							event.Timestamp(),
-						)
-					}
-				}(event, errs)
-
-			case err := <-c.listen.Errors:
-				// Any errors from the watchers
-				log.Infof("startupListener: watcher error chan: %v", err)
-				cleanupFn()
-				// make sure we send these errors to the main errors chan
-				c.errorsChan <- errors.WithMessage(err, "startListener: c.listen.Errors")
-
-				// Flush errors chan since we are only handling the first we receive
-				// and killing this consumer. It is possible a number of watchers
-				// receive the same error and push it this channel. Without flushing
-				// the channel may block indefinitely.
-				go func() {
-					for {
-						select {
-						case e := <-c.listen.Errors:
-							if e != nil {
-								log.Infof("Flushed error: %v", e)
-							}
-						case <-time.After(time.Second * time.Duration(60*5)):
-							return
-						}
-					}
-				}()
-				return
-
-			case <-quit:
-				log.Infof("startupListener: Quit event recv loop")
-				cleanupFn()
-				return
-			}
-		}
-	}(c.quitChan, c.errorsChan)
-
-	return nil
+	// Stop the currently running listener loop
+	close(c.listenerStopChan)
+	c.listen = nil
 }
 
-type handleEventInputs struct {
-	event  *model.Event
-	errors chan<- error
-}
-
-// handleEvent is the func used for the goroutine pool that handles
-// incoming events fromt the watchers
-func (c *EventCollector) handleEvent(payload interface{}) interface{} {
-	inputs := payload.(handleEventInputs)
-	eventType := inputs.event.EventType() // Debug, remove later
-	hash := inputs.event.Hash()           // Debug, remove later
-	txHash := inputs.event.TxHash()       // Debug, remove later
-	log.Infof("handleEvent: handling event: %v, tx: %v, hsh: %v", eventType,
-		txHash.Hex(), hash) // Debug, remove later
-	event := inputs.event
-
-	err := c.updateEventTimeFromBlockHeader(event)
-	if err != nil {
-		return errors.WithMessage(err, "error updating date for event")
+func (c *EventCollector) preemptDuration() time.Duration {
+	if c.preemptSecs == nil || *c.preemptSecs == 0 {
+		// Don't preempt == a very long time
+		log.Infof("Disabling preempt")
+		return time.Hour * 24 * 365 * 10
 	}
-	log.Infof("handleEvent: updated event time from block header: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
-
-	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
-	if err != nil {
-		return errors.WithMessage(err, "error saving events")
-	}
-	log.Infof("handleEvent: events saved: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
-
-	if c.crawlerPubSub != nil {
-		err = c.crawlerPubSub.PublishProcessorTriggerMessage()
-		if err != nil {
-			return errors.WithMessagef(err, "error sending message for event %v to pubsub", event.Hash())
-		}
-	}
-
-	// Update last block in persistence in case of error
-	err = c.listenerPersister.UpdateLastBlockData([]*model.Event{event})
-	if err != nil {
-		return errors.WithMessage(err, "error updating last block")
-	}
-	log.Infof("handleEvent: updated last block data: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
-
-	// Call event triggers
-	err = c.callTriggers(event)
-	if err != nil {
-		return errors.WithMessage(err, "error calling triggers")
-	}
-	log.Infof("handleEvent: triggers called: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
-
-	// We need to get past newsroom events for the newsroom contract of a newly added watcher
-	if event.EventType() == "Application" {
-		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
-		newsroomEvents, err := c.FilterAddedNewsroomContract(newsroomAddr)
-		if err != nil {
-			return errors.WithMessage(err, "error filtering new newsroom contract")
-		}
-		log.Infof("Found %v newsroom events for address %v after filtering: hsh: %v",
-			len(newsroomEvents), newsroomAddr.Hex(), hash) // Debug, remove later
-		err = c.eventDataPersister.SaveEvents(newsroomEvents)
-		if err != nil {
-			return errors.WithMessage(err, "error saving events for application")
-		}
-		log.Infof("Saved newsroom events at address %v, hsh: %v", newsroomAddr.Hex(), hash) //Debug, remove later
-
-		if c.crawlerPubSub != nil {
-			err := c.crawlerPubSub.PublishNewsroomExceptionMessage(newsroomAddr.Hex())
-			if err != nil {
-				return errors.WithMessagef(err, "error sending message for event %v to pubsub", event.Hash())
-			}
-		}
-	}
-
-	log.Infof("handleEvent: done: %v, tx: %v, hsh: %v", eventType, txHash.Hex(), hash) // Debug, remove later
-	return nil
+	log.Infof("Preempt delay secs: %v", *c.preemptSecs)
+	return time.Duration(*c.preemptSecs) * time.Second
 }
 
 func (c *EventCollector) sendStartSignal() {
+	defer c.mutex.Unlock()
+	c.mutex.Lock()
 	if c.startChan != nil {
 		close(c.startChan)
 	}
-}
-
-func (c *EventCollector) isListenerEnabled() bool {
-	if (c.wsEthURL == "" && c.wsClient == nil) || c.pollingEnabled {
-		return false
-	}
-	return true
-}
-
-func (c *EventCollector) initWsClient() (bind.ContractBackend, chan bool, error) {
-	var killChan chan bool
-	if c.wsClient != nil {
-		return c.wsClient, nil, nil
-	}
-	killChan = make(chan bool)
-	ethclient, err := utils.SetupWebsocketEthClient(c.wsEthURL, killChan, wsPingDelaySecs)
-	if err != nil {
-		return nil, nil, errors.WithMessage(err, "unable to setup ws client")
-	}
-	wsClient := bind.ContractBackend(ethclient)
-	return wsClient, killChan, nil
-}
-
-func (c *EventCollector) pollingIntSecs() int {
-	intSecs := c.pollingIntervalSecs
-	if intSecs == 0 {
-		intSecs = defaultPollingIntervalSecs
-	}
-	return intSecs
-}
-
-// UpdateStartingBlocks updates starting blocks for retriever based on persistence
-func (c *EventCollector) updateRetrieverStartingBlocks(filterers []model.ContractFilterers) {
-	for _, filter := range filterers {
-		c.updateFiltererStartingBlock(filter)
-	}
-}
-
-func (c *EventCollector) updateFiltererStartingBlock(filter model.ContractFilterers) {
-	contractAddress := filter.ContractAddress()
-	eventTypes := filter.EventTypes()
-	for _, eventType := range eventTypes {
-		lastBlock := c.retrieverPersister.LastBlockNumber(eventType, contractAddress)
-		// If lastBlock is 0, assume it has never been set, so set to default
-		// start block value.
-		if lastBlock == 0 {
-			lastBlock = c.startBlock
-		}
-		// NOTE (IS): Starting at lastBlock+1. There could be a scenario where this could miss the rest of events in prev block?
-		filter.UpdateStartBlock(eventType, lastBlock+1)
-	}
-}
-
-func (c *EventCollector) updateEventTimesFromBlockHeaders(events []*model.Event) error {
-	for _, event := range events {
-		err := c.updateEventTimeFromBlockHeader(event)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) error {
-	var header *types.Header
-	var err error
-
-	inCache := false
-	if c.headerCache == nil {
-		c.headerCache = eth.NewBlockHeaderCache(blockHeaderExpirySecs)
-	} else {
-		header = c.headerCache.HeaderByBlockNumber(event.BlockNumber())
-		if header != nil {
-			inCache = true
-		}
-	}
-	if !inCache {
-		blockNum := big.NewInt(0)
-		blockNum.SetUint64(event.BlockNumber())
-
-		log.Infof(
-			"updateEventTimeFromBlockHeader: calling headerbynumber: %v, %v",
-			event.BlockNumber(),
-			blockNum.Int64(),
-		) // Debug, remove later
-
-		header, err = c.retryChain.HeaderByNumberWithRetry(event.BlockNumber(), 10, 500)
-		if err == nil && header != nil {
-			log.Infof(
-				"updateEventTimeFromBlockHeader: done calling headerbynumber: %v",
-				header.TxHash.Hex(),
-			) // Debug, remove later
-		}
-
-		c.headerCache.AddHeader(event.BlockNumber(), header)
-	}
-	if err != nil {
-		return errors.Wrap(err, "error update event time")
-	}
-	event.SetTimestamp(int64(header.Time))
-	return nil
-}
-
-func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers) error {
-	c.updateRetrieverStartingBlocks(filterers)
-	c.retrieve = retriever.NewEventRetriever(c.httpClient, filterers)
-	return c.retrieve.Retrieve()
-}
-
-func (c *EventCollector) getExistingNewsroomFilterers() map[common.Address]bool {
-	existingNewsroomAddr := map[common.Address]bool{}
-	for _, existing := range c.filterers {
-		specs, _ := specs.ContractTypeToSpecs.Get(specs.NewsroomContractType)
-		if existing.ContractName() == specs.Name() {
-			existingNewsroomAddr[existing.ContractAddress()] = true
-		}
-	}
-	return existingNewsroomAddr
-}
-
-func (c *EventCollector) getExistingNewsroomWatchers() map[common.Address]bool {
-	existingNewsroomAddr := map[common.Address]bool{}
-	for _, existing := range c.watchers {
-		specs, _ := specs.ContractTypeToSpecs.Get(specs.NewsroomContractType)
-		if existing.ContractName() == specs.Name() {
-			existingNewsroomAddr[existing.ContractAddress()] = true
-		}
-	}
-	return existingNewsroomAddr
 }
 
 func (c *EventCollector) callTriggers(event *model.Event) error {
@@ -707,35 +371,4 @@ func (c *EventCollector) callTriggers(event *model.Event) error {
 		}
 	}
 	return err
-}
-
-// persistRetrieverLastBlockData saves the last seen events for each filter to
-// persistence. Returns the last error seen when updating the block data.
-func (c *EventCollector) persistRetrieverLastBlockData() error {
-	var err error
-	for _, filter := range c.filterers {
-		err = c.retrieverPersister.UpdateLastBlockData(filter.LastEvents())
-	}
-	return err
-}
-
-// isAllowedErrRetriever returns if an error should be ignored or not in the
-// filterers. This is used in the eventcollector to ensure we only fail on
-// particular errors and recover on others.
-// ex. if an event hash already exists, we ignore, since that would be "correct" as
-// sometimes we may receive the same event and do not want to save it again.
-func (c *EventCollector) isAllowedErrRetriever(err error) bool {
-	switch causeErr := errors.Cause(err).(type) {
-	case *pq.Error:
-		log.Infof("*pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
-			causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
-		return true
-	case pq.Error:
-		log.Infof("pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
-			causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
-		return true
-	default:
-		log.Infof("not allowed error type: %T", causeErr)
-	}
-	return false
 }

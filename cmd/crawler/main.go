@@ -239,6 +239,7 @@ func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 			CrawlerPubSub:       crawlerPubSub(config),
 			PollingEnabled:      config.PollingEnabled,
 			PollingIntervalSecs: config.PollingIntervalSecs,
+			PreemptSecs:         config.PreemptSecs,
 		},
 	)
 

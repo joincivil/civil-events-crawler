@@ -40,12 +40,19 @@ type EventRetriever struct {
 
 	// Mutex to lock writes/reads to PastEvents
 	pastEventsMutex sync.Mutex
+
+	// Mutex to lock access to the filterers map
+	mutex sync.Mutex
 }
 
 // Retrieve gets all events from StartBlock until now
-func (r *EventRetriever) Retrieve() error {
+// If nonSubOnly is true, retrieve only event types that are not subscribed to by
+// the watchers.  This is useful when polling for events alongside setting up watchers
+// for events.
+func (r *EventRetriever) Retrieve(nonSubOnly bool) error {
 	workerMultiplier := 1
 	numWorkers := runtime.NumCPU() * workerMultiplier
+	log.Infof("# Total retrieve workers: %v", numWorkers)
 
 	// Worker pool to run the filterers
 	pool := tunny.NewFunc(numWorkers, func(payload interface{}) interface{} {
@@ -68,7 +75,7 @@ func (r *EventRetriever) Retrieve() error {
 				)
 
 				pastEvents := []*model.Event{}
-				err, pastEvents := filt.StartFilterers(r.client, pastEvents)
+				pastEvents, err := filt.StartFilterers(r.client, pastEvents, nonSubOnly)
 				if err != nil {
 					log.Errorf("Error retrieving filterer events: err: %v", err)
 					return
@@ -91,6 +98,33 @@ func (r *EventRetriever) Retrieve() error {
 
 	wg.Wait()
 	log.Infof("All %v filterers have run", len(r.filterers))
+	return nil
+}
+
+// AddFilterers add filterers to the retriever
+func (r *EventRetriever) AddFilterers(w model.ContractFilterers) error {
+	defer r.mutex.Unlock()
+	r.mutex.Lock()
+	r.filterers = append(r.filterers, w)
+	return nil
+}
+
+// RemoveFilterers remove given filterers from the retriever
+func (r *EventRetriever) RemoveFilterers(w model.ContractFilterers) error {
+	defer r.mutex.Unlock()
+	r.mutex.Lock()
+	if r.filterers != nil && len(r.filterers) > 0 {
+		for index, ew := range r.filterers {
+			if w.ContractAddress() == ew.ContractAddress() &&
+				w.ContractName() == ew.ContractName() {
+				// Delete the item in the filterers list.
+				copy(r.filterers[index:], r.filterers[index+1:])
+				r.filterers[len(r.filterers)-1] = nil
+				r.filterers = r.filterers[:len(r.filterers)-1]
+				return nil
+			}
+		}
+	}
 	return nil
 }
 

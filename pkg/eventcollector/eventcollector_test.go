@@ -105,6 +105,8 @@ func (n *testPersister) LastBlockHash(eventType string, contractAddress common.A
 }
 
 func (n *testPersister) UpdateLastBlockData(events []*model.Event) error {
+	n.m.Lock()
+	defer n.m.Unlock()
 	if len(events) == 0 {
 		return n.updateLastBlockError
 	}
@@ -357,7 +359,6 @@ func TestNewEventCollectorBadWatcher(t *testing.T) {
 	if err == nil {
 		t.Errorf("Should have received error on start collection: err: %v", err)
 	}
-	<-collector.StartChan()
 }
 
 func TestEventCollectorStopCollection(t *testing.T) {
@@ -455,8 +456,8 @@ func TestEventCollectorCollection(t *testing.T) {
 		t.Error("Should have seen some events in the persister")
 	}
 
-	if len(events) != 6 {
-		t.Errorf("Should have seen 6 events in the persister, saw %v instead", len(events))
+	if len(events) != 5 {
+		t.Errorf("Should have seen 5 events in the persister, saw %v instead", len(events))
 		for _, event := range events {
 			t.Logf("event = %v", event.EventType())
 		}
@@ -525,8 +526,8 @@ func TestEventCollectorWithOldNewsroomEvents(t *testing.T) {
 		t.Error("Should have seen some events in the persister")
 	}
 
-	if len(events) != 8 {
-		t.Errorf("Should have seen 8 events in the persister, saw %v instead", len(events))
+	if len(events) != 7 {
+		t.Errorf("Should have seen 7 events in the persister, saw %v instead", len(events))
 	}
 
 	err = collector.StopCollection(true)

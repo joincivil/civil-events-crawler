@@ -51,7 +51,6 @@ func NewPostgresPersister(host string, port int, user string, password string,
 		db.SetMaxOpenConns(maxOpenConns)
 	}
 	if maxIdle != nil {
-		fmt.Printf("maxidle = %v\n", *maxIdle)
 		db.SetMaxIdleConns(*maxIdle)
 	} else {
 		// Default value
