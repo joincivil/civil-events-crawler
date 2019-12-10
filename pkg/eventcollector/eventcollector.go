@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
+	specs "github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
@@ -679,7 +680,7 @@ func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers) err
 func (c *EventCollector) getExistingNewsroomFilterers() map[common.Address]bool {
 	existingNewsroomAddr := map[common.Address]bool{}
 	for _, existing := range c.filterers {
-		specs, _ := model.ContractTypeToSpecs.Get(model.NewsroomContractType)
+		specs, _ := specs.ContractTypeToSpecs.Get(specs.NewsroomContractType)
 		if existing.ContractName() == specs.Name() {
 			existingNewsroomAddr[existing.ContractAddress()] = true
 		}
@@ -690,7 +691,7 @@ func (c *EventCollector) getExistingNewsroomFilterers() map[common.Address]bool 
 func (c *EventCollector) getExistingNewsroomWatchers() map[common.Address]bool {
 	existingNewsroomAddr := map[common.Address]bool{}
 	for _, existing := range c.watchers {
-		specs, _ := model.ContractTypeToSpecs.Get(model.NewsroomContractType)
+		specs, _ := specs.ContractTypeToSpecs.Get(specs.NewsroomContractType)
 		if existing.ContractName() == specs.Name() {
 			existingNewsroomAddr[existing.ContractAddress()] = true
 		}

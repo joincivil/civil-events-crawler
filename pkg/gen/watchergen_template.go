@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 
+    specs "github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
@@ -41,11 +42,19 @@ func New{{.ContractTypeName}}Watchers(contractAddress common.Address) *{{.Contra
 	}
 }
 
+func New{{.ContractTypeName}}WatchersAllEvents(contractAddress common.Address) *{{.ContractTypeName}}Watchers {
+	return &{{.ContractTypeName}}Watchers{
+		contractAddress: contractAddress,
+		enableAll: true,
+	}
+}
+
 type {{.ContractTypeName}}Watchers struct {
 	errors chan error
 	contractAddress common.Address
 	contract *{{.ContractTypePackage}}.{{.ContractTypeName}}
 	activeSubs []utils.WatcherSubscription
+	enableAll bool
 }
 
 func (w *{{.ContractTypeName}}Watchers) ContractAddress() common.Address {
@@ -90,11 +99,13 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-    sub, err = w.startWatch{{.EventMethod}}(eventRecvChan)
-	if err != nil {
-        return nil, errors.WithMessage(err, "error starting start{{.EventMethod}}")
+	if w.enableAll || specs.IsListenerEnabledForEvent("{{$.ContractTypeName}}", "{{.EventMethod}}") {
+		sub, err = w.startWatch{{.EventMethod}}(eventRecvChan)
+		if err != nil {
+			return nil, errors.WithMessage(err, "error starting start{{.EventMethod}}")
+		}
+		subs = append(subs, sub)
 	}
-	subs = append(subs, sub)
 
 {{- end}}
 {{- end}}

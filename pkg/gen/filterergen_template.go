@@ -19,6 +19,7 @@ import (
     "github.com/ethereum/go-ethereum/common"
 
 
+    specs "github.com/joincivil/civil-events-crawler/pkg/contractspecs"
     "github.com/joincivil/civil-events-crawler/pkg/model"
     commongen "github.com/joincivil/civil-events-crawler/pkg/generated/common"
 
@@ -107,25 +108,27 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-    wg.Add(1)
-    go func() {
-        filterFunc := func() {
-            startBlock := f.eventToStartBlock["{{.EventMethod}}"]
-            e, pevents := f.startFilter{{.EventMethod}}(startBlock, []*model.Event{})
-            if e != nil {
-                log.Errorf("Error retrieving {{.EventMethod}}: err: %v", e)
-                return
+    if !specs.IsEventDisabled("{{$.ContractTypeName}}", "{{.EventMethod}}") {
+        wg.Add(1)
+        go func() {
+            filterFunc := func() {
+                startBlock := f.eventToStartBlock["{{.EventMethod}}"]
+                e, pevents := f.startFilter{{.EventMethod}}(startBlock, []*model.Event{})
+                if e != nil {
+                    log.Errorf("Error retrieving {{.EventMethod}}: err: %v", e)
+                    return
+                }
+                if len(pevents) > 0 {
+                    f.lastEventsMutex.Lock()
+                    f.lastEvents = append(f.lastEvents, pevents[len(pevents)-1])
+                    f.lastEventsMutex.Unlock()
+                    resultsChan <- pevents
+                }
             }
-            if len(pevents) > 0 {
-                f.lastEventsMutex.Lock()
-                f.lastEvents = append(f.lastEvents, pevents[len(pevents)-1])
-                f.lastEventsMutex.Unlock()
-                resultsChan <- pevents
-            }
-        }
-        pool.Process(filterFunc)
-        wg.Done()
-    }()
+            pool.Process(filterFunc)
+            wg.Done()
+        }()
+    }
 
 
 {{- end}}
