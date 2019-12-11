@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	"github.com/joincivil/civil-events-crawler/pkg/eventcollector"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
@@ -170,8 +171,8 @@ func setupTestCollector(contracts *cutils.AllTestContracts) *eventcollector.Even
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
 	}
 	watchers := []model.ContractWatchers{
-		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
-		watcher.NewNewsroomContractWatchersAllEvents(contracts.NewsroomAddr),
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	persister := &persistence.NullPersister{}
 	triggers := []eventcollector.Trigger{
@@ -203,8 +204,8 @@ func setupTestCollectorTestPersister(contracts *cutils.AllTestContracts) (*event
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
 	}
 	watchers := []model.ContractWatchers{
-		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
-		watcher.NewNewsroomContractWatchersAllEvents(contracts.NewsroomAddr),
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	persister := &testPersister{}
 	triggers := []eventcollector.Trigger{
@@ -235,8 +236,8 @@ func setupTestCollectorTestPersisterBadSaveEvents(contracts *cutils.AllTestContr
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
 	}
 	watchers := []model.ContractWatchers{
-		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
-		watcher.NewNewsroomContractWatchersAllEvents(contracts.NewsroomAddr),
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	badPersister := &testPersister{saveEventsError: errors.New("Bad save")}
 	goodPersister := &testPersister{}
@@ -268,8 +269,8 @@ func setupTestCollectorTestPersisterBadUpdateBlockData(contracts *cutils.AllTest
 		filterer.NewNewsroomContractFilterers(contracts.NewsroomAddr),
 	}
 	watchers := []model.ContractWatchers{
-		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
-		watcher.NewNewsroomContractWatchersAllEvents(contracts.NewsroomAddr),
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
 	badPersister := &testPersister{updateLastBlockError: errors.New("Bad update")}
 	goodPersister := &testPersister{}
@@ -332,6 +333,7 @@ func TestNewEventCollector(t *testing.T) {
 		t.Fatalf("Unable to setup the contracts: %v", err)
 	}
 	collector := setupTestCollector(contracts)
+	contractspecs.EnableListener[contractspecs.EnableAllListenersKey] = true
 
 	errChan := make(chan error)
 	go collectionStart(collector, t, errChan)
@@ -389,14 +391,14 @@ func TestEventCollectorAddRemoveWatchers(t *testing.T) {
 	<-collector.StartChan()
 
 	err = collector.RemoveWatchers(
-		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
 	)
 	if err != nil {
 		t.Errorf("Should not have returned an error when removing watcher: err: %v", err)
 	}
 
 	err = collector.AddWatchers(
-		watcher.NewCivilTCRContractWatchersAllEvents(contracts.CivilTcrAddr),
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
 	)
 	if err != nil {
 		t.Errorf("Should not have returned an error when adding watcher: err: %v", err)
