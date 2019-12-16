@@ -187,8 +187,10 @@ func TestSorting(t *testing.T) {
 		t.Errorf("Error retrieving events: %v", err)
 	}
 
+	expectedEvents := 7
+
 	pastEvents := retriever.PastEvents
-	if len(pastEvents) != 7 {
+	if len(pastEvents) != expectedEvents {
 		t.Fatalf("Should have collected 7 events but collected %v", len(pastEvents))
 	}
 
