@@ -19,7 +19,7 @@ type handleEventInputs struct {
 }
 
 // handleEvent is the func used for the goroutine pool that handles
-// incoming events fromt the watchers
+// incoming events from the watchers
 func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	inputs := payload.(handleEventInputs)
 	eventType := inputs.event.EventType() // Debug, remove later
