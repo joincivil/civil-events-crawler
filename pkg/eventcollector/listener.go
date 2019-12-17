@@ -18,6 +18,10 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 )
 
+const (
+	listenerLoopMultiplier = 2
+)
+
 // AddWatchers will add watchers to the embedded listener.
 func (c *EventCollector) AddWatchers(w model.ContractWatchers) error {
 	defer c.mutex.Unlock()
@@ -115,8 +119,7 @@ func (c *EventCollector) startListenerLoop() (*listener.EventListener, error) {
 	}
 
 	go func(shutdown <-chan struct{}, quit <-chan struct{}, errs chan<- error) {
-		multiplier := 1
-		numCPUs := runtime.NumCPU() * multiplier
+		numCPUs := runtime.NumCPU() * listenerLoopMultiplier
 		pool := tunny.NewFunc(numCPUs, c.handleEvent)
 		defer pool.Close()
 

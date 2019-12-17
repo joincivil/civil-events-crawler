@@ -94,7 +94,6 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
 
     workerMultiplier := 1
     numWorkers := runtime.NumCPU() * workerMultiplier
-    log.Infof("Filter worker #: %v", numWorkers)
     pool := tunny.NewFunc(numWorkers, func(payload interface{}) interface{} {
         f := payload.(func())
         f()

@@ -2,7 +2,9 @@ package eventcollector
 
 import (
 	"math/big"
+	"time"
 
+	log "github.com/golang/glog"
 	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -20,6 +22,7 @@ type handleEventInputs struct {
 // handleEvent is the func used for the goroutine pool that handles
 // incoming events from the watchers
 func (c *EventCollector) handleEvent(payload interface{}) interface{} {
+	start := time.Now()
 	inputs := payload.(handleEventInputs)
 	event := inputs.event
 
@@ -73,6 +76,8 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		}
 	}
 
+	log.Infof("handleEvent: %v %v handled: took %v", event.ContractName(),
+		event.EventType(), time.Since(start))
 	return nil
 }
 

@@ -15,6 +15,11 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/retriever"
 )
 
+const (
+	pqUniqueViolationCode = "23505"
+	pqHashKeyConstraint   = "event_hash_key"
+)
+
 // AddFilterers will add filterer to the embedded retriever.
 func (c *EventCollector) AddFilterers(w model.ContractFilterers) error {
 	defer c.mutex.Unlock()
@@ -86,11 +91,6 @@ func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers,
 	}
 	return r, nil
 }
-
-const (
-	pqUniqueViolationCode = "23505"
-	pqHashKeyConstraint   = "event_hash_key"
-)
 
 // isAllowedErrRetriever returns if an error should be ignored or not in the
 // filterers. This is used in the eventcollector to ensure we only fail on

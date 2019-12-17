@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"time"
 
 	log "github.com/golang/glog"
 
@@ -13,6 +14,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 
 	"github.com/joincivil/civil-events-crawler/pkg/model"
+)
+
+const (
+	workerMultiplier = 2
 )
 
 // NewEventRetriever creates a EventRetriever given a list of ContractFilterers and
@@ -50,9 +55,8 @@ type EventRetriever struct {
 // the watchers.  This is useful when polling for events alongside setting up watchers
 // for events.
 func (r *EventRetriever) Retrieve(nonSubOnly bool) error {
-	workerMultiplier := 1
+	start := time.Now()
 	numWorkers := runtime.NumCPU() * workerMultiplier
-	log.Infof("# Total retrieve workers: %v", numWorkers)
 
 	// Worker pool to run the filterers
 	pool := tunny.NewFunc(numWorkers, func(payload interface{}) interface{} {
@@ -97,7 +101,7 @@ func (r *EventRetriever) Retrieve(nonSubOnly bool) error {
 	}
 
 	wg.Wait()
-	log.Infof("All %v filterers have run", len(r.filterers))
+	log.Infof("All %v filterers have run, took %v", len(r.filterers), time.Since(start))
 	return nil
 }
 
