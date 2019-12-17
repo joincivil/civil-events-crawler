@@ -141,7 +141,7 @@ func (p *PostgresPersister) SaveVersion(versionNumber *string) error {
 }
 
 // SaveEvents saves events to events table in DB
-func (p *PostgresPersister) SaveEvents(events []*model.Event) error {
+func (p *PostgresPersister) SaveEvents(events []*model.Event) []error {
 	eventTableName := p.GetTableName(postgres.EventTableBaseName)
 	return p.saveEventsToTable(events, eventTableName)
 }
@@ -348,22 +348,22 @@ func (p *PostgresPersister) upsertVersionDataQueryString(tableName string, dbMod
 	return queryString.String()
 }
 
-func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) error {
+func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName string) []error {
 	queryString := cpostgres.InsertIntoDBQueryString(tableName, postgres.Event{})
-	var lasterr error
+	errs := []error{}
+
 	// There is no way to batch insert using sqlx, so doing a loop here
 	for _, event := range events {
 		err := p.saveEventToTable(queryString, event)
 		if err != nil {
 			// We want to ensure we save as much as possible before returning error
 			// so just return the last error we saw
-			log.Errorf("saveEventsToTable: err saving %v to db: err: %v", event.Hash(), err)
-			lasterr = errors.WithMessagef(err, "error saving %v to db", event.Hash())
+			// log.Errorf("saveEventsToTable: err saving %v to db: err: %v", event.Hash(), err)
+			errs = append(errs, errors.WithMessagef(err, "error saving %v to db", event.Hash()))
 			continue
 		}
-		log.Infof("saveEventsToTable: saved: %v, %v", event.EventType(), event.Hash()) // Debug, remove later
 	}
-	return lasterr
+	return errs
 }
 
 func (p *PostgresPersister) retrieveEventsFromTable(tableName string, criteria *model.RetrieveEventsCriteria) ([]*model.Event, error) {
@@ -456,7 +456,6 @@ func (p *PostgresPersister) saveEventToTable(query string, event *model.Event) e
 	if err != nil {
 		return errors.Wrap(err, "error saving event to table")
 	}
-	log.Infof("saveEventToTable: done") // Debug, remove later
 	return nil
 }
 

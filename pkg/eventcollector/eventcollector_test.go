@@ -118,14 +118,17 @@ func (n *testPersister) UpdateLastBlockData(events []*model.Event) error {
 	return n.updateLastBlockError
 }
 
-func (n *testPersister) SaveEvents(events []*model.Event) error {
+func (n *testPersister) SaveEvents(events []*model.Event) []error {
 	n.m.Lock()
 	defer n.m.Unlock()
 	if n.events == nil {
 		n.events = []*model.Event{}
 	}
 	n.events = append(n.events, events...)
-	return n.saveEventsError
+	if n.saveEventsError != nil {
+		return []error{n.saveEventsError}
+	}
+	return nil
 }
 
 func (n *testPersister) RetrieveEvents(params *model.RetrieveEventsCriteria) ([]*model.Event, error) {

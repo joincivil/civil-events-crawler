@@ -21,7 +21,6 @@ func (c *EventCollector) AddFilterers(w model.ContractFilterers) error {
 	c.mutex.Lock()
 	c.filterers = append(c.filterers, w)
 	return nil
-	// return c.retrieve.AddFilterers(w)
 }
 
 // RemoveFilterers will remove given filterer from the embedded retriever.
@@ -41,7 +40,6 @@ func (c *EventCollector) RemoveFilterers(w model.ContractFilterers) error {
 		}
 	}
 	return nil
-	// return c.retrieve.RemoveFilterers(w)
 }
 
 // FilterAddedNewsroomContract runs a filterer on the newly watched newsroom contract to ensure we have all events.
@@ -89,6 +87,11 @@ func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers,
 	return r, nil
 }
 
+const (
+	pqUniqueViolationCode = "23505"
+	pqHashKeyConstraint   = "event_hash_key"
+)
+
 // isAllowedErrRetriever returns if an error should be ignored or not in the
 // filterers. This is used in the eventcollector to ensure we only fail on
 // particular errors and recover on others.
@@ -97,13 +100,19 @@ func (c *EventCollector) retrieveEvents(filterers []model.ContractFilterers,
 func (c *EventCollector) isAllowedErrRetriever(err error) bool {
 	switch causeErr := errors.Cause(err).(type) {
 	case *pq.Error:
-		log.Infof("*pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
-			causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
-		return true
+		// log.Infof("*pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
+		// 	causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
+		if causeErr.Code == pqUniqueViolationCode &&
+			causeErr.Constraint == pqHashKeyConstraint {
+			return true
+		}
 	case pq.Error:
-		log.Infof("pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
-			causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
-		return true
+		// log.Infof("pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
+		// 	causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
+		if causeErr.Code == pqUniqueViolationCode &&
+			causeErr.Constraint == pqHashKeyConstraint {
+			return true
+		}
 	default:
 		log.Infof("not allowed error type: %T", causeErr)
 	}
@@ -144,14 +153,13 @@ func (c *EventCollector) updateFiltererStartingBlock(filter model.ContractFilter
 
 func (c *EventCollector) runRetrieverLoop(pollingOnly bool) error {
 	// Always initially retrieve all the enabled events
-	log.Infof("Initial retriever run")
 	err := c.runRetriever(false)
 	if err != nil {
 		if !c.isAllowedErrRetriever(err) {
 			log.Errorf("Error running retriever: err: %v", err)
 			return errors.Wrap(err, "error running initial retriever in loop")
 		}
-		log.Errorf("Error running initial retriever, recovering: err: %v", err)
+		log.Errorf("Error running retriever, recovering: err: %v", err)
 		c.errRep.Error(err, nil)
 	}
 
@@ -168,7 +176,6 @@ func (c *EventCollector) runRetrieverLoop(pollingOnly bool) error {
 			case <-time.After(time.Duration(c.pollingIntSecs()) * time.Second):
 			}
 
-			log.Infof("Running retriever")
 			err := c.runRetriever(!pollingOnly)
 			if err != nil {
 				if !c.isAllowedErrRetriever(err) {
@@ -195,13 +202,14 @@ func (c *EventCollector) runRetrieverLoop(pollingOnly bool) error {
 }
 
 func (c *EventCollector) runRetriever(nonSubOnly bool) error {
+	log.Infof("runRetriever: retrieving events")
 	ret, err := c.retrieveEvents(c.filterers, nonSubOnly)
 	if err != nil {
 		return errors.WithMessage(err, "error retrieving events")
 	}
 	pastEvents := ret.PastEvents
 
-	// Check pastEvents for any new newsrooms to track
+	log.Infof("runRetriever: checking events for newsrooms")
 	additionalEvents, err := c.CheckRetrievedEventsForNewsroom(pastEvents)
 	if err != nil {
 		return errors.WithMessage(err, "error checking newsroom events during filterer")
@@ -211,24 +219,36 @@ func (c *EventCollector) runRetriever(nonSubOnly bool) error {
 		pastEvents = append(pastEvents, additionalEvents...)
 	}
 
+	log.Infof("runRetriever: sorting events by block")
 	err = ret.SortEventsByBlock(pastEvents)
 	if err != nil {
 		return errors.WithMessage(err, "error sorting retrieved events")
 	}
 
+	log.Infof("runRetriever: updating event times from headers")
 	err = c.updateEventTimesFromBlockHeaders(pastEvents)
 	if err != nil {
 		return errors.WithMessage(err, "error updating dates for events")
 	}
 
-	err = c.eventDataPersister.SaveEvents(pastEvents)
-	if err != nil {
-		return errors.WithMessage(err, "error persisting events")
+	log.Infof("runRetriever: saving events")
+	errs := c.eventDataPersister.SaveEvents(pastEvents)
+	if len(errs) > 0 {
+		for _, err := range errs {
+			if !c.isAllowedErrRetriever(err) {
+				return errors.WithMessage(err, "error persisting events")
+			}
+			log.Errorf("Error persisting events, recovering: err: %v", err)
+			c.errRep.Error(err, nil)
+		}
 	}
 
+	log.Infof("runRetriever: persist retriever last block data")
 	err = c.persistRetrieverLastBlockData()
 	if err != nil {
 		return errors.WithMessage(err, "error persisting last block data")
 	}
+
+	log.Infof("runRetriever: done")
 	return nil
 }

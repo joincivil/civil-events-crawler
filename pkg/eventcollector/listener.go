@@ -23,7 +23,11 @@ func (c *EventCollector) AddWatchers(w model.ContractWatchers) error {
 	defer c.mutex.Unlock()
 	c.mutex.Lock()
 	c.watchers = append(c.watchers, w)
-	return c.listen.AddWatchers(w)
+	// If has active listener, add and run watchers
+	if c.listen != nil {
+		return c.listen.AddWatchers(w)
+	}
+	return nil
 }
 
 // RemoveWatchers will remove given watcher from the embedded listener.
@@ -65,12 +69,12 @@ func (c *EventCollector) isListenerEnabled() bool {
 	return true
 }
 
-func (c *EventCollector) initWsClient() (bind.ContractBackend, chan bool, error) {
-	var killChan chan bool
+func (c *EventCollector) initWsClient() (bind.ContractBackend, chan struct{}, error) {
+	var killChan chan struct{}
 	if c.wsClient != nil {
 		return c.wsClient, nil, nil
 	}
-	killChan = make(chan bool)
+	killChan = make(chan struct{})
 	ethclient, err := utils.SetupWebsocketEthClient(c.wsEthURL, killChan, wsPingDelaySecs)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "unable to setup ws client")

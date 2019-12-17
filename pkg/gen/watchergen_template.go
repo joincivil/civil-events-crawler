@@ -57,7 +57,7 @@ func (w *{{.ContractTypeName}}Watchers) ContractName() string {
 	return "{{.ContractTypeName}}"
 }
 
-func (w *{{.ContractTypeName}}Watchers) cancelFunc(cancelFn context.CancelFunc, killCancel <-chan bool) {
+func (w *{{.ContractTypeName}}Watchers) cancelFunc(cancelFn context.CancelFunc, killCancel <-chan struct{}) {
 }
 
 func (w *{{.ContractTypeName}}Watchers) StopWatchers(unsub bool) error {
@@ -117,9 +117,9 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 			ctx := context.Background()
 			ctx, cancelFn := context.WithCancel(ctx)
 			opts := &bind.WatchOpts{Context: ctx}
-			killCancel := make(chan bool)
+			killCancel := make(chan struct{})
 			// 10 sec timeout mechanism for starting up watcher
-			go func(cancelFn context.CancelFunc, killCancel <-chan bool) {
+			go func(cancelFn context.CancelFunc, killCancel <-chan struct{}) {
 				select {
 				case <-time.After(time.Duration(killCancelTimeoutSecs) * time.Second):
 					log.Errorf("Watch{{.EventMethod}} start timeout, cancelling...")

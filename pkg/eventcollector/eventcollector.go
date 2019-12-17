@@ -267,7 +267,6 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 			}
 
 			if _, ok := existingWatcherNewsroomAddr[newsroomAddr]; !ok {
-				// log.Infof("Adding Newsroom watcher for %v", newsroomAddr.Hex())
 				newWatcher := watcher.NewNewsroomContractWatchers(newsroomAddr)
 				watchersToAdd[newsroomAddr] = newWatcher
 				existingWatcherNewsroomAddr[newsroomAddr] = true
@@ -319,7 +318,7 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 		if err != nil {
 			return eventsToAdd, errors.WithMessage(err, "error retrieving new Newsroom events")
 		}
-		log.Infof("Finished retrieving events for new newsrooms")
+
 		eventsToAdd = append(eventsToAdd, r.PastEvents...)
 	}
 

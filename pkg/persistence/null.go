@@ -45,7 +45,7 @@ func (n *NullPersister) UpdateLastBlockData(events []*model.Event) error {
 }
 
 // SaveEvents stores a list of Event(s)
-func (n *NullPersister) SaveEvents(events []*model.Event) error {
+func (n *NullPersister) SaveEvents(events []*model.Event) []error {
 	// Only log this if INFO log level -v=2
 	if log.V(2) {
 		for _, event := range events {

@@ -104,7 +104,7 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
 
     wg := sync.WaitGroup{}
     resultsChan := make(chan []*model.Event)
-    done := make(chan bool)
+    done := make(chan struct{})
     filtsRun := 0
 
 
@@ -140,7 +140,7 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
 
     go func() {
         wg.Wait()
-        done <- true
+        close(done)
         log.Info("Filtering routines complete")
     }()
 

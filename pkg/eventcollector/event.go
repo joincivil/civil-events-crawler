@@ -3,7 +3,6 @@ package eventcollector
 import (
 	"math/big"
 
-	log "github.com/golang/glog"
 	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -22,26 +21,17 @@ type handleEventInputs struct {
 // incoming events from the watchers
 func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	inputs := payload.(handleEventInputs)
-	eventType := inputs.event.EventType() // Debug, remove later
-	hash := inputs.event.Hash()           // Debug, remove later
-	txHash := inputs.event.TxHash()       // Debug, remove later
-	log.Infof("handleEvent: handling event: %v, tx: %v, hsh: %v", eventType,
-		txHash.Hex(), hash) // Debug, remove later
 	event := inputs.event
 
 	err := c.updateEventTimeFromBlockHeader(event)
 	if err != nil {
 		return errors.WithMessage(err, "error updating date for event")
 	}
-	log.Infof("handleEvent: updated event time from block header: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
 
-	err = c.eventDataPersister.SaveEvents([]*model.Event{event})
-	if err != nil {
-		return errors.WithMessage(err, "error saving events")
+	errs := c.eventDataPersister.SaveEvents([]*model.Event{event})
+	if len(errs) > 0 {
+		return errors.WithMessage(errs[0], "error saving events")
 	}
-	log.Infof("handleEvent: events saved: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	if c.crawlerPubSub != nil {
 		err = c.crawlerPubSub.PublishProcessorTriggerMessage()
@@ -55,16 +45,12 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	if err != nil {
 		return errors.WithMessage(err, "error updating last block")
 	}
-	log.Infof("handleEvent: updated last block data: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	// Call event triggers
 	err = c.callTriggers(event)
 	if err != nil {
 		return errors.WithMessage(err, "error calling triggers")
 	}
-	log.Infof("handleEvent: triggers called: %v, tx: %v, hsh: %v",
-		eventType, txHash.Hex(), hash) // Debug, remove later
 
 	// We need to get past newsroom events for the newsroom contract of a newly added watcher
 	if event.EventType() == "Application" {
@@ -73,13 +59,11 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		if err != nil {
 			return errors.WithMessage(err, "error filtering new newsroom contract")
 		}
-		log.Infof("Found %v newsroom events for address %v after filtering: hsh: %v",
-			len(newsroomEvents), newsroomAddr.Hex(), hash) // Debug, remove later
-		err = c.eventDataPersister.SaveEvents(newsroomEvents)
-		if err != nil {
-			return errors.WithMessage(err, "error saving events for application")
+
+		errs := c.eventDataPersister.SaveEvents(newsroomEvents)
+		if len(errs) > 0 {
+			return errors.WithMessage(errs[0], "error saving events for application")
 		}
-		log.Infof("Saved newsroom events at address %v, hsh: %v", newsroomAddr.Hex(), hash) //Debug, remove later
 
 		if c.crawlerPubSub != nil {
 			err := c.crawlerPubSub.PublishNewsroomExceptionMessage(newsroomAddr.Hex())
@@ -89,7 +73,6 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 		}
 	}
 
-	log.Infof("handleEvent: done: %v, tx: %v, hsh: %v", eventType, txHash.Hex(), hash) // Debug, remove later
 	return nil
 }
 
@@ -119,21 +102,7 @@ func (c *EventCollector) updateEventTimeFromBlockHeader(event *model.Event) erro
 	if !inCache {
 		blockNum := big.NewInt(0)
 		blockNum.SetUint64(event.BlockNumber())
-
-		log.Infof(
-			"updateEventTimeFromBlockHeader: calling headerbynumber: %v, %v",
-			event.BlockNumber(),
-			blockNum.Int64(),
-		) // Debug, remove later
-
 		header, err = c.retryChain.HeaderByNumberWithRetry(event.BlockNumber(), 10, 500)
-		if err == nil && header != nil {
-			log.Infof(
-				"updateEventTimeFromBlockHeader: done calling headerbynumber: %v",
-				header.TxHash.Hex(),
-			) // Debug, remove later
-		}
-
 		c.headerCache.AddHeader(event.BlockNumber(), header)
 	}
 	if err != nil {
