@@ -120,7 +120,7 @@ func crawlerPubSub(config *utils.CrawlerConfig) *pubsub.CrawlerPubSub {
 	return pubsub
 }
 
-func cleanup(eventCol *eventcollector.EventCollector, killChan chan<- bool) {
+func cleanup(eventCol *eventcollector.EventCollector, killChan chan<- struct{}) {
 	log.Info("Stopping crawler...")
 	err := eventCol.StopCollection(false)
 	if err != nil {
@@ -132,7 +132,7 @@ func cleanup(eventCol *eventcollector.EventCollector, killChan chan<- bool) {
 	log.Info("Crawler stopped")
 }
 
-func setupKillNotify(eventCol *eventcollector.EventCollector, killChan chan<- bool) {
+func setupKillNotify(eventCol *eventcollector.EventCollector, killChan chan<- struct{}) {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -199,7 +199,7 @@ func startupCloudProfiler(config *utils.CrawlerConfig) {
 }
 
 func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
-	killChan := make(chan bool)
+	killChan := make(chan struct{})
 
 	httpClient, err := utils.SetupHTTPEthClient(config.EthAPIURL)
 	if err != nil {
@@ -239,6 +239,7 @@ func startUp(config *utils.CrawlerConfig, errRep cerrors.ErrorReporter) error {
 			CrawlerPubSub:       crawlerPubSub(config),
 			PollingEnabled:      config.PollingEnabled,
 			PollingIntervalSecs: config.PollingIntervalSecs,
+			PreemptSecs:         config.PreemptSecs,
 		},
 	)
 

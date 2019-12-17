@@ -15,7 +15,7 @@ require (
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/jmoiron/sqlx v0.0.0-20180614180643-0dae4fefe7c0
-	github.com/joincivil/go-common v0.0.0-20191205055435-2066ffa678cb
+	github.com/joincivil/go-common v0.0.0-20191217061814-5632d3b02d15
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lib/pq v0.0.0-20180523175426-90697d60dd84
 	github.com/mattn/go-sqlite3 v1.11.0 // indirect

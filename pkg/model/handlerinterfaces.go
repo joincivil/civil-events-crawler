@@ -24,5 +24,5 @@ type ContractFilterers interface {
 	EventTypes() []string
 	UpdateStartBlock(eventType string, startBlock uint64)
 	LastEvents() []*Event
-	StartFilterers(client bind.ContractBackend, pastEvents []*Event) (error, []*Event)
+	StartFilterers(client bind.ContractBackend, pastEvents []*Event, nonSubOnly bool) ([]*Event, error)
 }

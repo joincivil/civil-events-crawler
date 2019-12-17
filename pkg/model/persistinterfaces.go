@@ -53,7 +53,7 @@ type RetrieveEventsCriteria struct {
 // EventDataPersister handles storing the received Event data.
 type EventDataPersister interface {
 	// SaveEvents stores a list of Event(s)
-	SaveEvents(events []*Event) error
+	SaveEvents(events []*Event) []error
 
 	// RetrieveEvents retrieves the Events from the persistence layer based
 	// on date in which it was received

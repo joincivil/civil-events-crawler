@@ -65,8 +65,9 @@ func (f *{{.ContractTypeName}}Filterers) ContractAddress() common.Address {
     return f.contractAddress
 }
 
-func (f *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend, pastEvents []*model.Event) (error, []*model.Event) {
-    return f.Start{{.ContractTypeName}}Filterers(client, pastEvents)
+func (f *{{.ContractTypeName}}Filterers) StartFilterers(client bind.ContractBackend,
+    pastEvents []*model.Event, nonSubOnly bool) ([]*model.Event, error) {
+    return f.Start{{.ContractTypeName}}Filterers(client, pastEvents, nonSubOnly)
 }
 
 func (f *{{.ContractTypeName}}Filterers) EventTypes() []string {
@@ -82,17 +83,17 @@ func (f *{{.ContractTypeName}}Filterers) LastEvents() []*model.Event {
 }
 
 // Start{{.ContractTypeName}}Filterers retrieves events for {{.ContractTypeName}}
-func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(client bind.ContractBackend, pastEvents []*model.Event) (error, []*model.Event) {
+func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(client bind.ContractBackend,
+    pastEvents []*model.Event, nonSubOnly bool) ([]*model.Event, error) {
     contract, err := {{.ContractTypePackage}}.New{{.ContractTypeName}}(f.contractAddress, client)
     if err != nil {
         log.Errorf("Error initializing Start{{.ContractTypeName}}: err: %v", err)
-        return err, pastEvents
+        return pastEvents, err
     }
     f.contract = contract
 
     workerMultiplier := 1
     numWorkers := runtime.NumCPU() * workerMultiplier
-    log.Infof("Num of workers: %v", numWorkers)
     pool := tunny.NewFunc(numWorkers, func(payload interface{}) interface{} {
         f := payload.(func())
         f()
@@ -102,18 +103,19 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
 
     wg := sync.WaitGroup{}
     resultsChan := make(chan []*model.Event)
-    done := make(chan bool)
+    done := make(chan struct{})
+    filtsRun := 0
 
 
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-    if !specs.IsEventDisabled("{{$.ContractTypeName}}", "{{.EventMethod}}") {
+    if !specs.IsEventDisabled("{{$.ContractTypeName}}", "{{.EventMethod}}") && (!nonSubOnly || !specs.IsListenerEnabledForEvent("{{$.ContractTypeName}}", "{{.EventMethod}}")){
         wg.Add(1)
         go func() {
             filterFunc := func() {
                 startBlock := f.eventToStartBlock["{{.EventMethod}}"]
-                e, pevents := f.startFilter{{.EventMethod}}(startBlock, []*model.Event{})
+                pevents, e := f.startFilter{{.EventMethod}}(startBlock, []*model.Event{})
                 if e != nil {
                     log.Errorf("Error retrieving {{.EventMethod}}: err: %v", e)
                     return
@@ -128,6 +130,7 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
             pool.Process(filterFunc)
             wg.Done()
         }()
+        filtsRun++
     }
 
 
@@ -136,7 +139,7 @@ func (f *{{.ContractTypeName}}Filterers) Start{{.ContractTypeName}}Filterers(cli
 
     go func() {
         wg.Wait()
-        done <- true
+        close(done)
         log.Info("Filtering routines complete")
     }()
 
@@ -151,19 +154,19 @@ Loop:
             f.pastEventsMutex.Unlock()
         }
     }
-    log.Infof("Total events found: %v", len(pastEvents))
-    return nil, pastEvents
+    log.Infof("Total filterers run: %v, events found: %v", filtsRun, len(pastEvents))
+    return pastEvents, nil
 }
 
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock uint64, pastEvents []*model.Event) (error, []*model.Event) {
+func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock uint64, pastEvents []*model.Event) ([]*model.Event, error) {
     var opts = &bind.FilterOpts{
         Start: startBlock,
     }
 
-    log.Infof("Filtering events for {{.EventMethod}} for contract %v starting at block %v", f.contractAddress.Hex(), startBlock)
+    log.Infof("Filtering {{$.ContractTypeName}} {{.EventMethod}} for %v at block %v", f.contractAddress.Hex(), startBlock)
 	var itr *contract.{{$.ContractTypeName}}{{.EventMethod}}Iterator
 	var err error
 	maxRetries := 3
@@ -178,14 +181,14 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
         {{end}}
         )
 		if err == nil {
-            log.Infof("Successful filter: {{.EventMethod}} for contract %v", f.contractAddress.Hex())
+            log.Infof("Done filter: {{$.ContractTypeName}} {{.EventMethod}} for %v", f.contractAddress.Hex())
 			break
 		}
 		if retry >= maxRetries {
-            log.Errorf("Failed filter: {{.EventMethod}} for contract %v: err: %v", f.contractAddress.Hex(), err)
-			return err, pastEvents
+            log.Errorf("Failed filter: {{$.ContractTypeName}} {{.EventMethod}} for %v: err: %v", f.contractAddress.Hex(), err)
+			return pastEvents, err
 		}
-        log.Infof("Retrying filter: {{.EventMethod}} for contract %v: err: %v", f.contractAddress.Hex(), err)
+        log.Infof("Retrying filter: {{$.ContractTypeName}} {{.EventMethod}} for %v: err: %v", f.contractAddress.Hex(), err)
 		retry++
     }
     beforeCount := len(pastEvents)
@@ -200,8 +203,8 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
         nextEvent = itr.Next()
     }
     numEventsAdded := len(pastEvents) - beforeCount
-    log.Infof("{{.EventMethod}} events added: %v", numEventsAdded)
-    return nil, pastEvents
+    log.Infof("{{$.ContractTypeName}} {{.EventMethod}} added: %v", numEventsAdded)
+    return pastEvents, nil
 }
 
 {{- end}}
