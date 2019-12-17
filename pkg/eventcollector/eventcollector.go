@@ -26,7 +26,7 @@ import (
 const (
 	blockHeaderExpirySecs = 60 * 5 // 5 mins
 
-	wsPingDelaySecs = 10 // 10 secs
+	wsPingDelaySecs = 60 * 2 // 2 min
 
 	defaultPollingIntervalSecs = 60 // 60 secs
 )
