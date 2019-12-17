@@ -358,7 +358,6 @@ func (p *PostgresPersister) saveEventsToTable(events []*model.Event, tableName s
 		if err != nil {
 			// We want to ensure we save as much as possible before returning error
 			// so just return the last error we saw
-			// log.Errorf("saveEventsToTable: err saving %v to db: err: %v", event.Hash(), err)
 			errs = append(errs, errors.WithMessagef(err, "error saving %v to db", event.Hash()))
 			continue
 		}
