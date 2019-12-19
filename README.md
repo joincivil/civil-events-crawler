@@ -132,7 +132,7 @@ go run cmd/crawler/main.go -h
 ```
 
 ### Supported Civil Contract Short Names
-`civiltcr`, `newsroom`, `civilplcrvoting`, `cvltoken`, `civilparameterizer`, `civilgovernment`
+`civiltcr`, `newsroom`, `civilplcrvoting`, `cvltoken`, `civilparameterizer`, `civilgovernment`, `newsroomfactory`, `multisigfactory`
 
 ### Supported Persister Types
 `none`, `postgresql`

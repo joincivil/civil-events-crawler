@@ -73,6 +73,32 @@ func (c *EventCollector) getExistingNewsroomFilterers() map[common.Address]bool 
 	return existingNewsroomAddr
 }
 
+// FilterAddedMultiSigContract runs a filterer on the newly watched multisig contract to ensure we have all events.
+func (c *EventCollector) FilterAddedMultiSigContract(multiSigAddr common.Address) ([]*model.Event, error) {
+	multiSigFilterer := filterer.NewMultiSigWalletContractFilterers(multiSigAddr)
+	c.updateFiltererStartingBlock(multiSigFilterer)
+	retrieve := retriever.NewEventRetriever(c.httpClient, []model.ContractFilterers{multiSigFilterer})
+	err := retrieve.Retrieve(false)
+	if err != nil {
+		return nil, err
+	}
+	multiSigEvents := retrieve.PastEvents
+	return multiSigEvents, nil
+}
+
+func (c *EventCollector) getExistingMultiSigFilterers() map[common.Address]bool {
+	existingMultiSigAddr := map[common.Address]bool{}
+	c.mutex.Lock()
+	for _, existing := range c.filterers {
+		specs, _ := specs.ContractTypeToSpecs.Get(specs.MultiSigWalletContractType)
+		if existing.ContractName() == specs.Name() {
+			existingMultiSigAddr[existing.ContractAddress()] = true
+		}
+	}
+	c.mutex.Unlock()
+	return existingMultiSigAddr
+}
+
 func (c *EventCollector) pollingIntSecs() int {
 	intSecs := c.pollingIntervalSecs
 	if intSecs == 0 {

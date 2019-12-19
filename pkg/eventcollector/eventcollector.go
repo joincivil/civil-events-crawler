@@ -247,45 +247,63 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 	existingFiltererNewsroomAddr := c.getExistingNewsroomFilterers()
 	existingWatcherNewsroomAddr := c.getExistingNewsroomWatchers()
 
+	existingFiltererMultiSigAddr := c.getExistingMultiSigFilterers()
+	existingWatcherMultiSigAddr := c.getExistingMultiSigWatchers()
+
 	watchersToAdd := map[common.Address]model.ContractWatchers{}
 	filterersToAdd := map[common.Address]model.ContractFilterers{}
 	eventsToAdd := []*model.Event{}
 
 	for _, event := range pastEvents {
+		// Track all multisigs from instantiation
+		if event.EventType() == "ContractInstantiation" && event.ContractName() == "MultiSigWalletFactoryContract" {
+			multiSigAddr, ok := event.EventPayload()["Instantiation"].(common.Address)
+			if !ok {
+				return eventsToAdd, fmt.Errorf("Cannot get multiSigAddr from eventpayload")
+			}
 
-		// NOTE(IS): We should track events from "Application" so we don't miss other events.
-		if event.EventType() == "Application" {
-			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
+			// add filterer for multi sig
+			if _, ok := existingFiltererMultiSigAddr[multiSigAddr]; !ok {
+				newFilterer := filterer.NewMultiSigWalletContractFilterers(multiSigAddr)
+				filterersToAdd[multiSigAddr] = newFilterer
+				existingFiltererMultiSigAddr[multiSigAddr] = true
+			}
+
+			// add watcher for multi sig
+			if _, ok := existingWatcherMultiSigAddr[multiSigAddr]; !ok {
+				newWatcher := watcher.NewMultiSigWalletContractWatchers(multiSigAddr)
+				watchersToAdd[multiSigAddr] = newWatcher
+				existingWatcherMultiSigAddr[multiSigAddr] = true
+			}
+		}
+
+		// Track all newsrooms from instantiation
+		if event.EventType() == "ContractInstantiation" && event.ContractName() == "NewsroomFactory" {
+			newsroomAddr, ok := event.EventPayload()["Instantiation"].(common.Address)
 			if !ok {
 				return eventsToAdd, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
 			}
 
+			// add filterer for newsroom
 			if _, ok := existingFiltererNewsroomAddr[newsroomAddr]; !ok {
 				newFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
 				filterersToAdd[newsroomAddr] = newFilterer
 				existingFiltererNewsroomAddr[newsroomAddr] = true
 			}
 
+			// add watcher for newsroom
 			if _, ok := existingWatcherNewsroomAddr[newsroomAddr]; !ok {
 				newWatcher := watcher.NewNewsroomContractWatchers(newsroomAddr)
 				watchersToAdd[newsroomAddr] = newWatcher
 				existingWatcherNewsroomAddr[newsroomAddr] = true
 			}
 		}
-
-		if event.EventType() == "ListingRemoved" {
-			newsroomAddr, ok := event.EventPayload()["ListingAddress"].(common.Address)
-			if !ok {
-				return eventsToAdd, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
-			}
-			watchersToAdd[newsroomAddr] = nil
-		}
 	}
 
 	var e error
 	for addr, watcher := range watchersToAdd {
 		if watcher != nil {
-			log.Infof("Adding new newsroom watcher for %v", addr.Hex())
+			log.Infof("Adding new watcher for %v", addr.Hex())
 			// Add new watcher to the list of watchers in the collector
 			// and listener
 			e = c.AddWatchers(watcher)
@@ -302,7 +320,7 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 		newFilts := make([]model.ContractFilterers, len(filterersToAdd))
 		ind := 0
 		for addr, filt := range filterersToAdd {
-			log.Infof("Adding new newsroom filterer for %v", addr.Hex())
+			log.Infof("Adding new filterer for %v", addr.Hex())
 			newFilts[ind] = filt
 			ind++
 			// Add new filterer to the list of filterers in the collector
@@ -316,7 +334,7 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 		// Retrieve events for the new filters only
 		r, err := c.retrieveEvents(newFilts, false)
 		if err != nil {
-			return eventsToAdd, errors.WithMessage(err, "error retrieving new Newsroom events")
+			return eventsToAdd, errors.WithMessage(err, "error retrieving new Newsroom or MultiSig events")
 		}
 
 		eventsToAdd = append(eventsToAdd, r.PastEvents...)

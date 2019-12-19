@@ -29,6 +29,15 @@ const (
 
 	// CivilGovernmentContractType is the enum value for the Civil Government type
 	CivilGovernmentContractType
+
+	// MultiSigWalletContractType is the enum value for the Gnosis Multi Sig Wallet type
+	MultiSigWalletContractType
+
+	// MultiSigWalletFactoryContractType is the enum value for the Multi Sig Factory type
+	MultiSigWalletFactoryContractType
+
+	// NewsroomFactoryType is the enum value for the Newsroom Factory type
+	NewsroomFactoryType
 )
 
 // ContractSpecs specifies metadata around a smart contract to be used in the
