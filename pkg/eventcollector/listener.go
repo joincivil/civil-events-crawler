@@ -66,6 +66,19 @@ func (c *EventCollector) getExistingNewsroomWatchers() map[common.Address]bool {
 	return existingNewsroomAddr
 }
 
+func (c *EventCollector) getExistingMultiSigWatchers() map[common.Address]bool {
+	existingMultiSigAddr := map[common.Address]bool{}
+	c.mutex.Lock()
+	for _, existing := range c.watchers {
+		specs, _ := specs.ContractTypeToSpecs.Get(specs.MultiSigWalletContractType)
+		if existing.ContractName() == specs.Name() {
+			existingMultiSigAddr[existing.ContractAddress()] = true
+		}
+	}
+	c.mutex.Unlock()
+	return existingMultiSigAddr
+}
+
 func (c *EventCollector) isListenerEnabled() bool {
 	if (c.wsEthURL == "" && c.wsClient == nil) || c.pollingEnabled {
 		return false

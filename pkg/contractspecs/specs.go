@@ -52,6 +52,27 @@ var (
 				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
 				typePackage: "contract",
 			},
+			MultiSigWalletContractType: {
+				name:        "MultiSigWalletContract",
+				simpleName:  "multisigwallet",
+				abiStr:      contract.MultiSigWalletContractABI,
+				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
+				typePackage: "contract",
+			},
+			MultiSigWalletFactoryContractType: {
+				name:        "MultiSigWalletFactoryContract",
+				simpleName:  "multisigwalletfactory",
+				abiStr:      contract.MultiSigWalletFactoryContractABI,
+				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
+				typePackage: "contract",
+			},
+			NewsroomFactoryType: {
+				name:        "NewsroomFactory",
+				simpleName:  "newsroomfactory",
+				abiStr:      contract.NewsroomFactoryABI,
+				importPath:  "github.com/joincivil/go-common/pkg/generated/contract",
+				typePackage: "contract",
+			},
 		},
 	}
 
