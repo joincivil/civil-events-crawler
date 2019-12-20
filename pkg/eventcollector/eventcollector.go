@@ -256,12 +256,22 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 
 	for _, event := range pastEvents {
 		// Track all multisigs from instantiation
+		var multiSigAddr common.Address
 		if event.EventType() == "ContractInstantiation" && event.ContractName() == "MultiSigWalletFactoryContract" {
-			multiSigAddr, ok := event.EventPayload()["Instantiation"].(common.Address)
+			addr, ok := event.EventPayload()["Instantiation"].(common.Address)
 			if !ok {
 				return eventsToAdd, fmt.Errorf("Cannot get multiSigAddr from eventpayload")
 			}
+			multiSigAddr = addr
+		} else if event.EventType() == "Application" {
+			addr, ok := event.EventPayload()["Applicant"].(common.Address)
+			if !ok {
+				return eventsToAdd, fmt.Errorf("Cannot get applicant from eventpayload")
+			}
+			multiSigAddr = addr
+		}
 
+		if multiSigAddr.String() != "" {
 			// add filterer for multi sig
 			if _, ok := existingFiltererMultiSigAddr[multiSigAddr]; !ok {
 				newFilterer := filterer.NewMultiSigWalletContractFilterers(multiSigAddr)
@@ -278,12 +288,21 @@ func (c *EventCollector) CheckRetrievedEventsForNewsroom(pastEvents []*model.Eve
 		}
 
 		// Track all newsrooms from instantiation
+		var newsroomAddr common.Address
 		if event.EventType() == "ContractInstantiation" && event.ContractName() == "NewsroomFactory" {
-			newsroomAddr, ok := event.EventPayload()["Instantiation"].(common.Address)
+			addr, ok := event.EventPayload()["Instantiation"].(common.Address)
 			if !ok {
 				return eventsToAdd, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
 			}
-
+			newsroomAddr = addr
+		} else if event.EventType() == "Application" {
+			addr, ok := event.EventPayload()["ListingAddress"].(common.Address)
+			if !ok {
+				return eventsToAdd, fmt.Errorf("Cannot get newsroomAddr from eventpayload")
+			}
+			newsroomAddr = addr
+		}
+		if newsroomAddr.String() != "" {
 			// add filterer for newsroom
 			if _, ok := existingFiltererNewsroomAddr[newsroomAddr]; !ok {
 				newFilterer := filterer.NewNewsroomContractFilterers(newsroomAddr)
