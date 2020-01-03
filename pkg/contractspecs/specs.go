@@ -104,14 +104,6 @@ var (
 
 		FlagKey("CivilPLCRVotingContract", "VotingRightsGranted"):   true,
 		FlagKey("CivilPLCRVotingContract", "VotingRightsWithdrawn"): true,
-
-		FlagKey("GovernmentContract", "AppellateSet"):                   true,
-		FlagKey("GovernmentContract", "GovtReparameterizationProposal"): true,
-		FlagKey("GovernmentContract", "NewConstSet"):                    true,
-		FlagKey("GovernmentContract", "ParameterSet"):                   true,
-		FlagKey("GovernmentContract", "ProposalExpired"):                true,
-		FlagKey("GovernmentContract", "ProposalFailed"):                 true,
-		FlagKey("GovernmentContract", "ProposalPassed"):                 true,
 	}
 
 	// EnableListener is a map of contract:event keys to a bool to enable
