@@ -44,7 +44,7 @@ func SetupHTTPEthClient(ethURL string) (*ethclient.Client, error) {
 // SetupWebsocketEthClient returns an websocket ethclient if URL is valid.  Sets up a
 // "command" ping if killChan is not nil and pingDelay > 0.  If message is sent
 // to killChan, stops the ping.
-func SetupWebsocketEthClient(ethURL string, killChan <-chan bool, pingDelay int) (*ethclient.Client, error) {
+func SetupWebsocketEthClient(ethURL string, killChan <-chan struct{}, pingDelay int) (*ethclient.Client, error) {
 	if ethURL == "" {
 		return nil, nil
 	}

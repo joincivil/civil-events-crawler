@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	"github.com/joincivil/civil-events-crawler/pkg/eventcollector"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/filterer"
@@ -104,6 +105,8 @@ func (n *testPersister) LastBlockHash(eventType string, contractAddress common.A
 }
 
 func (n *testPersister) UpdateLastBlockData(events []*model.Event) error {
+	n.m.Lock()
+	defer n.m.Unlock()
 	if len(events) == 0 {
 		return n.updateLastBlockError
 	}
@@ -115,14 +118,17 @@ func (n *testPersister) UpdateLastBlockData(events []*model.Event) error {
 	return n.updateLastBlockError
 }
 
-func (n *testPersister) SaveEvents(events []*model.Event) error {
+func (n *testPersister) SaveEvents(events []*model.Event) []error {
 	n.m.Lock()
 	defer n.m.Unlock()
 	if n.events == nil {
 		n.events = []*model.Event{}
 	}
 	n.events = append(n.events, events...)
-	return n.saveEventsError
+	if n.saveEventsError != nil {
+		return []error{n.saveEventsError}
+	}
+	return nil
 }
 
 func (n *testPersister) RetrieveEvents(params *model.RetrieveEventsCriteria) ([]*model.Event, error) {
@@ -332,6 +338,7 @@ func TestNewEventCollector(t *testing.T) {
 		t.Fatalf("Unable to setup the contracts: %v", err)
 	}
 	collector := setupTestCollector(contracts)
+	contractspecs.EnableListener[contractspecs.EnableAllListenersKey] = true
 
 	errChan := make(chan error)
 	go collectionStart(collector, t, errChan)
@@ -355,7 +362,6 @@ func TestNewEventCollectorBadWatcher(t *testing.T) {
 	if err == nil {
 		t.Errorf("Should have received error on start collection: err: %v", err)
 	}
-	<-collector.StartChan()
 }
 
 func TestEventCollectorStopCollection(t *testing.T) {
@@ -453,8 +459,8 @@ func TestEventCollectorCollection(t *testing.T) {
 		t.Error("Should have seen some events in the persister")
 	}
 
-	if len(events) != 6 {
-		t.Errorf("Should have seen 6 events in the persister, saw %v instead", len(events))
+	if len(events) != 5 {
+		t.Errorf("Should have seen 5 events in the persister, saw %v instead", len(events))
 		for _, event := range events {
 			t.Logf("event = %v", event.EventType())
 		}
@@ -523,8 +529,8 @@ func TestEventCollectorWithOldNewsroomEvents(t *testing.T) {
 		t.Error("Should have seen some events in the persister")
 	}
 
-	if len(events) != 8 {
-		t.Errorf("Should have seen 8 events in the persister, saw %v instead", len(events))
+	if len(events) != 7 {
+		t.Errorf("Should have seen 7 events in the persister, saw %v instead", len(events))
 	}
 
 	err = collector.StopCollection(true)

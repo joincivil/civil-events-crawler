@@ -5,7 +5,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/joincivil/civil-events-crawler/pkg/model"
+	specs "github.com/joincivil/civil-events-crawler/pkg/contractspecs"
+
 	cgen "github.com/joincivil/go-common/pkg/gen"
 )
 
@@ -29,8 +30,8 @@ type EventHandlerListTmplData struct {
 // address.
 func GenerateEventHandlerLists(writer io.Writer, packageName string) error {
 	contracts := []*EventHandlerListContractTmplData{}
-	for _, t := range model.ContractTypeToSpecs.Types() {
-		spec, _ := model.ContractTypeToSpecs.Get(t)
+	for _, t := range specs.ContractTypeToSpecs.Types() {
+		spec, _ := specs.ContractTypeToSpecs.Get(t)
 		contract := &EventHandlerListContractTmplData{
 			Name:       spec.Name(),
 			SimpleName: spec.SimpleName(),

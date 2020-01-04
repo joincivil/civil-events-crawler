@@ -14,6 +14,7 @@ import (
 
 	ctime "github.com/joincivil/go-common/pkg/time"
 
+	"github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 	cutils "github.com/joincivil/civil-events-crawler/pkg/contractutils"
 	"github.com/joincivil/civil-events-crawler/pkg/generated/watcher"
 	"github.com/joincivil/civil-events-crawler/pkg/listener"
@@ -32,6 +33,7 @@ func TestListener(t *testing.T) {
 		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
+	contractspecs.EnableListener[contractspecs.EnableAllListenersKey] = true
 	listener := setupListener(t, contracts.Client, watchers)
 	defer listener.Stop(true) // nolint: errcheck
 }
@@ -45,6 +47,7 @@ func TestListenerStop(t *testing.T) {
 		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
+	contractspecs.EnableListener[contractspecs.EnableAllListenersKey] = true
 	listener := setupListener(t, contracts.Client, watchers)
 
 	// Simple test is if each watcher loop goroutine is shut down by Stop(true)
@@ -82,29 +85,62 @@ func TestListenerEmptyWatchers(t *testing.T) {
 	watchers := []model.ContractWatchers{
 		&testErrorWatcher{},
 	}
+	contractspecs.EnableListener[contractspecs.EnableAllListenersKey] = true
 	listener := listener.NewEventListener(contracts.Client, watchers)
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}
-	err = listener.Start()
+	subs, err := listener.Start()
 	if err == nil {
 		t.Errorf("Listener should have failed with no watchers: %v", err)
 	}
+	if len(subs) > 0 {
+		t.Error("Listener should have had no watchers")
+	}
 }
 
-func TestListenerErrorStartWatchers(t *testing.T) {
+func TestListenerDisableWatchers(t *testing.T) {
 	contracts, err := cutils.SetupAllTestContracts()
 	if err != nil {
 		t.Fatalf("Unable to setup the contracts: %v", err)
 	}
-	watchers := []model.ContractWatchers{}
+
+	watchers := []model.ContractWatchers{
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+	}
+	contractspecs.EnableListener[contractspecs.EnableAllListenersKey] = true
 	listener := listener.NewEventListener(contracts.Client, watchers)
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}
-	err = listener.Start()
-	if err == nil {
-		t.Errorf("Listener should have failed with error from StartWatchers: %v", err)
+	// Make sure the config is empty, thus disabling all listeners
+	contractspecs.EnableListener = map[string]bool{}
+	_, err = listener.Start()
+	if err != nil {
+		t.Errorf("Listener not should have failed with no watchers")
+	}
+}
+
+func TestListenerEnableWatchers(t *testing.T) {
+	contracts, err := cutils.SetupAllTestContracts()
+	if err != nil {
+		t.Fatalf("Unable to setup the contracts: %v", err)
+	}
+
+	watchers := []model.ContractWatchers{
+		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
+	}
+	listener := listener.NewEventListener(contracts.Client, watchers)
+	if listener == nil {
+		t.Fatal("Listener should not be nil")
+	}
+	// Enable one of the watchers
+	contractspecs.EnableListener = map[string]bool{
+		contractspecs.FlagKey("CivilTCRContract", "ApplicationWhitelisted"): true,
+	}
+	subs, err := listener.Start()
+	if err != nil || len(subs) == 0 {
+		t.Errorf("Listener should have enabled a watcher: %v", err)
 	}
 }
 
@@ -176,6 +212,7 @@ func TestListenerContractEvents(t *testing.T) {
 		watcher.NewCivilTCRContractWatchers(contracts.CivilTcrAddr),
 		watcher.NewNewsroomContractWatchers(contracts.NewsroomAddr),
 	}
+	contractspecs.EnableListener[contractspecs.EnableAllListenersKey] = true
 	listener := setupListener(t, contracts.Client, watchers)
 	defer listener.Stop(true) // nolint: errcheck
 
@@ -337,7 +374,7 @@ func setupListener(t *testing.T, client bind.ContractBackend, watchers []model.C
 	if listener == nil {
 		t.Fatal("Listener should not be nil")
 	}
-	err := listener.Start()
+	_, err := listener.Start()
 	if err != nil {
 		t.Errorf("Listener should have started with no errors: %v", err)
 	}

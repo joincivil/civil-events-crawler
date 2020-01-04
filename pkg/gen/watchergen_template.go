@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 
+    specs "github.com/joincivil/civil-events-crawler/pkg/contractspecs"
 	"github.com/joincivil/civil-events-crawler/pkg/model"
 	"github.com/joincivil/civil-events-crawler/pkg/utils"
 
@@ -56,7 +57,7 @@ func (w *{{.ContractTypeName}}Watchers) ContractName() string {
 	return "{{.ContractTypeName}}"
 }
 
-func (w *{{.ContractTypeName}}Watchers) cancelFunc(cancelFn context.CancelFunc, killCancel <-chan bool) {
+func (w *{{.ContractTypeName}}Watchers) cancelFunc(cancelFn context.CancelFunc, killCancel <-chan struct{}) {
 }
 
 func (w *{{.ContractTypeName}}Watchers) StopWatchers(unsub bool) error {
@@ -66,6 +67,7 @@ func (w *{{.ContractTypeName}}Watchers) StopWatchers(unsub bool) error {
 		}
 	}
 	w.activeSubs = nil
+	w.contract = nil
 	return nil
 }
 
@@ -90,11 +92,13 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 {{if .EventHandlers -}}
 {{- range .EventHandlers}}
 
-    sub, err = w.startWatch{{.EventMethod}}(eventRecvChan)
-	if err != nil {
-        return nil, errors.WithMessage(err, "error starting start{{.EventMethod}}")
+	if specs.IsListenerEnabledForEvent("{{$.ContractTypeName}}", "{{.EventMethod}}") {
+		sub, err = w.startWatch{{.EventMethod}}(eventRecvChan)
+		if err != nil {
+			return nil, errors.WithMessage(err, "error starting start{{.EventMethod}}")
+		}
+		subs = append(subs, sub)
 	}
-	subs = append(subs, sub)
 
 {{- end}}
 {{- end}}
@@ -108,15 +112,14 @@ func (w *{{.ContractTypeName}}Watchers) Start{{.ContractTypeName}}Watchers(clien
 
 func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvChan chan *model.Event) (utils.WatcherSubscription, error) {
 	killCancelTimeoutSecs := 10
-	preemptiveTimeoutSecs := 60 * 30
 	return utils.NewWatcherSubscription("Watch{{.EventMethod}}", func(quit <-chan struct{}) error {
 		startupFn := func() (utils.WatcherSubscription, chan *{{$.ContractTypePackage}}.{{.EventType}}, error) {
 			ctx := context.Background()
 			ctx, cancelFn := context.WithCancel(ctx)
 			opts := &bind.WatchOpts{Context: ctx}
-			killCancel := make(chan bool)
+			killCancel := make(chan struct{})
 			// 10 sec timeout mechanism for starting up watcher
-			go func(cancelFn context.CancelFunc, killCancel <-chan bool) {
+			go func(cancelFn context.CancelFunc, killCancel <-chan struct{}) {
 				select {
 				case <-time.After(time.Duration(killCancelTimeoutSecs) * time.Second):
 					log.Errorf("Watch{{.EventMethod}} start timeout, cancelling...")
@@ -140,6 +143,7 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 				if sub != nil {
 					log.Infof("startupFn: Unsubscribing Watch{{.EventMethod}}: addr: %v", w.contractAddress.Hex())
 					sub.Unsubscribe()
+					sub = nil
 				}
 				return nil, nil, errors.Wrap(err, "startupFn: error starting Watch{{.EventMethod}}")
 			}
@@ -151,27 +155,20 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 			log.Errorf("Error starting Watch{{.EventMethod}}: addr: %v, %v", w.contractAddress.Hex(), err)
 			if sub != nil {
 				sub.Unsubscribe()
+				close(recvChan)
+				sub = nil
 			}
 			w.errors <- err
 			return err
 		}
-		defer sub.Unsubscribe()
+		defer func() {
+			sub.Unsubscribe()
+			close(recvChan)
+			sub = nil
+		}()
 		log.Infof("Starting up Watch{{.EventMethod}}: addr: %v", w.contractAddress.Hex())
 		for {
 			select {
-			// 30 min premptive resubscribe
-			case <-time.After(time.Second * time.Duration(preemptiveTimeoutSecs)):
-				log.Infof("Premptive restart of {{.EventMethod}}")
-				oldSub := sub
-				sub, recvChan, err = startupFn()
-				if err != nil {
-					log.Errorf("Error starting {{.EventMethod}}: addr: %v, %v", w.contractAddress.Hex(), err)
-					w.errors <- err
-					return err
-				}
-				log.Infof("Attempting to unsub old {{.EventMethod}}")
-				oldSub.Unsubscribe()
-				log.Infof("Done preemptive restart {{.EventMethod}}: addr: %v", w.contractAddress.Hex())
 			case event := <-recvChan:
 				if log.V(2) {
 					log.Infof("Received event on Watch{{.EventMethod}}: %v", spew.Sprintf("%#+v", event))

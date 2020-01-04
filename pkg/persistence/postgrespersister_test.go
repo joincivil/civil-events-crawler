@@ -629,9 +629,11 @@ func TestDuplicateEvents(t *testing.T) {
 	}
 	civilEventsFromContract := []*model.Event{event1, event2}
 	// save to database, catch the error
-	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
-	if !strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
-		t.Errorf("Error for duplicate key value should have been thrown")
+	errs := persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
+	if len(errs) > 0 {
+		if !strings.Contains(errs[0].Error(), "duplicate key value violates unique constraint") {
+			t.Errorf("Error for duplicate key value should have been thrown")
+		}
 	}
 }
 
@@ -645,15 +647,16 @@ func TestMultipleQueries(t *testing.T) {
 	eventTestTableName := persister.GetTableName(eventTestTableType)
 	// save each type of test event to table
 	// save many events
+	var errs []error
 	for i := 1; i <= 100; i++ {
 		events, err := setupEvents(true)
 		if err != nil {
 			t.Errorf("Couldn't setup civilEvents from contract %v", err)
 		}
 
-		err = persister.saveEventsToTable(events, eventTestTableName)
-		if err != nil {
-			t.Errorf("Cannot save event to events_test table: %v", err)
+		errs = persister.saveEventsToTable(events, eventTestTableName)
+		if len(errs) > 0 {
+			t.Errorf("Cannot save event to events_test table: %v", errs[0])
 		}
 
 		// retrieve events
@@ -687,9 +690,9 @@ func TestSaveEvents(t *testing.T) {
 	}
 
 	// save each type of test event to table
-	err = persister.saveEventsToTable(events, eventTestTableName)
-	if err != nil {
-		t.Errorf("Cannot save event to events_test table: %v", err)
+	errs := persister.saveEventsToTable(events, eventTestTableName)
+	if len(errs) > 0 {
+		t.Errorf("Cannot save event to events_test table: %v", errs[0])
 	}
 
 	civilEventsDB, err := allEventsFromTable(persister, eventTestTableName)
@@ -721,9 +724,9 @@ func BenchmarkSavingManyEventsToEventTestTable(b *testing.B) {
 		civilEventsFromContract = append(civilEventsFromContract, events...)
 	}
 
-	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
-	if err != nil {
-		b.Errorf("Cannot save event to event_test table: %v", err)
+	errs := persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
+	if len(errs) > 0 {
+		b.Errorf("Cannot save event to event_test table: %v", errs[0])
 	}
 	var numRows int
 	err = persister.db.QueryRow(`SELECT COUNT(*) FROM
@@ -805,8 +808,8 @@ func TestLatestEventsQuery(t *testing.T) {
 	testEvents = append(testEvents, testEventsLatest...)
 	numEvents := len(testEventsLatest)
 	// save events
-	err = persister.saveEventsToTable(testEvents, eventTestTableName)
-	if err != nil {
+	errs := persister.saveEventsToTable(testEvents, eventTestTableName)
+	if len(errs) > 0 {
 		t.Errorf("Cannot save event to event_test table: %v", err)
 	}
 
@@ -885,9 +888,9 @@ func TestPopulateBlockDataFromDB(t *testing.T) {
 	}
 
 	// save events to table
-	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
-	if err != nil {
-		t.Errorf("Cannot save event to event_test table: %v", err)
+	errs := persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
+	if len(errs) > 0 {
+		t.Errorf("Cannot save event to event_test table: %v", errs[0])
 	}
 
 	// populate persistence
@@ -933,9 +936,9 @@ func TestSameTimestampEvents(t *testing.T) {
 	}
 
 	// save events to table
-	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
-	if err != nil {
-		t.Errorf("Cannot save event to event_test table: %v", err)
+	errs := persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
+	if len(errs) > 0 {
+		t.Errorf("Cannot save event to event_test table: %v", errs[0])
 	}
 
 	// populate persistence
@@ -967,9 +970,9 @@ func TestSameTimestampEvents(t *testing.T) {
 	}
 
 	// save events to table
-	err = persister.saveEventsToTable(civilEventsFromContract2, eventTestTableName)
-	if err != nil {
-		t.Errorf("Cannot save event to event_test table: %v", err)
+	errs = persister.saveEventsToTable(civilEventsFromContract2, eventTestTableName)
+	if len(errs) > 0 {
+		t.Errorf("Cannot save event to event_test table: %v", errs[0])
 	}
 
 	// populate persistence
@@ -1000,9 +1003,9 @@ func TestDBToEvent(t *testing.T) {
 
 	// Get this event from DB
 	events := []*model.Event{appEvent}
-	err = persister.saveEventsToTable(events, eventTestTableName)
-	if err != nil {
-		t.Errorf("Cannot save event to event_test table: %v", err)
+	errs := persister.saveEventsToTable(events, eventTestTableName)
+	if len(errs) > 0 {
+		t.Errorf("Cannot save event to event_test table: %v", errs[0])
 	}
 
 	appEventDB, err := allEventsFromTable(persister, eventTestTableName)
@@ -1089,9 +1092,9 @@ func TestUint256Float64Conversion(t *testing.T) {
 	}
 
 	events := []*model.Event{appEvent}
-	err = persister.saveEventsToTable(events, eventTestTableName)
-	if err != nil {
-		t.Errorf("Cannot save event to event_test table: %v", err)
+	errs := persister.saveEventsToTable(events, eventTestTableName)
+	if len(errs) > 0 {
+		t.Errorf("Cannot save event to event_test table: %v", errs[0])
 	}
 
 	appEventDB, err := allEventsFromTable(persister, eventTestTableName)
@@ -1124,9 +1127,9 @@ func TestRetrieveEvents(t *testing.T) {
 	}
 	defer deleteTestTableForTesting(t, persister)
 	eventTestTableName := persister.GetTableName(eventTestTableType)
-	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
-	if err != nil {
-		t.Errorf("Should not have seen error when saving events to table: %v", err)
+	errs := persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
+	if len(errs) > 0 {
+		t.Errorf("Should not have seen error when saving events to table: %v", errs[0])
 	}
 
 	events, err := persister.retrieveEventsFromTable(eventTestTableName, &model.RetrieveEventsCriteria{
@@ -1295,9 +1298,9 @@ func TestRetrieveEventsExcludingHash(t *testing.T) {
 	}
 	defer deleteTestTableForTesting(t, persister)
 	eventTestTableName := persister.GetTableName(eventTestTableType)
-	err = persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
-	if err != nil {
-		t.Errorf("Should not have seen error when saving events to table: %v", err)
+	errs := persister.saveEventsToTable(civilEventsFromContract, eventTestTableName)
+	if len(errs) > 0 {
+		t.Errorf("Should not have seen error when saving events to table: %v", errs[0])
 	}
 
 	// Choose random time for lastTs

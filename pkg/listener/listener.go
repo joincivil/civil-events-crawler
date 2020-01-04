@@ -53,12 +53,11 @@ type EventListener struct {
 }
 
 // Start starts up the event listener and watchers
-func (l *EventListener) Start() error {
+func (l *EventListener) Start() ([]utils.WatcherSubscription, error) {
 	defer l.mutex.Unlock()
 	l.mutex.Lock()
 	l.Errors = make(chan error)
 	allSubs := []utils.WatcherSubscription{}
-	hasSubs := false
 	for _, watchers := range l.watchers {
 		newSubs, err := watchers.StartWatchers(
 			l.client,
@@ -68,20 +67,16 @@ func (l *EventListener) Start() error {
 		if err != nil {
 			log.Errorf("Error starting watchers for %v at %v: err: %v",
 				watchers.ContractName(), watchers.ContractAddress(), err)
-		}
-		if len(newSubs) > 0 {
-			hasSubs = true
+			return nil, errors.Wrap(err, "start.startwatchers")
 		}
 		allSubs = append(allSubs, newSubs...)
 	}
 
-	if !hasSubs {
-		return errors.New("no watchers have been started")
-	}
+	log.Infof("%v total watchers started", len(allSubs))
 
 	l.ActiveSubs = allSubs
 	l.active = true
-	return nil
+	return allSubs, nil
 }
 
 // AddWatchers will add watchersto the listener. If the listener is already
