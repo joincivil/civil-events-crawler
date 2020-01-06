@@ -10,6 +10,7 @@ import (
 	"github.com/joincivil/civil-events-crawler/pkg/persistence/postgres"
 
 	cconfig "github.com/joincivil/go-common/pkg/config"
+	"github.com/joincivil/go-common/pkg/strings"
 )
 
 // EventPersister is a helper function to return the correct event persister based on
@@ -25,13 +26,13 @@ func EventPersister(config cconfig.PersisterConfig) (model.EventDataPersister, e
 
 // EventPersisterFromSqlx is a helper function to return the correct event persister from
 // a given sqlx.DB
-func EventPersisterFromSqlx(db *sqlx.DB) (model.EventDataPersister, error) {
+func EventPersisterFromSqlx(db *sqlx.DB, config cconfig.PersisterConfig) (model.EventDataPersister, error) {
 	persister, err := persistence.NewPostgresPersisterFromSqlx(db)
 	if err != nil {
 		return nil, err
 	}
 
-	err = initTablesAndData(persister)
+	err = initTablesAndData(persister, config)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +55,7 @@ func postgresPersister(config cconfig.PersisterConfig) (*persistence.PostgresPer
 		return nil, err
 	}
 
-	err = initTablesAndData(persister)
+	err = initTablesAndData(persister, config)
 	if err != nil {
 		return nil, err
 	}
@@ -62,9 +63,9 @@ func postgresPersister(config cconfig.PersisterConfig) (*persistence.PostgresPer
 	return persister, nil
 }
 
-func initTablesAndData(persister *persistence.PostgresPersister) error {
+func initTablesAndData(persister *persistence.PostgresPersister, config cconfig.PersisterConfig) error {
 	// Pass nil to crawler persistence so it uses the latest version
-	err := persister.CreateVersionTable(nil)
+	err := persister.CreateVersionTable(strings.StrToPtr(config.DataVersion()))
 	if err != nil {
 		return err
 	}
