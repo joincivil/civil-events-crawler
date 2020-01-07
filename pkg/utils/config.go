@@ -248,6 +248,11 @@ func (c *CrawlerConfig) PoolConnLifetimeSecs() *int {
 	return c.PersisterPostgresConnLife
 }
 
+// DataVersion returns the version number from the config
+func (c *CrawlerConfig) DataVersion() string {
+	return c.VersionNumber
+}
+
 // OutputUsage prints the usage string to os.Stdout
 func (c *CrawlerConfig) OutputUsage() {
 	cconfig.OutputUsage(c, envVarPrefix, envVarPrefix)
