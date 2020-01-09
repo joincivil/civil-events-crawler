@@ -1,6 +1,7 @@
 package eventcollector
 
 import (
+	"regexp"
 	"time"
 
 	log "github.com/golang/glog"
@@ -17,7 +18,10 @@ import (
 
 const (
 	pqUniqueViolationCode = "23505"
-	pqHashKeyConstraint   = "event_hash_key"
+)
+
+var (
+	hashKeyRegex = regexp.MustCompile(`event.*?_hash_key`)
 )
 
 // AddFilterers will add filterer to the embedded retriever.
@@ -129,14 +133,14 @@ func (c *EventCollector) isAllowedErrRetriever(err error) bool {
 		// log.Infof("*pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
 		// 	causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
 		if causeErr.Code == pqUniqueViolationCode &&
-			causeErr.Constraint == pqHashKeyConstraint {
+			hashKeyRegex.Match([]byte(causeErr.Constraint)) {
 			return true
 		}
 	case pq.Error:
 		// log.Infof("pq error code %v: %v, constraint: %v, msg: %v", causeErr.Code,
 		// 	causeErr.Code.Name(), causeErr.Constraint, causeErr.Message)
 		if causeErr.Code == pqUniqueViolationCode &&
-			causeErr.Constraint == pqHashKeyConstraint {
+			hashKeyRegex.Match([]byte(causeErr.Constraint)) {
 			return true
 		}
 	default:
