@@ -261,7 +261,7 @@ func TestFetchListingAddresses(t *testing.T) {
 		t.Errorf("Should have fetched listing addresses: len: %v, err: %v",
 			len(config.ContractAddresses["newsroom"]), err)
 	}
-	// 1 newsroom from config, 14 from graphql
+	// 1 newsroom from config, 7 from graphql
 	if len(config.ContractAddressObjs["newsroom"]) != 8 {
 		t.Errorf("Should have fetched listing 8 address objs: len: %v, err: %v",
 			len(config.ContractAddressObjs["newsroom"]), err)
