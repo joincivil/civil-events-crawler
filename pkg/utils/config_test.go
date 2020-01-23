@@ -193,10 +193,13 @@ func TestPersisterTypeFromName(t *testing.T) {
 
 func testGraphqlResponse(w http.ResponseWriter, r *http.Request) {
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(r.Body)
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		fmt.Printf("Error reading from r.Body")
+	}
 
 	m := make(map[string]string)
-	err := json.Unmarshal(buf.Bytes(), &m)
+	err = json.Unmarshal(buf.Bytes(), &m)
 	if err != nil {
 		fmt.Printf("Error Unmarshalling Request Body")
 	}
