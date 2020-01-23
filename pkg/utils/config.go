@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	envVarPrefix       = "crawl"
-	listingsPerRequest = 50
+	envVarPrefix = "crawl"
 )
 
 // NOTE(PN): After envconfig populates CrawlerConfig with the environment vars,
@@ -96,22 +95,6 @@ type Edge struct {
 type PageInfo struct {
 	EndCursor   graphql.String
 	HasNextPage graphql.Boolean
-}
-
-// NOTE(PN): These are two separate queries because whitelistedOnly will always return
-// the value of true or false for this flag and can't be mixed with other params right now
-type whitelistedListingQuery struct {
-	TcrListings struct {
-		Edges    []Edge
-		PageInfo PageInfo
-	} `graphql:"tcrListings(first: $first, after: $after, whitelistedOnly: true)"`
-}
-
-type currentAppActiveChallengeListingQuery struct {
-	TcrListings struct {
-		Edges    []Edge
-		PageInfo PageInfo
-	} `graphql:"tcrListings(first: $first, after: $after, activeChallenge: true, currentApplication: true)"`
 }
 
 var allListingAddressesQuery struct {
