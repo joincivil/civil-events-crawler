@@ -2,13 +2,15 @@
 package utils_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
+	cconfig "github.com/joincivil/go-common/pkg/config"
 	"net/http"
 	"os"
 	"testing"
-
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
-	cconfig "github.com/joincivil/go-common/pkg/config"
 )
 
 // CRAWL_ETH_API_URL=http://ethaddress.com CRAWL_CONTRACT_ADDRESSES=civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55 CRAWL_PERSISTER_TYPE_NAME=postgresql CRAWL_PERSISTER_POSTGRES_ADDRESS=localhost CRAWL_PERSISTER_POSTGRES_PORT=5432 CRAWL_PERSISTER_POSTGRES_DBNAME=civil_crawler go run cmd/crawler/main.go
@@ -190,20 +192,47 @@ func TestPersisterTypeFromName(t *testing.T) {
 }
 
 func testGraphqlResponse(w http.ResponseWriter, r *http.Request) {
-	message := `
-	{
-		"data": {
-			"allListingAddresses": [
-				"0xADbB46098E06dBE18aFF2416920FF03EA6814e7b",
-				"0x5572DBfa985b1127219ff38f4A10AdB10311725b",
-				"0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA",
-				"0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9",
-				"0xA3a7056f4727d9E8094957D937b993adB35f21fF",
-				"0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8",
-				"0xcFfd0E01AD3712B776740aa9766034850dbA2725"
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(r.Body)
+
+	m := make(map[string]string)
+	err := json.Unmarshal(buf.Bytes(), &m)
+	if err != nil {
+		fmt.Printf("Error Unmarshalling Request Body")
+	}
+
+	var message string
+	if m["query"] == "{allListingAddresses}" {
+		message = `
+		{
+			"data": {
+				"allListingAddresses": [
+					"0xADbB46098E06dBE18aFF2416920FF03EA6814e7b",
+					"0x5572DBfa985b1127219ff38f4A10AdB10311725b",
+					"0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA",
+					"0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9",
+					"0xA3a7056f4727d9E8094957D937b993adB35f21fF",
+					"0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8",
+					"0xcFfd0E01AD3712B776740aa9766034850dbA2725"
 				]
-		}
+			}
+		}`
+	} else {
+		message = `
+		{
+			"data": {
+				"allMultiSigAddresses": [
+					"0xADbB46098E06dBE18aFF2416920FF03EA6814e7b",
+					"0x5572DBfa985b1127219ff38f4A10AdB10311725b",
+					"0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA",
+					"0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9",
+					"0xA3a7056f4727d9E8094957D937b993adB35f21fF",
+					"0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8",
+					"0xcFfd0E01AD3712B776740aa9766034850dbA2725"
+				]
+			}
 	}`
+	}
 	w.Write([]byte(message)) // nolint: errcheck
 }
 
@@ -265,63 +294,6 @@ func TestFetchListingAddresses(t *testing.T) {
 	if len(config.ContractAddressObjs["newsroom"]) != 8 {
 		t.Errorf("Should have fetched listing 8 address objs: len: %v, err: %v",
 			len(config.ContractAddressObjs["newsroom"]), err)
-	}
-	server.Shutdown(context.TODO()) // nolint: errcheck
-}
-
-func testGraphqlMultiSigResponse(w http.ResponseWriter, r *http.Request) {
-	message := `
-	{
-		"data": {
-			"allMultiSigAddresses": [
-				"0xADbB46098E06dBE18aFF2416920FF03EA6814e7b",
-				"0x5572DBfa985b1127219ff38f4A10AdB10311725b",
-				"0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA",
-				"0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9",
-				"0xA3a7056f4727d9E8094957D937b993adB35f21fF",
-				"0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8",
-				"0xcFfd0E01AD3712B776740aa9766034850dbA2725"
-				]
-		}
-	}`
-	w.Write([]byte(message)) // nolint: errcheck
-}
-
-func TestFetchMultiSigAddresses(t *testing.T) {
-	server := testServer(t, testGraphqlMultiSigResponse)
-	os.Setenv(
-		"CRAWL_ETH_API_URL",
-		"http://ethaddress.com",
-	)
-	os.Setenv(
-		"CRAWL_CIVIL_LISTING_GRAPHQL_URL",
-		"http://localhost:8889/query",
-	)
-	os.Setenv(
-		"CRAWL_CONTRACT_ADDRESSES",
-		"civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_TYPE_NAME",
-		"postgresql",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_ADDRESS",
-		"localhost",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_PORT",
-		"5432",
-	)
-	os.Setenv(
-		"CRAWL_PERSISTER_POSTGRES_DBNAME",
-		"civil_crawler",
-	)
-	config := &utils.CrawlerConfig{}
-	err := config.PopulateFromEnv()
-
-	if err != nil {
-		t.Errorf("Should have populated env vars: err: %v", err)
 	}
 	if len(config.ContractAddresses["multisigwallet"]) <= 0 {
 		t.Errorf("Should have fetched listing addresses: len: %v, err: %v",
