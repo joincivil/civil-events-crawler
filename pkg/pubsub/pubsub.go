@@ -23,6 +23,7 @@ func NewCrawlerPubSub(projectID string, topic string) (*CrawlerPubSub, error) {
 // CrawlerPubSubMessage is the message sent from the crawler
 type CrawlerPubSubMessage struct {
 	NewsroomException bool   `json:"newsroomException"`
+	MultiSigException bool   `json:"multiSigException"`
 	ContractAddress   string `json:"contractAddress"`
 }
 
@@ -51,6 +52,21 @@ func (c *CrawlerPubSub) BuildMessage(newsroomException bool,
 	return &cpubsub.GooglePubSubMsg{Topic: c.Topic, Payload: string(msgBytes)}, nil
 }
 
+// BuildMultiSigMessage builds a message for the publisher
+func (c *CrawlerPubSub) BuildMultiSigMessage(multiSigException bool,
+	contractAddress string) (*cpubsub.GooglePubSubMsg, error) {
+	msg := CrawlerPubSubMessage{
+		MultiSigException: multiSigException,
+		ContractAddress:   contractAddress,
+	}
+	msgBytes, err := json.Marshal(msg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cpubsub.GooglePubSubMsg{Topic: c.Topic, Payload: string(msgBytes)}, nil
+}
+
 // PublishProcessorTriggerMessage publishes an empty message to process events
 func (c *CrawlerPubSub) PublishProcessorTriggerMessage() error {
 	msg, err := c.BuildMessage(false, "")
@@ -63,6 +79,15 @@ func (c *CrawlerPubSub) PublishProcessorTriggerMessage() error {
 // PublishNewsroomExceptionMessage sends a message to pubsub to get all past events for a newsroom
 func (c *CrawlerPubSub) PublishNewsroomExceptionMessage(contractAddress string) error {
 	msg, err := c.BuildMessage(true, contractAddress)
+	if err != nil {
+		return err
+	}
+	return c.GooglePubsub.Publish(msg)
+}
+
+// PublishMultiSigExceptionMessage sends a message to pubsub to get all past events for a multiSig
+func (c *CrawlerPubSub) PublishMultiSigExceptionMessage(contractAddress string) error {
+	msg, err := c.BuildMultiSigMessage(true, contractAddress)
 	if err != nil {
 		return err
 	}

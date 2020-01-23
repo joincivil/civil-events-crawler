@@ -292,8 +292,13 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 	}
 
 	// We need to get past newsroom events for the newsroom contract of a newly added watcher
-	if event.EventType() == "Application" {
-		newsroomAddr := event.EventPayload()["ListingAddress"].(common.Address)
+	if event.EventType() == "Application" || (event.ContractName() == "NewsroomFactory" && event.EventType() == "Instantiation") {
+		var newsroomAddr common.Address
+		if event.EventType() == "Application" {
+			newsroomAddr = event.EventPayload()["ListingAddress"].(common.Address)
+		} else {
+			newsroomAddr = event.EventPayload()["Instantiation"].(common.Address)
+		}
 		newsroomEvents, err := c.FilterAddedNewsroomContract(newsroomAddr)
 		if err != nil {
 			return errors.WithMessage(err, "error filtering new newsroom contract")
@@ -301,11 +306,37 @@ func (c *EventCollector) handleEvent(payload interface{}) interface{} {
 
 		errs := c.eventDataPersister.SaveEvents(newsroomEvents)
 		if len(errs) > 0 {
-			return errors.WithMessage(errs[0], "error saving events for application")
+			return errors.WithMessage(errs[0], "error saving events for application or newsroom instantiation")
 		}
 
 		if c.crawlerPubSub != nil {
 			err := c.crawlerPubSub.PublishNewsroomExceptionMessage(newsroomAddr.Hex())
+			if err != nil {
+				return errors.WithMessagef(err, "error sending message for event %v to pubsub", event.Hash())
+			}
+		}
+	}
+
+	// We need to get past newsroom events for the newsroom contract of a newly added watcher
+	if event.EventType() == "Application" || (event.ContractName() == "MultiSigWalletFactoryContract" && event.EventType() == "Instantiation") {
+		var multiSigAddr common.Address
+		if event.EventType() == "Application" {
+			multiSigAddr = event.EventPayload()["Applicant"].(common.Address)
+		} else {
+			multiSigAddr = event.EventPayload()["Instantiation"].(common.Address)
+		}
+		multiSigEvents, err := c.FilterAddedMultiSigContract(multiSigAddr)
+		if err != nil {
+			return errors.WithMessage(err, "error filtering new newsroom contract")
+		}
+
+		errs := c.eventDataPersister.SaveEvents(multiSigEvents)
+		if len(errs) > 0 {
+			return errors.WithMessage(errs[0], "error saving events for application or multi sig instantiation")
+		}
+
+		if c.crawlerPubSub != nil {
+			err := c.crawlerPubSub.PublishMultiSigExceptionMessage(multiSigAddr.Hex())
 			if err != nil {
 				return errors.WithMessagef(err, "error sending message for event %v to pubsub", event.Hash())
 			}

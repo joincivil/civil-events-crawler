@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	envVarPrefix       = "crawl"
-	listingsPerRequest = 50
+	envVarPrefix = "crawl"
 )
 
 // NOTE(PN): After envconfig populates CrawlerConfig with the environment vars,
@@ -98,31 +97,20 @@ type PageInfo struct {
 	HasNextPage graphql.Boolean
 }
 
-// NOTE(PN): These are two separate queries because whitelistedOnly will always return
-// the value of true or false for this flag and can't be mixed with other params right now
-type whitelistedListingQuery struct {
-	TcrListings struct {
-		Edges    []Edge
-		PageInfo PageInfo
-	} `graphql:"tcrListings(first: $first, after: $after, whitelistedOnly: true)"`
+var allListingAddressesQuery struct {
+	AllListingAddresses []graphql.String `graphql:"allListingAddresses"`
 }
 
-type currentAppActiveChallengeListingQuery struct {
-	TcrListings struct {
-		Edges    []Edge
-		PageInfo PageInfo
-	} `graphql:"tcrListings(first: $first, after: $after, activeChallenge: true, currentApplication: true)"`
+var allMultiSigAddressesQuery struct {
+	AllMultiSigAddresses []graphql.String `graphql:"allMultiSigAddresses"`
 }
 
-// FetchListingAddresses retrieves the list of Civil newsroom listings if given
+// FetchListingAddresses retrieves the list of Civil newsroom addresses if given
 // the endpoint URL
 func (c *CrawlerConfig) FetchListingAddresses() error {
 	if c.CivilListingsGraphqlURL == "" {
 		return nil
 	}
-
-	first := listingsPerRequest
-	after := graphql.String("")
 
 	var addressStrings []string
 	var addressObjs []common.Address
@@ -134,72 +122,60 @@ func (c *CrawlerConfig) FetchListingAddresses() error {
 
 	client := graphql.NewClient(c.CivilListingsGraphqlURL, nil)
 
-	// Fetch all the current applications and actively challenged
-LoopA:
-	for {
-		vars := map[string]interface{}{
-			"first": graphql.Int(first),
-			"after": after,
-		}
-
-		q := currentAppActiveChallengeListingQuery{}
-		err := client.Query(context.Background(), &q, vars)
-		if err != nil {
-			return err
-		}
-		// Look at all the result edges and capture name/addresses
-		edges := q.TcrListings.Edges
-		for _, edge := range edges {
-			listing := edge.Node
-			log.Infof("adding newsroom contract: %v, %v", listing.Name, string(listing.ContractAddress))
-			addressStrings = append(addressStrings, string(listing.ContractAddress))
-			addressObjs = append(addressObjs, common.HexToAddress(string(listing.ContractAddress)))
-		}
-
-		// Figure out next page cursor
-		if !q.TcrListings.PageInfo.HasNextPage {
-			break LoopA
-		}
-		after = q.TcrListings.PageInfo.EndCursor
+	// Fetch all the known listing addreses
+	q := allListingAddressesQuery
+	err := client.Query(context.Background(), &q, nil)
+	if err != nil {
+		return err
 	}
-
-	// Reset after value
-	after = graphql.String("")
-
-	// Fetch all the whitelisted
-LoopB:
-	for {
-		vars := map[string]interface{}{
-			"first": graphql.Int(first),
-			"after": after,
-		}
-
-		q := whitelistedListingQuery{}
-		err := client.Query(context.Background(), &q, vars)
-		if err != nil {
-			return err
-		}
-		// Look at all the result edges and capture name/addresses
-		edges := q.TcrListings.Edges
-		for _, edge := range edges {
-			listing := edge.Node
-			log.Infof("adding newsroom contract: %v, %v", listing.Name, string(listing.ContractAddress))
-			addressStrings = append(addressStrings, string(listing.ContractAddress))
-			addressObjs = append(addressObjs, common.HexToAddress(string(listing.ContractAddress)))
-		}
-
-		// Figure out next page cursor
-		if !q.TcrListings.PageInfo.HasNextPage {
-			break LoopB
-		}
-		after = q.TcrListings.PageInfo.EndCursor
+	// Look at all the addresses and add to slices
+	addrs := q.AllListingAddresses
+	for _, addr := range addrs {
+		addressStrings = append(addressStrings, string(addr))
+		addressObjs = append(addressObjs, common.HexToAddress(string(addr)))
 	}
 
 	c.ContractAddresses[newsroomContractName] = strings.Join(addressStrings, "|")
 	c.ContractAddressObjs[newsroomContractName] = append(
 		c.ContractAddressObjs[newsroomContractName], addressObjs...)
 
-	log.Infof("addresses len = %v", len(addressStrings))
+	return nil
+}
+
+// FetchMultiSigAddresses retrieves the list of Civil multi sig addresses if given
+// the endpoint URL
+func (c *CrawlerConfig) FetchMultiSigAddresses() error {
+	if c.CivilListingsGraphqlURL == "" {
+		return nil
+	}
+
+	var addressStrings []string
+	var addressObjs []common.Address
+
+	multiSigContractName := "multisigwallet"
+	if c.ContractAddresses[multiSigContractName] != "" {
+		addressStrings = strings.Split(c.ContractAddresses[multiSigContractName], "|")
+	}
+
+	client := graphql.NewClient(c.CivilListingsGraphqlURL, nil)
+
+	// Fetch all the known multi sig addreses
+	q := allMultiSigAddressesQuery
+	err := client.Query(context.Background(), &q, nil)
+	if err != nil {
+		return err
+	}
+	// Look at all the addresses and add to slices
+	addrs := q.AllMultiSigAddresses
+	for _, addr := range addrs {
+		addressStrings = append(addressStrings, string(addr))
+		addressObjs = append(addressObjs, common.HexToAddress(string(addr)))
+	}
+
+	c.ContractAddresses[multiSigContractName] = strings.Join(addressStrings, "|")
+	c.ContractAddressObjs[multiSigContractName] = append(
+		c.ContractAddressObjs[multiSigContractName], addressObjs...)
+
 	return nil
 }
 
@@ -287,6 +263,11 @@ func (c *CrawlerConfig) PopulateFromEnv() error {
 	err = c.FetchListingAddresses()
 	if err != nil {
 		log.Errorf("Unable to fetch the Civil listing addresses: err: %v", err)
+	}
+
+	err = c.FetchMultiSigAddresses()
+	if err != nil {
+		log.Errorf("Unable to fetch the Civil multi sig addresses: err: %v", err)
 	}
 
 	err = c.populatePersisterType()
