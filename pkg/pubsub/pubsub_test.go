@@ -79,7 +79,7 @@ func TestBuildMessage(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error building message for pubsub %v", err)
 	}
-	if message.Payload != fmt.Sprintf("{\"newsroomException\":true,\"contractAddress\":\"%s\"}", event.ContractAddress().Hex()) {
+	if message.Payload != fmt.Sprintf("{\"newsroomException\":true,\"multiSigException\":false,\"contractAddress\":\"%s\"}", event.ContractAddress().Hex()) {
 		t.Errorf("Message payload contents are wrong %v", message.Payload)
 	}
 	if message.Topic != "testTopic" {

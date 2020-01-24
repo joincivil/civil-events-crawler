@@ -2,13 +2,15 @@
 package utils_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/joincivil/civil-events-crawler/pkg/utils"
+	cconfig "github.com/joincivil/go-common/pkg/config"
 	"net/http"
 	"os"
 	"testing"
-
-	"github.com/joincivil/civil-events-crawler/pkg/utils"
-	cconfig "github.com/joincivil/go-common/pkg/config"
 )
 
 // CRAWL_ETH_API_URL=http://ethaddress.com CRAWL_CONTRACT_ADDRESSES=civiltcr:0x77e5aabddb760fba989a1c4b2cdd4aa8fa3d311d,newsroom:0xdfe273082089bb7f70ee36eebcde64832fe97e55 CRAWL_PERSISTER_TYPE_NAME=postgresql CRAWL_PERSISTER_POSTGRES_ADDRESS=localhost CRAWL_PERSISTER_POSTGRES_PORT=5432 CRAWL_PERSISTER_POSTGRES_DBNAME=civil_crawler go run cmd/crawler/main.go
@@ -190,61 +192,50 @@ func TestPersisterTypeFromName(t *testing.T) {
 }
 
 func testGraphqlResponse(w http.ResponseWriter, r *http.Request) {
-	message := `
-	{
-		"data": {
-			"tcrListings": {
-				"edges": [
-					{
-						"node": {
-							"name": "The Intercept",
-							"contractAddress": "0xADbB46098E06dBE18aFF2416920FF03EA6814e7b"
-						}
-					},
-					{
-						"node": {
-							"name": "Spectrum News - NY1",
-							"contractAddress": "0x5572DBfa985b1127219ff38f4A10AdB10311725b"
-						}
-					},
-					{
-						"node": {
-							"name": "New York Times",
-							"contractAddress": "0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA"
-						}
-					},
-					{
-						"node": {
-							"name": "The Drudge Report",
-							"contractAddress": "0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9"
-						}
-					},
-					{
-						"node": {
-							"name": "WWMT",
-							"contractAddress": "0xA3a7056f4727d9E8094957D937b993adB35f21fF"
-						}
-					},
-					{
-						"node": {
-							"name": "Project Veritas",
-							"contractAddress": "0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8"
-						}
-					},
-					{
-						"node": {
-							"name": "The Los Angeles Times",
-							"contractAddress": "0xcFfd0E01AD3712B776740aa9766034850dbA2725"
-						}
-					}
-				],
-				"pageInfo": {
-					"endCursor": "b2Zmc2V0fHx8MzY=",
-					"hasNextPage": false
-				}
+	buf := new(bytes.Buffer)
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
+		fmt.Printf("Error reading from r.Body")
+	}
+
+	m := make(map[string]string)
+	err = json.Unmarshal(buf.Bytes(), &m)
+	if err != nil {
+		fmt.Printf("Error Unmarshalling Request Body")
+	}
+
+	var message string
+	if m["query"] == "{allListingAddresses}" {
+		message = `
+		{
+			"data": {
+				"allListingAddresses": [
+					"0xADbB46098E06dBE18aFF2416920FF03EA6814e7b",
+					"0x5572DBfa985b1127219ff38f4A10AdB10311725b",
+					"0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA",
+					"0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9",
+					"0xA3a7056f4727d9E8094957D937b993adB35f21fF",
+					"0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8",
+					"0xcFfd0E01AD3712B776740aa9766034850dbA2725"
+				]
 			}
-		}
+		}`
+	} else {
+		message = `
+		{
+			"data": {
+				"allMultiSigAddresses": [
+					"0xADbB46098E06dBE18aFF2416920FF03EA6814e7b",
+					"0x5572DBfa985b1127219ff38f4A10AdB10311725b",
+					"0xF71B43B1d4a0462fA9a37F7A3E5f947804A73bfA",
+					"0x76a1f346aAA3a1Dc27A5b967b76B096b787055D9",
+					"0xA3a7056f4727d9E8094957D937b993adB35f21fF",
+					"0xc2A0456154456f0d4e73F6f5acbCd08Ea6A6B2E8",
+					"0xcFfd0E01AD3712B776740aa9766034850dbA2725"
+				]
+			}
 	}`
+	}
 	w.Write([]byte(message)) // nolint: errcheck
 }
 
@@ -302,10 +293,19 @@ func TestFetchListingAddresses(t *testing.T) {
 		t.Errorf("Should have fetched listing addresses: len: %v, err: %v",
 			len(config.ContractAddresses["newsroom"]), err)
 	}
-	// 1 newsroom from config, 14 from graphql
-	if len(config.ContractAddressObjs["newsroom"]) != 15 {
+	// 1 newsroom from config, 7 from graphql
+	if len(config.ContractAddressObjs["newsroom"]) != 8 {
 		t.Errorf("Should have fetched listing 8 address objs: len: %v, err: %v",
 			len(config.ContractAddressObjs["newsroom"]), err)
+	}
+	if len(config.ContractAddresses["multisigwallet"]) <= 0 {
+		t.Errorf("Should have fetched listing addresses: len: %v, err: %v",
+			len(config.ContractAddresses["multisigwallet"]), err)
+	}
+	// 0 multi sigs from config, 7 from graphql
+	if len(config.ContractAddressObjs["multisigwallet"]) != 7 {
+		t.Errorf("Should have fetched listing 7 address objs: len: %v, err: %v",
+			len(config.ContractAddressObjs["multisigwallet"]), err)
 	}
 	server.Shutdown(context.TODO()) // nolint: errcheck
 }
