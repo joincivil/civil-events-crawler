@@ -35,18 +35,3 @@ func TestSetupHTTPEthClient(t *testing.T) {
 		t.Errorf("Should have gotten error")
 	}
 }
-
-func TestSetupWsEthClient(t *testing.T) {
-	client, err := utils.SetupWebsocketEthClient("wss://rinkeby.infura.io/ws", nil, 0)
-	if err != nil {
-		t.Errorf("Should not have gotten error: err: %v", err)
-	}
-	if client == nil {
-		t.Errorf("Should not have nil client")
-	}
-
-	_, err = utils.SetupWebsocketEthClient("https://rinkeby.infura.io/ws", nil, 0)
-	if err == nil {
-		t.Errorf("Should have gotten error")
-	}
-}
