@@ -166,7 +166,6 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
         Start: startBlock,
     }
 
-    log.Infof("Filtering {{$.ContractTypeName}} {{.EventMethod}} for %v at block %v", f.contractAddress.Hex(), startBlock)
 	var itr *contract.{{$.ContractTypeName}}{{.EventMethod}}Iterator
 	var err error
 	maxRetries := 3
@@ -181,7 +180,6 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
         {{end}}
         )
 		if err == nil {
-            log.Infof("Done filter: {{$.ContractTypeName}} {{.EventMethod}} for %v", f.contractAddress.Hex())
 			break
 		}
 		if retry >= maxRetries {
@@ -191,7 +189,6 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
         log.Infof("Retrying filter: {{$.ContractTypeName}} {{.EventMethod}} for %v: err: %v", f.contractAddress.Hex(), err)
 		retry++
     }
-    beforeCount := len(pastEvents)
     nextEvent := itr.Next()
     for nextEvent {
         modelEvent, err := model.NewEventFromContractEvent("{{.EventMethod}}", f.ContractName(), f.contractAddress, itr.Event, ctime.CurrentEpochSecsInInt64(), model.Filterer)
@@ -202,8 +199,6 @@ func (f *{{$.ContractTypeName}}Filterers) startFilter{{.EventMethod}}(startBlock
         pastEvents = append(pastEvents, modelEvent)
         nextEvent = itr.Next()
     }
-    numEventsAdded := len(pastEvents) - beforeCount
-    log.Infof("{{$.ContractTypeName}} {{.EventMethod}} added: %v", numEventsAdded)
     return pastEvents, nil
 }
 

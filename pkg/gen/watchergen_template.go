@@ -128,7 +128,6 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 				}
 			}(cancelFn, killCancel)
 			recvChan := make(chan *{{$.ContractTypePackage}}.{{.EventType}})
-			log.Infof("startupFn: Starting Watch{{.EventMethod}}: addr: %v", w.contractAddress.Hex())
 			sub, err := w.contract.Watch{{.EventMethod}}(
 				opts,
 				recvChan,
@@ -147,7 +146,6 @@ func (w *{{$.ContractTypeName}}Watchers) startWatch{{.EventMethod}}(eventRecvCha
 				}
 				return nil, nil, errors.Wrap(err, "startupFn: error starting Watch{{.EventMethod}}")
 			}
-			log.Infof("startupFn: Watch{{.EventMethod}} started: addr: %v", w.contractAddress.Hex())
 			return sub, recvChan, nil
 		}
 		sub, recvChan, err := startupFn()
